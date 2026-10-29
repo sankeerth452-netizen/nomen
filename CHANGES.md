@@ -55,3 +55,12 @@ Every sentence on screen is now written for the people using the tool: fashion b
 - **Screens:** nav "Datasets" → "Keywords", "Users" → "Logins"; the keyword upload speaks in plain words (column choices like "Monthly searches", "Cost per click", "Don't use" instead of `volume`, `cpc`, `ignore`; statuses "In use", "Ready to use", "Earlier version"; "Use this list" instead of "Activate"); roles show as Owner / Brand admin / Buyer; dates are written out ("29 Oct 2026, 8:16 pm"); the demo strip says "Preview version · the results shown are examples, not live".
 - **New friendly pages** for a missing page and for unexpected errors, replacing Next.js's "404" and "Application error" screens. Error details go to the browser console for engineers, never onto the page.
 - **Tests:** a check that a Google outage shows only plain sentences while the raw error is kept for engineers; that the browser never receives usage, raw errors or model details, even for admins; that needs-input messages are friendly questions; and that old stored sentences are translated or hidden. 87 tests pass.
+
+## Name and logo: Nomen (29 Oct 2026)
+
+The product is now **Nomen** (Latin for *name*), tagline **Named to be found.** Checked first: "Namesake" is an established fashion label and "SwingTag" is existing fashion-wholesale software; no product-naming software called Nomen turned up. A formal trademark search is still needed before public use.
+
+- **Logo:** a swing tag (the cardboard tag every garment carries its name on) with a Didone **N** cut out of it and an eyelet holding a wine string loop, beside **NOMEN** in tracked capitals. Drawn from real Bodoni Moda outlines (SIL Open Font License): wordmark at optical size 28, monogram N at 14 so it reads at favicon size.
+- **In the app:** `src/components/Logo.tsx` (`<Lockup />`, `<Wordmark />`, `<Mark />`, `PRODUCT_NAME`, `TAGLINE`) draws the logo inline in the header, sign-in page, footer and error pages. Browser tabs read "Nomen · Named to be found." and "History · Nomen" etc. New favicon (`src/app/icon.svg`) and phone app icon (`src/app/apple-icon.png`); both now load on the sign-in page too (they were blocked by the login check before).
+- **Brand kit:** `docs/brand/` has the SVG files, the brand board image, a one-page guide (colours, clear space, minimum sizes, don'ts) and `compose.py` to rebuild every file from the font.
+- `APP_NAME` defaults to "Nomen". Infrastructure names (`render.yaml` services, the database) are unchanged.

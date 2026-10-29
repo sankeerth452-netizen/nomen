@@ -1,4 +1,6 @@
-# Product Name Optimiser
+# Nomen
+
+*Named to be found.* (Formerly "Product Name Optimiser".) Logo, colours and brand rules: `docs/brand/`.
 
 Evidence-led PDP product titles for retail brands. Built from the Claude build brief.
 First brand: Sportsgirl. Multi-brand from day one.

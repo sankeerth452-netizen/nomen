@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import DatasetsClient from "./DatasetsClient";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Keyword lists" };
 
 export default async function DatasetsPage() {
   const user = await requirePageUser("admin");

@@ -8,6 +8,7 @@ import { failStaleGenerations } from "@/lib/pipeline/run";
 import { PHOTOS, photoForType } from "@/lib/photos";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "History" };
 const PAGE = 24;
 
 /** Plain-English card label: the buyer's verdict when there is one, otherwise where the run stands. */

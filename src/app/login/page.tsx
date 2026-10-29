@@ -2,6 +2,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { PHOTOS } from "@/lib/photos";
+import { Lockup, TAGLINE } from "@/components/Logo";
 
 export default function LoginPage() {
   const [error, setError] = useState("");
@@ -36,7 +37,7 @@ export default function LoginPage() {
       </div>
       <main className="signin-panel">
         <form onSubmit={submit}>
-          <span className="wordmark"><b>Product Name</b><i>Optimiser</i></span>
+          <div className="signin-brand"><Lockup height={40} /><span className="eyebrow">{TAGLINE}</span></div>
           <h1>Sign in</h1>
           <p className="muted">Use the login you were given. No login? Ask your account manager.</p>
           <label htmlFor="username">Username</label>

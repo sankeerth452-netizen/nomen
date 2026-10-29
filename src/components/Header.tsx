@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { SessionUser } from "@/lib/auth/session";
 import SignOut from "@/app/SignOut";
+import { Lockup, PRODUCT_NAME } from "@/components/Logo";
 
 type Section = "create" | "history" | "datasets" | "users" | "credits";
 
@@ -14,8 +15,8 @@ export default function Header({ user, active }: { user: SessionUser; active?: S
       {process.env.PROVIDER_MODE === "mock" && <div className="strip">Preview version · the results shown are examples, not live</div>}
       <header className="masthead">
         <div className="masthead-in">
-          <Link href="/" className="wordmark" aria-label="Product Name Optimiser, home">
-            <b>Product Name</b><i>Optimiser</i>
+          <Link href="/" className="wordmark" aria-label={`${PRODUCT_NAME}, home`}>
+            <Lockup height={16} thread={false} />
           </Link>
           <nav className="mainnav" aria-label="Main">
             {item("/", "create", "Create")}

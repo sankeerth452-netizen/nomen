@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import { PHOTOS } from "@/lib/photos";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Photography credits" };
 
 export default async function Credits() {
   const user = await requirePageUser();

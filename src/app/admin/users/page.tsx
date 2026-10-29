@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import UsersClient from "./UsersClient";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Logins" };
 
 export default async function UsersPage() {
   const user = await requirePageUser("owner");

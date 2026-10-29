@@ -1,11 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { PHOTOS } from "@/lib/photos";
+import { Lockup } from "@/components/Logo";
 
 export default function NotFound() {
   return (
     <main className="narrow">
-      <Link href="/" className="wordmark" style={{ marginBottom: 40 }}><b>Product Name</b><i>Optimiser</i></Link>
+      <Link href="/" className="wordmark" style={{ marginBottom: 44 }}><Lockup height={18} thread={false} /></Link>
       <div className="empty-state">
         <div className="ph"><Image src={PHOTOS.empty.src} alt={PHOTOS.empty.alt} fill placeholder="blur" sizes="(max-width: 760px) 100vw, 480px" /></div>
         <div>

@@ -4,7 +4,7 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
   AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters"),
   APP_BASE_URL: z.string().optional(), // informational only; nothing depends on it, so a bad value must never block the app
-  APP_NAME: z.string().default("Product Name Optimiser"),
+  APP_NAME: z.string().default("Nomen"),
   PROVIDER_MODE: z.enum(["live", "mock"]).default("live"),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().optional(),

@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import GeneratorClient from "./GeneratorClient";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Create" };
 
 export default async function Home() {
   const user = await requirePageUser();
