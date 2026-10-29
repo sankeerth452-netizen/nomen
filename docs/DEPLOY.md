@@ -37,8 +37,9 @@ Do this when you have the keys, ideally after one test run on your computer with
    dashboard, not the website password).
 2. In `render.yaml`, change `PROVIDER_MODE` from `mock` to `live`, commit and push. Render redeploys, and the
    "Preview version" strip disappears.
-3. Name one real piece and check the result by eye before telling the team. The AI and Google connections have
-   only been tested against stand-ins so far.
+3. Check `https://<your-site>/api/health` shows `"mode":"live","configured":true` (`configured:false` means a key is
+   missing in Environment).
+4. Name one real piece and check the result by eye before telling the team.
 
 ## If something goes wrong
 

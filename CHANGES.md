@@ -90,3 +90,8 @@ Fixed from what the real runs showed:
 - **Claude connection updated to current guidance:** explicit effort per call (low for reading the buyer's details, medium for writing the name), a 16,000-token ceiling because Opus 5.5 always thinks and thinking counts toward the limit (the old 1,500/3,000 ceilings risked cut-off answers; only tokens used are billed), and server-side refusal fallbacks (`fallbacks: "default"`) so a declined request is re-run on Anthropic's recommended model instead of failing.
 
 Seen but not changed yet: on the blouse, Claude's reason said shoppers "searched for" phrases that were really just our Google checks, with no search figures behind them. Worth tightening in the prompt as part of the quality tests.
+
+## Live (29 Oct 2026)
+
+- `render.yaml`: `PROVIDER_MODE` switched from `mock` to `live`, after the Anthropic and DataForSEO keys were set in Render. Real Claude names and real Google results; the "Preview version" strip goes away.
+- `/api/health` now also says `mode` (`live` / `preview`) and `configured` (whether all four keys are set). Yes/no flags only, never a key, so the switch can be confirmed from outside without signing in.

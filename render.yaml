@@ -21,10 +21,10 @@ services:
         generateValue: true
       - key: APP_NAME
         value: Nomen
-      # Preview first: example search results, no paid AI or Google calls, and a "Preview version" strip on
-      # every page. Change to "live" once the four keys below are set (docs/DEPLOY.md, "Going fully live").
+      # live: real Claude and real Google results (the four keys below must be set in Render).
+      # mock: preview with example results, no paid calls, and a "Preview version" strip on every page.
       - key: PROVIDER_MODE
-        value: mock
+        value: live
       # Your first owner login, created on deploy. Password: 12+ characters.
       - key: OWNER_USERNAME
         sync: false
