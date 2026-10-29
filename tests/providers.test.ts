@@ -4,7 +4,8 @@ import { DataForSeoProvider, parseResponse, SerpProviderError } from "@/lib/prov
 import { ClaudeClient } from "@/lib/providers/anthropic";
 import { AiError } from "@/lib/providers/types";
 import { Recommendation } from "@/lib/pipeline/types";
-import { serpCacheKey } from "@/lib/serp/cache";
+import { providerCacheKey, serpCacheKey } from "@/lib/serp/cache";
+import { MockSerpProvider } from "@/lib/providers/mock";
 import { classifyPage, cleanTitle } from "@/lib/serp/reduce";
 import { planQueries } from "@/lib/pipeline/queries";
 import { emptyFacts } from "./helpers";
@@ -41,11 +42,19 @@ describe("DataForSEO (mocked HTTP; not run against the live API)", () => {
 
 describe("Claude client (mocked SDK)", () => {
   const rec = { recommended_title: "Black Midi Dress", confidence: "high", primary_keyword: null, supporting_keywords: [], title_structure: [], alternatives: [], reason: "r", warnings: [], evidence_keyword_ids: [], evidence_serp_result_ids: [] };
-  const fake = (res: object) => new ClaudeClient("k", "any-model", { messages: { parse: async () => res } } as never);
+  const fake = (res: object) => new ClaudeClient("k", "any-model", { beta: { messages: { parse: async () => res } } } as never);
   it("returns parsed output and token usage", async () => {
     const out = await fake({ stop_reason: "end_turn", parsed_output: rec, usage: { input_tokens: 10, output_tokens: 5 } }).json("sys", "user", Recommendation);
     expect(out.data.recommended_title).toBe("Black Midi Dress");
     expect(out.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
+  });
+  it("asks for structured output with an explicit effort, and opts into refusal fallbacks on models that support them", async () => {
+    let sent: Record<string, unknown> = {};
+    const capture = (model: string) => new ClaudeClient("k", model, { beta: { messages: { parse: async (p: Record<string, unknown>) => { sent = p; return { stop_reason: "end_turn", parsed_output: rec, usage: { input_tokens: 1, output_tokens: 1 } }; } } } } as never);
+    await capture("claude-opus-5-5").json("s", "u", Recommendation, "low");
+    expect(sent).toMatchObject({ model: "claude-opus-5-5", max_tokens: 16000, fallbacks: "default", betas: ["server-side-fallback-2026-07-01"], output_config: { effort: "low" } });
+    await capture("claude-haiku-4-5").json("s", "u", Recommendation);
+    expect(sent).not.toHaveProperty("fallbacks");
   });
   it("maps refusal and unparseable output to typed errors", async () => {
     await expect(fake({ stop_reason: "refusal", usage: { input_tokens: 1, output_tokens: 1 } }).json("s", "u", Recommendation)).rejects.toMatchObject({ code: "ai_refusal" });
@@ -58,6 +67,17 @@ describe("serp helpers", () => {
     const s = { location: "Australia", language: "English", device: "desktop", depth: 10 };
     expect(serpCacheKey("  Black  MIDI dress ", s)).toBe(serpCacheKey("black midi dress", s));
     expect(serpCacheKey("black midi dress", { ...s, device: "mobile" })).not.toBe(serpCacheKey("black midi dress", s));
+  });
+  it("never lets example (mock) results be served as real Google results", () => {
+    const s = { location: "Australia", language: "English", device: "desktop", depth: 10 };
+    const live = new DataForSeoProvider("a", "b");
+    expect(providerCacheKey(new MockSerpProvider(), "black midi dress", s)).not.toBe(providerCacheKey(live, "black midi dress", s));
+    expect(providerCacheKey(live, "black midi dress", s)).toBe(`live:${serpCacheKey("black midi dress", s)}`);
+  });
+  it("drops Google's own pages from the results", () => {
+    const withGoogle = structuredClone(fixture);
+    withGoogle.tasks[0].result[0].items.push({ type: "organic", rank_group: 9, domain: "google.com", title: "Shop Ruched Detail Maxi Dress", url: "https://www.google.com/search?q=x" });
+    expect(parseResponse("q", withGoogle).results.map((r) => r.domain)).not.toContain("google.com");
   });
   it("classifies pages and strips site names", () => {
     expect(classifyPage("https://x.com/p/1", "Black Dress", "x.com")).toBe("product");

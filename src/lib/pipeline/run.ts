@@ -120,7 +120,7 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
           serp.push({ id: `S${serp.length + 1}`, query: f.response.query, rank: r.rank, title: r.title, domain: r.domain, pageClass: r.pageClass, snippet: r.snippet, checkedAt: f.response.checkedAt, cached: f.cached });
         }
       });
-      await addUsage(id, { serpCalls: calls - cachedN, serpCached: cachedN, serpCostUsd: cost, notes: searchErrors });
+      await addUsage(id, { serpCalls: calls, serpCached: cachedN, serpCostUsd: cost, notes: searchErrors }); // calls already excludes cache hits
       const serpStatus: EvidenceBundle["serpStatus"] = !queries.length ? "skipped" : failed === queries.length ? "unavailable" : failed ? "partial" : "ok";
 
       // ── Stage 6: SERP patterns + best-case word order from both sources ──

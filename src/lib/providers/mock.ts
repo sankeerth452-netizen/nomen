@@ -54,6 +54,7 @@ export class MockRecommender implements Recommender {
 
 /** Returns canned product-page style results for any query. MOCK. */
 export class MockSerpProvider implements SerpProvider {
+  readonly cacheNamespace = "mock";
   calls: string[] = [];
   fail = false;
   async search({ query }: { query: string }): Promise<SerpResponse> {

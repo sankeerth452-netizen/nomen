@@ -70,7 +70,7 @@ extracting, matching, searching, building, then completed / needs_input / failed
 
 Claude failure keeps all evidence; `POST /api/generations/:id/retry` resumes from it with no repeat SERP spend.
 Set `PROVIDER_MODE=mock` to run the whole thing without paid keys (mock providers are deterministic stand-ins, labelled as such in output).
-**Not yet exercised live:** the Anthropic and DataForSEO clients are tested against mocked responses only.
+**Checked live (29 Oct 2026):** two real generations with Claude Opus 5.5 and DataForSEO, about 17 seconds and US$0.04-0.05 each.
 
 ## Tests
 `npm run typecheck && npm run lint && npm test`. Tests wipe data: set `TEST_DATABASE_URL` to a throwaway DB (CI uses its own empty one).

@@ -1,14 +1,21 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { z } from "zod";
 import { EXTRACTION_SYSTEM, RECOMMEND_SYSTEM } from "../prompts";
 import { ExtractedFacts, Recommendation } from "../pipeline/types";
 import { AiError, type AiUsage, type FactExtractor, type ProductFacts, type Recommender } from "./types";
 
+/** Models that accept server-side refusal fallbacks in the "default" form on the Claude API. */
+const FALLBACK_DEFAULT = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"]);
+
+type Effort = "low" | "medium" | "high";
+
 /**
  * Claude via the Messages API with structured outputs. The model name comes from ANTHROPIC_MODEL (never hard-coded).
  * Current models reject temperature/prefill and forced tool use, so we send none of them: JSON shape is enforced by
- * output_config.format. NOTE: covered by mocked-client tests only. It has NOT been run against the live API.
+ * output_config.format. Thinking is always on for Opus 5.5 and counts toward max_tokens, so the ceiling is generous
+ * (only tokens actually used are billed) and effort is set per call. If the model declines a request, the server
+ * re-runs it on Anthropic's recommended fallback (fallbacks: "default") instead of failing.
  */
 export class ClaudeClient {
   private client: Anthropic;
@@ -16,14 +23,16 @@ export class ClaudeClient {
     this.client = client ?? new Anthropic({ apiKey, timeout: 60_000, maxRetries: 2 });
   }
 
-  async json<T extends z.ZodType>(system: string, user: string, schema: T, maxTokens = 4000): Promise<{ data: z.infer<T>; usage: AiUsage }> {
+  async json<T extends z.ZodType>(system: string, user: string, schema: T, effort: Effort = "medium", maxTokens = 16000): Promise<{ data: z.infer<T>; usage: AiUsage }> {
     try {
-      const res = await this.client.messages.parse({
+      const fallback = FALLBACK_DEFAULT.has(this.model);
+      const res = await this.client.beta.messages.parse({
         model: this.model,
         max_tokens: maxTokens,
         system,
         messages: [{ role: "user", content: user }],
-        output_config: { format: zodOutputFormat(schema) },
+        output_config: { format: betaZodOutputFormat(schema), effort },
+        ...(fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
       });
       const usage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens };
       if (res.stop_reason === "refusal") throw new AiError("The model declined this request", "ai_refusal");
@@ -44,7 +53,7 @@ export class ClaudeFactExtractor implements FactExtractor {
   constructor(private c: ClaudeClient) {}
   async extract(input: { freeText: string; fields: Record<string, string | undefined> }) {
     const user = JSON.stringify({ buyer_request: input.freeText, fields: Object.fromEntries(Object.entries(input.fields).filter(([, v]) => v)) });
-    const { data, usage } = await this.c.json(EXTRACTION_SYSTEM, user, ExtractedFacts, 1500);
+    const { data, usage } = await this.c.json(EXTRACTION_SYSTEM, user, ExtractedFacts, "low"); // reading facts: simple
     return { facts: data as ProductFacts, usage };
   }
 }
@@ -53,7 +62,7 @@ export class ClaudeRecommender implements Recommender {
   constructor(private c: ClaudeClient) {}
   async recommend(payload: Record<string, unknown>, repair?: { errors: string[]; previous: unknown }) {
     const user = JSON.stringify(repair ? { ...payload, repair: { your_previous_answer: repair.previous, validation_errors: repair.errors, instruction: "Fix every validation error. Change nothing else." } } : payload);
-    const { data, usage } = await this.c.json(RECOMMEND_SYSTEM, user, Recommendation, 3000);
+    const { data, usage } = await this.c.json(RECOMMEND_SYSTEM, user, Recommendation, "medium");
     return { recommendation: data, usage };
   }
 }

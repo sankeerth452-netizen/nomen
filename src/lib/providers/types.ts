@@ -41,6 +41,8 @@ export interface FactExtractor {
 }
 
 export interface SerpProvider {
+  /** Keeps cached results from different sources apart: example (mock) results must never be served as real ones. Default "live". */
+  readonly cacheNamespace?: string;
   search(opts: { query: string; location: string; language: string; device: string; depth: number }): Promise<SerpResponse>;
 }
 

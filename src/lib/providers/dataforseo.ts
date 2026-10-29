@@ -52,7 +52,8 @@ export function parseResponse(query: string, json: unknown): SerpResponse {
   if (j.status_code !== 20000 || !task || task.status_code !== 20000) {
     throw new SerpProviderError(`DataForSEO task failed: ${task?.status_message ?? "unknown"}`, false);
   }
-  const items = (task.result?.[0]?.items ?? []).filter((i) => i.type === "organic" && i.title && i.url);
+  // Google's own pages (shopping and image links) aren't competitors' titles, so they aren't evidence of market wording.
+  const items = (task.result?.[0]?.items ?? []).filter((i) => i.type === "organic" && i.title && i.url && !/(^|\.)google\.[a-z.]+$/i.test(i.domain ?? safeHost(i.url)));
   const results: SerpResult[] = items.slice(0, 10).map((i, idx) => ({
     rank: i.rank_group ?? idx + 1,
     title: String(i.title).slice(0, 200),

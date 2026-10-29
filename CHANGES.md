@@ -71,3 +71,22 @@ The product is now **Nomen** (Latin for *name*), tagline **Named to be found.** 
 - The seed now creates the **first owner login** from `OWNER_USERNAME` / `OWNER_PASSWORD` set in Render, and runs before every deploy with the migrations, so no Render shell is needed. It only ever creates: an existing login is never changed, and a bad password logs a plain warning instead of failing the deploy.
 - `docs/DEPLOY.md`: plain step-by-step for Render, getting it ready for people, going fully live, and what to do if something goes wrong.
 - Checked: clean production build with no secrets present, production server serves sign-in, icons and health check; the full history scanned for secrets before the first push to the public repo.
+
+## First real runs with Claude and Google (29 Oct 2026)
+
+Two real generations on this machine before switching the live site over (Claude Opus 5.5 + DataForSEO, Australia):
+
+| Input | Name | Confidence | Time | Cost |
+| --- | --- | --- | --- | --- |
+| black dress with ruching, midi length, mesh sleeves | Black Mesh Sleeve Ruched Midi Dress | High | ~20 s | ~US$0.05 |
+| white linen blouse with lace trim and puff sleeves | White Linen Lace Trim Puff Sleeve Blouse | Low (the local keyword list only has dresses, so no search figures matched) | 17 s | ~US$0.04 |
+
+Both kept part-only details attached ("mesh sleeve", "lace trim"), wrote plain-English reasons and three real alternatives, and the extraction followed the new prompt.
+
+Fixed from what the real runs showed:
+- **Example results could be served as real Google results.** Search results are cached for 7 days, and example (preview) results shared cache entries with real ones, so after switching live the first week could show "Retailer A" as evidence. Cache entries are now kept apart by source (`mock:` / `live:` keys); old shared entries are never read again.
+- **Search-call count went negative** when results came from the cache (double-subtracted). Fixed.
+- **Google's own pages** (shopping/image links on google.com) are no longer counted as competitor titles.
+- **Claude connection updated to current guidance:** explicit effort per call (low for reading the buyer's details, medium for writing the name), a 16,000-token ceiling because Opus 5.5 always thinks and thinking counts toward the limit (the old 1,500/3,000 ceilings risked cut-off answers; only tokens used are billed), and server-side refusal fallbacks (`fallbacks: "default"`) so a declined request is re-run on Anthropic's recommended model instead of failing.
+
+Seen but not changed yet: on the blouse, Claude's reason said shoppers "searched for" phrases that were really just our Google checks, with no search figures behind them. Worth tightening in the prompt as part of the quality tests.

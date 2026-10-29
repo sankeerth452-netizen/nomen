@@ -32,8 +32,8 @@ Postgres). Check Render's pricing page for today's figures. AI and Google costs 
 
 Do this when you have the keys, ideally after one test run on your computer with them.
 
-1. In Render, open **nomen → Environment** and fill in `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (for example
-   `claude-sonnet-5-5`), `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` (the API password from DataForSEO's
+1. In Render, open **nomen → Environment** and fill in `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (`claude-opus-5-5`,
+   the model it was tested with), `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` (the API password from DataForSEO's
    dashboard, not the website password).
 2. In `render.yaml`, change `PROVIDER_MODE` from `mock` to `live`, commit and push. Render redeploys, and the
    "Preview version" strip disappears.
