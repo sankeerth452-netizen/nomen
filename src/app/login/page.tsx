@@ -1,5 +1,7 @@
 "use client";
+import Image from "next/image";
 import { useState } from "react";
+import { PHOTOS } from "@/lib/photos";
 
 export default function LoginPage() {
   const [error, setError] = useState("");
@@ -24,17 +26,27 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 380, paddingTop: 80 }}>
-      <form className="card" onSubmit={submit}>
-        <h1 style={{ marginTop: 0, fontSize: 20 }}>Sign in</h1>
-        <p className="muted" style={{ marginTop: 0 }}>Use the login you were given. No login? Ask your account manager.</p>
-        <label htmlFor="username">Username</label>
-        <input id="username" name="username" autoComplete="username" autoCapitalize="none" required />
-        <label htmlFor="password">Password</label>
-        <input id="password" name="password" type="password" autoComplete="current-password" required />
-        {error && <p className="err">{error}</p>}
-        <p><button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button></p>
-      </form>
-    </main>
+    <div className="signin">
+      <div className="signin-photo">
+        <Image src={PHOTOS.login.src} alt={PHOTOS.login.alt} fill priority placeholder="blur" sizes="(max-width: 820px) 100vw, 55vw" />
+        <div className="signin-caption">
+          <h2>Every piece deserves the name shoppers search for.</h2>
+          <p>Evidence-led product names, built only from what you tell us about the piece.</p>
+        </div>
+      </div>
+      <main className="signin-panel">
+        <form onSubmit={submit}>
+          <span className="wordmark"><b>Product Name</b><i>Optimiser</i></span>
+          <h1>Sign in</h1>
+          <p className="muted">Use the login you were given. No login? Ask your account manager.</p>
+          <label htmlFor="username">Username</label>
+          <input id="username" name="username" autoComplete="username" autoCapitalize="none" required />
+          <label htmlFor="password">Password</label>
+          <input id="password" name="password" type="password" autoComplete="current-password" required />
+          {error && <p className="err" style={{ marginTop: 16 }}>{error}</p>}
+          <button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+        </form>
+      </main>
+    </div>
   );
 }

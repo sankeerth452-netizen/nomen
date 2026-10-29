@@ -46,9 +46,11 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
   const volCols = Object.values(mapping).filter((t) => t === "volume").length;
 
   return (
-    <>
+    <div className="admin-grid">
+      <div>
       <div className="card">
-        <strong>1. Upload (CSV or XLSX)</strong>
+        <strong>Upload a new version</strong>
+        <p className="muted" style={{ fontSize: 14 }}>CSV or XLSX, up to 30MB. A bad file never touches the active version.</p>
         {brands.length > 1 && <><label>Brand</label><select value={brandId} onChange={(e) => setBrandId(e.target.value)}>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></>}
         <label>Version name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Generic Oct 2026" />
         <label>File</label><input type="file" accept=".csv,.xlsx" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setSummary(null); }} />
@@ -57,7 +59,7 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
 
       {preview && (
         <div className="card" style={{ marginTop: 16 }}>
-          <strong>2. Check column mapping</strong>
+          <strong>Check the columns</strong>
           <table><tbody>
             {preview.headers.filter(Boolean).map((h) => (
               <tr key={h}><td>{h}<br /><span className="muted">{String(preview.preview[0]?.[h] ?? "")}</span></td>
@@ -79,26 +81,30 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
 
       {summary && (
         <div className="card" style={{ marginTop: 16 }}>
-          <strong>3. Import summary</strong>
+          <strong>Import summary</strong>
           <p>{summary.accepted.toLocaleString()} accepted · {summary.rejected.toLocaleString()} rejected · {summary.duplicates.toLocaleString()} duplicates (of {summary.rowsRead.toLocaleString()} rows)</p>
           {Object.entries(summary.warnings).map(([k, v]) => <p key={k} className="muted">{k.replace(/_/g, " ")}: {v.count.toLocaleString()}</p>)}
           <p className="muted">Saved as an inactive version. Activate it below when you&apos;re happy.</p>
         </div>
       )}
       {error && <p className="err">{error}</p>}
+      </div>
 
-      <h2 style={{ fontSize: 17, marginTop: 28 }}>Versions</h2>
-      <table>
+      <div className="admin-section">
+      <h2>Versions</h2>
+      <div className="table-wrap"><table>
         <thead><tr><th>Name</th><th>Status</th><th>Rows</th><th>Uploaded</th><th /></tr></thead>
         <tbody>{datasets.map((d) => (
           <tr key={d.id}>
-            <td>{d.name}</td><td>{d.active ? "ACTIVE" : d.status}</td>
+            <td>{d.name}</td><td><span className={`status${d.active ? " on" : d.status === "failed" ? " off" : ""}`}>{d.active ? "Active" : d.status}</span></td>
             <td>{d.accepted.toLocaleString()}{d.rejected + d.duplicate > 0 && <> · <a href={`/api/admin/datasets/${d.id}/rejections`}>{(d.rejected + d.duplicate).toLocaleString()} rejected</a></>}</td>
             <td>{d.created}</td>
             <td>{!d.active && ["ready", "archived"].includes(d.status) && <button className="link" onClick={() => activate(d.id)}>{d.status === "archived" ? "Roll back to this" : "Activate"}</button>}</td>
           </tr>
         ))}</tbody>
-      </table>
-    </>
+      </table></div>
+      {datasets.length === 0 && <p className="muted" style={{ marginTop: 16 }}>No versions yet. Upload the first keyword file on the left.</p>}
+      </div>
+    </div>
   );
 }

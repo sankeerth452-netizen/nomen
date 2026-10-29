@@ -44,7 +44,8 @@ export default function UsersClient({ users, brands }: { users: U[]; brands: B[]
   }
 
   return (
-    <>
+    <div className="admin-grid">
+      <div>
       <form className="card" onSubmit={create}>
         <strong>New login</strong>
         <label>Username</label><input name="username" required autoCapitalize="none" />
@@ -58,13 +59,16 @@ export default function UsersClient({ users, brands }: { users: U[]; brands: B[]
       </form>
       {msg && <p className="card" style={{ marginTop: 16 }}><code>{msg}</code></p>}
       {error && <p className="err">{error}</p>}
-      <table style={{ marginTop: 24 }}>
+      </div>
+      <div className="admin-section">
+      <h2>Everyone with access</h2>
+      <div className="table-wrap"><table>
         <thead><tr><th>Username</th><th>Brand</th><th>Role</th><th>Last login</th><th /></tr></thead>
         <tbody>
           {users.map((u) => (
             <tr key={u.username} style={{ opacity: u.active ? 1 : 0.5 }}>
               <td>{u.username}<br /><span className="muted">{u.displayName}</span></td>
-              <td>{u.brand}</td><td>{u.role}</td><td>{u.lastLogin}</td>
+              <td>{u.brand}</td><td><span className={`status${u.active ? "" : " off"}`}>{u.active ? u.role : "disabled"}</span></td><td>{u.lastLogin}</td>
               <td>
                 <button className="link" onClick={() => act("reset_password", u.username)}>Reset password</button>{" · "}
                 <button className="link" onClick={() => act(u.active ? "disable" : "enable", u.username)}>{u.active ? "Disable" : "Enable"}</button>
@@ -72,7 +76,8 @@ export default function UsersClient({ users, brands }: { users: U[]; brands: B[]
             </tr>
           ))}
         </tbody>
-      </table>
-    </>
+      </table></div>
+      </div>
+    </div>
   );
 }

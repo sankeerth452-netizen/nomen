@@ -1,5 +1,6 @@
-import Link from "next/link";
 import { requirePageUser } from "@/lib/auth/guards";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import { db } from "@/lib/db";
 import DatasetsClient from "./DatasetsClient";
 
@@ -15,9 +16,16 @@ export default async function DatasetsPage() {
   });
   const activeIds = new Set(brands.map((b) => b.activeKeywordDatasetId));
   return (
+    <>
+    <Header user={user} active="datasets" />
     <main>
-      <p><Link href="/">← Back</Link></p>
-      <h1 style={{ fontSize: 22 }}>Keyword datasets</h1>
+      <div className="page-head">
+        <div>
+          <span className="eyebrow">Search demand</span>
+          <h1>Keyword <em>datasets</em></h1>
+          <p>Upload the brand&apos;s keyword export (Ahrefs or Keyword Planner). Every upload becomes a new version; nothing changes until you activate it.</p>
+        </div>
+      </div>
       <DatasetsClient
         brands={brands.map((b) => ({ id: b.id, name: b.name }))}
         datasets={datasets.map((d) => ({
@@ -27,5 +35,7 @@ export default async function DatasetsPage() {
         }))}
       />
     </main>
+    <Footer />
+    </>
   );
 }
