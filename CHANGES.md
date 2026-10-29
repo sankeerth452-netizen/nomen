@@ -64,3 +64,10 @@ The product is now **Nomen** (Latin for *name*), tagline **Named to be found.** 
 - **In the app:** `src/components/Logo.tsx` (`<Lockup />`, `<Wordmark />`, `<Mark />`, `PRODUCT_NAME`, `TAGLINE`) draws the logo inline in the header, sign-in page, footer and error pages. Browser tabs read "Nomen · Named to be found." and "History · Nomen" etc. New favicon (`src/app/icon.svg`) and phone app icon (`src/app/apple-icon.png`); both now load on the sign-in page too (they were blocked by the login check before).
 - **Brand kit:** `docs/brand/` has the SVG files, the brand board image, a one-page guide (colours, clear space, minimum sizes, don'ts) and `compose.py` to rebuild every file from the font.
 - `APP_NAME` defaults to "Nomen". Infrastructure names (`render.yaml` services, the database) are unchanged.
+
+## Ready to deploy (29 Oct 2026)
+
+- `render.yaml`: services renamed `nomen` / `nomen-db` (Nitin's live app uses the old names), Singapore region for Australian users, and the first deploy runs as a **preview** (`PROVIDER_MODE=mock`, the "Preview version" strip shows) until the AI and Google keys are added.
+- The seed now creates the **first owner login** from `OWNER_USERNAME` / `OWNER_PASSWORD` set in Render, and runs before every deploy with the migrations, so no Render shell is needed. It only ever creates: an existing login is never changed, and a bad password logs a plain warning instead of failing the deploy.
+- `docs/DEPLOY.md`: plain step-by-step for Render, getting it ready for people, going fully live, and what to do if something goes wrong.
+- Checked: clean production build with no secrets present, production server serves sign-in, icons and health check; the full history scanned for secrets before the first push to the public repo.

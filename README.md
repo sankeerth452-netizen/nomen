@@ -76,9 +76,10 @@ Set `PROVIDER_MODE=mock` to run the whole thing without paid keys (mock provider
 `npm run typecheck && npm run lint && npm test`. Tests wipe data: set `TEST_DATABASE_URL` to a throwaway DB (CI uses its own empty one).
 
 ## Deploy (Render)
-Push to GitHub, create a Blueprint from `render.yaml`. Set the `sync: false` secrets in the dashboard
-(`ANTHROPIC_*`, `DATAFORSEO_*`, `APP_BASE_URL`). Migrations run pre-deploy. Then, in the Render shell:
-`npm run db:seed` and `npm run user:create -- --username me --role owner`.
+Step-by-step in **`docs/DEPLOY.md`**. In short: Render → New → Blueprint → this repo. `render.yaml` creates the `nomen`
+web service and `nomen-db` Postgres (Singapore). Migrations and the seed run before every deploy; the seed also creates
+the first owner login from `OWNER_USERNAME` / `OWNER_PASSWORD` (set in Render, never changed once it exists).
+The first deploy runs as a **preview** (`PROVIDER_MODE=mock`): set the Anthropic and DataForSEO keys, then switch it to `live`.
 
 ## Assumptions (brief section 19)
 Defaults live in `prisma/seed.ts` and are editable per brand: max title 70 chars, order colour > feature > material > length > type,

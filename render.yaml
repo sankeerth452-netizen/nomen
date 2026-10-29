@@ -1,10 +1,12 @@
+# Nomen on Render: one web service + one Postgres database. Step-by-step: docs/DEPLOY.md
 services:
   - type: web
-    name: product-name-optimiser
+    name: nomen
     runtime: node
+    region: singapore # closest Render region to Australia
     plan: starter
     buildCommand: npm ci && npm run build
-    preDeployCommand: npm run db:migrate
+    preDeployCommand: npm run db:migrate && npm run db:seed
     startCommand: npm run start
     healthCheckPath: /api/health
     autoDeploy: true
@@ -13,14 +15,21 @@ services:
         value: 22.12.0
       - key: DATABASE_URL
         fromDatabase:
-          name: product-name-db
+          name: nomen-db
           property: connectionString
       - key: AUTH_SECRET
         generateValue: true
-      - key: APP_BASE_URL
-        sync: false
+      - key: APP_NAME
+        value: Nomen
+      # Preview first: example search results, no paid AI or Google calls, and a "Preview version" strip on
+      # every page. Change to "live" once the four keys below are set (docs/DEPLOY.md, "Going fully live").
       - key: PROVIDER_MODE
-        value: live
+        value: mock
+      # Your first owner login, created on deploy. Password: 12+ characters.
+      - key: OWNER_USERNAME
+        sync: false
+      - key: OWNER_PASSWORD
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: ANTHROPIC_MODEL
@@ -35,6 +44,7 @@ services:
         value: "3"
 
 databases:
-  - name: product-name-db
+  - name: nomen-db
     plan: basic-256mb
+    region: singapore
     postgresMajorVersion: "16"
