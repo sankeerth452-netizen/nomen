@@ -69,3 +69,53 @@ export function classify(tok: string): AttrClass | null {
 
 /** Every word the vocabulary treats as a colour/material/length/style/occasion/audience attribute (singular). */
 export const ATTRIBUTE_VOCAB_TOKENS = new Set([...COLOURS, ...MATERIALS, ...LENGTHS, ...STYLES, ...OCCASIONS, ...AUDIENCE_TERMS].map(singular));
+
+/**
+ * Word-form key for matching the buyer's words against the AI's and a title's. Plurals and -ing/-ed/-e endings fold
+ * together (ruching/ruched/ruche, pleats/pleated, sleeves/sleeved, knitted/knit), but a "-less" word never folds into
+ * its opposite (sleeveless is not sleeve, strapless is not strappy), and other look-alikes stay apart (longline/long).
+ */
+export function wordStem(w: string): string {
+  let s = w.toLowerCase();
+  if (s.length <= 3 || /less$/.test(s)) return s;
+  s = singular(s);
+  const cut = (suffix: string) => (s.endsWith(suffix) && s.length - suffix.length >= 4 ? ((s = s.slice(0, -suffix.length)), true) : false);
+  if (cut("ing") || cut("ed")) { if (/([^aeiouls])\1$/.test(s)) s = s.slice(0, -1); } // knitted -> knit; frill, dress stay
+  else if (/ery$/.test(s) && s.length >= 6) s = s.slice(0, -1); // embroidery -> embroider
+  if (s.endsWith("e") && s.length >= 5) s = s.slice(0, -1); // ruche -> ruch, sleeve -> sleev
+  return s;
+}
+
+/** Garment parts a colour or material can be limited to ("mesh sleeves", "lace trim", "white collar"). */
+export const GARMENT_PARTS = ["sleeve","trim","hem","collar","cuff","panel","strap","neckline","yoke","lining","insert","waistband","bodice","pocket","hood","back","detail","overlay","sole","handle","button","buckle","zip"];
+export const isGarmentPart = (w: string) => GARMENT_PARTS.some((p) => wordStem(p) === wordStem(w));
+
+export type PartScope = { word: string; part: string };
+
+/**
+ * Colours/materials a buyer detail ties to one part: "mesh sleeve" means only the sleeve is mesh. Not scoped when the
+ * same word is also stated for the whole product (`wholeProduct`: the colour/material/pattern facts).
+ */
+export function partScoped(units: string[], wholeProduct: string[]): PartScope[] {
+  const whole = new Set(wholeProduct.flatMap((x) => x.toLowerCase().split(/\s+/)).map(wordStem));
+  const out: PartScope[] = [];
+  for (const u of units) {
+    const t = u.toLowerCase().split(/\s+/).filter(Boolean);
+    const part = t[t.length - 1];
+    if (t.length < 2 || !isGarmentPart(part)) continue;
+    for (const w of t.slice(0, -1)) {
+      const cls = classify(w);
+      if ((cls === "colour" || cls === "material") && !whole.has(wordStem(w))) out.push({ word: w, part });
+    }
+  }
+  return out;
+}
+
+/** True when every use of the scoped word sits right before its part (within two words: "Mesh Puff Sleeve" counts). */
+export function keepsPartScope(tokens: string[], s: PartScope): boolean {
+  const word = wordStem(s.word), part = wordStem(s.part);
+  return tokens.every((t, i) => wordStem(t) !== word || tokens.slice(i + 1, i + 3).some((n) => wordStem(n) === part));
+}
+
+/** Praise and filler that say nothing about the product: not a detail a title can be built from. */
+export const FILLER_WORDS = new Set(["nice","cute","pretty","beautiful","lovely","gorgeous","stunning","great","good","perfect","amazing","awesome","new","best","favourite","fave","cool","stylish","trendy","chic"]);

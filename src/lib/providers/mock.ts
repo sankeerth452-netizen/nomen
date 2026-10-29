@@ -22,13 +22,16 @@ export class MockRecommender implements Recommender {
   async recommend(payload: Record<string, unknown>) {
     this.calls++;
     if (this.failTimes > 0) { this.failTimes--; const { AiError } = await import("./types"); throw new AiError("mock outage", "ai_unavailable"); }
-    const p = payload as { title_order: { final: string[]; suggested_title: string }; keyword_evidence: { id: string; keyword: string }[]; serp_evidence: { id: string }[]; product_facts: { product_type: string } };
+    const p = payload as { title_order: { final: string[]; suggested_title: string }; keyword_evidence: { id: string; keyword: string }[]; serp_evidence: { id: string }[]; product_facts: { product_type: string }; brand_rules?: { max_title_length?: number } };
     const kws = p.keyword_evidence;
     const noun = p.product_facts.product_type;
-    const attrs = p.title_order.final;
-    const title = p.title_order.suggested_title;
-    const alts: { title: string; trade_off: string }[] = [];
     const cap = (s: string) => s.replace(/(^|\s)([a-z])/g, (_, a, b) => a + b.toUpperCase());
+    // Drop trailing details until the title fits the brand's maximum length.
+    const max = p.brand_rules?.max_title_length ?? Infinity;
+    let attrs = p.title_order.final;
+    let title = p.title_order.suggested_title;
+    while (title.length > max && attrs.length) { attrs = attrs.slice(0, -1); title = cap([...attrs, noun].join(" ")); }
+    const alts: { title: string; trade_off: string }[] = [];
     if (attrs.length >= 2) alts.push({ title: cap([...attrs.slice(1), noun].join(" ")), trade_off: `Drops "${attrs[0]}" for a shorter, broader title.` });
     if (attrs.length >= 3) alts.push({ title: cap([...attrs.slice(0, -1), noun].join(" ")), trade_off: `Drops "${attrs[attrs.length - 1]}" for a shorter title.` });
     return {

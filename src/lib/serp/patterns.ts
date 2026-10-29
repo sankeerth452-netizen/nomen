@@ -1,4 +1,4 @@
-import { ATTRIBUTE_VOCAB_TOKENS, classify, singular } from "../vocab/fashion";
+import { ATTRIBUTE_VOCAB_TOKENS, classify, singular, wordStem } from "../vocab/fashion";
 import { orderTokens, tokenScore, type OrderModel } from "../keywords/orderModel";
 import type { ProductFacts } from "../providers/types";
 import type { OrderGuidance, SerpEvidenceItem, SerpPatterns } from "../pipeline/types";
@@ -31,7 +31,7 @@ function anchors(units: string[]) {
 export function derivePatterns(serp: SerpEvidenceItem[], facts: ProductFacts, attrTerms: string[]): SerpPatterns {
   const unitAnchors = [...anchors(buyerUnits(facts)).keys()];
   const type = facts.product_type ? singular(facts.product_type.toLowerCase().split(/\s+/).pop()!) : "";
-  const supported = new Set([...attrTerms.map(singular), type]);
+  const supported = new Set([...attrTerms.map(wordStem), wordStem(type)]); // "ruched" in results is the buyer's "ruching"
   // Only results that are actually about this kind of product.
   const relevant = serp.filter((r) => ["product", "category"].includes(r.pageClass) && toks(cleanTitle(r.title)).some((t) => singular(t) === type));
   const unique = new Map<string, SerpEvidenceItem>();
@@ -48,7 +48,7 @@ export function derivePatterns(serp: SerpEvidenceItem[], facts: ProductFacts, at
       if (s === type) nouns.set(w, (nouns.get(w) ?? 0) + 1);
       else if (ATTRIBUTE_VOCAB_TOKENS.has(s)) {
         wording.set(s, (wording.get(s) ?? 0) + 1);
-        if (!supported.has(s)) unsupported.set(s, (unsupported.get(s) ?? 0) + 1);
+        if (!supported.has(wordStem(s))) unsupported.set(s, (unsupported.get(s) ?? 0) + 1);
       }
     });
     const present = buyer.filter((b) => t.some((w) => singular(w) === b));

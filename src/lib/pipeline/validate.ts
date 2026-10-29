@@ -1,7 +1,7 @@
 import type { ProductFacts } from "../providers/types";
 import type { BrandSettings } from "../brand";
 import type { EvidenceBundle, Recommendation } from "./types";
-import { STOP_WORDS, singular } from "../vocab/fashion";
+import { STOP_WORDS, keepsPartScope, partScoped, singular, wordStem } from "../vocab/fashion";
 import { normalizeKeyword } from "../keywords/normalize";
 import { titleCase } from "../serp/patterns";
 
@@ -11,16 +11,19 @@ const sameSet = (a: string, b: string) => [...new Set(toks(a).map(singular))].so
 
 export type Validated = { errors: string[]; warnings: string[]; cleaned: Recommendation };
 
-/** Words a title may contain: the buyer's own facts, the product noun, stop words, and brand-approved vocabulary. */
+/**
+ * Words a title may contain: the buyer's own facts, the product noun, stop words, and brand-approved vocabulary, in any
+ * word form ("ruching" allows "Ruched"). Word forms never cross into opposites: "sleeve" does not allow "Sleeveless".
+ */
 export function allowedWords(facts: ProductFacts, brand: BrandSettings): Set<string> {
   const vals = [facts.product_type ?? "", ...facts.colour, ...facts.material, ...facts.pattern, ...facts.fit_or_silhouette, ...facts.length, ...facts.features, ...facts.occasion_or_style, facts.audience ?? "", ...facts.buyer_terms, ...brand.allowedVocabulary, ...brand.requiredCoreTerms];
   const set = new Set<string>();
-  for (const v of vals) for (const w of toks(v)) { set.add(singular(w)); set.add(w); }
+  for (const v of vals) for (const w of toks(v)) { set.add(singular(w)); set.add(w); set.add(wordStem(w)); }
   return set;
 }
 
 const unsupportedIn = (title: string, allowed: Set<string>) =>
-  toks(title).filter((w) => !STOP_WORDS.has(w) && !allowed.has(w) && !allowed.has(singular(w)));
+  toks(title).filter((w) => !STOP_WORDS.has(w) && !allowed.has(w) && !allowed.has(singular(w)) && !allowed.has(wordStem(w)));
 
 /**
  * Stage 7 validator. Deterministic checks between Claude and the user (brief section 6). `errors` trigger one repair
@@ -30,6 +33,7 @@ export function validateRecommendation(rec: Recommendation, facts: ProductFacts,
   const errors: string[] = [];
   const warnings = [...rec.warnings];
   const allowed = allowedWords(facts, brand);
+  const scoped = partScoped([...facts.features, ...facts.fit_or_silhouette], [...facts.colour, ...facts.material, ...facts.pattern]);
   const noun = singular((facts.product_type ?? "").toLowerCase().split(/\s+/).pop() ?? "");
   const fmt = (t: string) => (brand.titleCase === "title" ? titleCase(t) : brand.titleCase === "lower" ? t.toLowerCase() : t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
 
@@ -45,11 +49,12 @@ export function validateRecommendation(rec: Recommendation, facts: ProductFacts,
     for (const b of banned) if (new RegExp(`(^|\\s)${b.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(t.toLowerCase())) errors.push(`${label} contains prohibited term "${b}"`);
     const bad = unsupportedIn(t, allowed);
     if (bad.length) errors.push(`${label} uses words the buyer did not supply: ${bad.join(", ")}`);
+    for (const sc of scoped) if (!keepsPartScope(toks(t), sc)) errors.push(`${label} uses "${sc.word}" for the whole product, but only the ${sc.part} is ${sc.word}: keep it as "${sc.word} ${sc.part}"`);
+    if (t.length > brand.maxTitleLength) errors.push(`${label} is ${t.length} characters; the brand maximum is ${brand.maxTitleLength}`);
   };
   check(title, "Recommended title");
 
   for (const core of brand.requiredCoreTerms) if (core && !title.toLowerCase().includes(core.toLowerCase())) warnings.push(`Brand core term "${core}" is not in the title`);
-  if (title.length > brand.maxTitleLength) warnings.push(`Title is ${title.length} characters (brand maximum ${brand.maxTitleLength})`);
 
   // keyword citations must exist in THIS generation's evidence
   const known = new Map(bundle.keywords.map((k) => [normalizeKeyword(k.keyword), k]));

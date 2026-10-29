@@ -4,7 +4,7 @@ import { env } from "../env";
 import { parseBrandSettings } from "../brand";
 import { keywordEvidenceFor } from "../keywords/evidence";
 import { attributeTerms } from "../keywords/retrieve";
-import { categoryForType } from "../vocab/fashion";
+import { FILLER_WORDS, categoryForType } from "../vocab/fashion";
 import { AiError, type AiUsage, type ProductFacts } from "../providers/types";
 import { getProviders, type Providers } from "../providers";
 import { EXTRACTION_PROMPT_VERSION, RECOMMEND_PROMPT_VERSION } from "../prompts";
@@ -88,6 +88,10 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
       const ev = await keywordEvidenceFor(g.brandId, facts, { keep: 30 });
       if (categoryForType(facts.product_type) === null && ev.rawCount === 0 && ev.datasetId) {
         await setStage(id, "needs_input", { result: json({ needs: "product_type", message: `We couldn't find "${facts.product_type}" in the keyword data. Choose a more specific product type (e.g. dress, top, boots).` }), durationMs: Date.now() - t0 });
+        return; // before any paid call
+      }
+      if (!attributeTerms(facts).some((t) => !FILLER_WORDS.has(t))) {
+        await setStage(id, "needs_input", { result: json({ needs: "details", message: `Add at least one real detail about this ${facts.product_type}: a colour, material, fit, length or feature. A title can't be built from the product type alone.` }), durationMs: Date.now() - t0 });
         return; // before any paid call
       }
       const keywords: KeywordEvidenceItem[] = ev.top.map((k, i) => ({ id: `K${i + 1}`, keyword: k.normalizedKeyword, searchVolume: k.searchVolume, category: k.category, score: +k.score.toFixed(3), flags: k.flags }));

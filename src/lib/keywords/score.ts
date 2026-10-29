@@ -1,6 +1,6 @@
 import {
   AUDIENCE_TERMS, COLOURS, COMMERCIAL_NOISE, INFORMATIONAL_PHRASES, LENGTHS, MATERIALS, OCCASIONS, STOP_WORDS, STYLES,
-  CLASS_ORDER, PLURAL_NATURAL, categoryForType, classify, singular,
+  CLASS_ORDER, PLURAL_NATURAL, categoryForType, classify, keepsPartScope, partScoped, singular, wordStem,
 } from "../vocab/fashion";
 import type { ProductFacts } from "../providers/types";
 import { attributeTerms, type RawCandidate } from "./retrieve";
@@ -40,13 +40,18 @@ export function scoreCandidate(c: RawCandidate, facts: ProductFacts, rules: Bran
   const typeTok = facts.product_type ? singular(facts.product_type.toLowerCase().split(/\s+/).pop()!) : "";
   const hasType = !!typeTok && kt.some((t) => singular(t) === typeTok);
 
-  const attrTokens = attributeTerms(facts).map(singular);
-  const factSet = new Set([...attrTokens, typeTok]);
+  // Matched by word form, so the buyer's "ruching" supports a "ruched midi dress" keyword.
+  const attrTokens = [...new Set(attributeTerms(facts).map(wordStem))];
+  const factSet = new Set([...attrTokens, wordStem(typeTok)]);
   const content = kt.filter((t) => !STOP_WORDS.has(t));
-  const supported = content.filter((t) => factSet.has(singular(t)));
-  const unsupportedAttrs = content.filter((t) => !factSet.has(singular(t)) && ATTRIBUTE_VOCAB.has(singular(t)));
+  const supported = content.filter((t) => factSet.has(wordStem(t)));
+  const unsupportedAttrs = content.filter((t) => !factSet.has(wordStem(t)) && ATTRIBUTE_VOCAB.has(singular(t)));
+  // A part-only detail ("mesh sleeve") does not support a keyword that calls the whole product mesh.
+  for (const sc of partScoped([...facts.features, ...facts.fit_or_silhouette], [...facts.colour, ...facts.material, ...facts.pattern])) {
+    if (!keepsPartScope(kt, sc) && !unsupportedAttrs.includes(sc.word)) unsupportedAttrs.push(sc.word);
+  }
 
-  const coverage = attrTokens.length ? attrTokens.filter((a) => content.some((t) => singular(t) === a)).length / attrTokens.length : 1;
+  const coverage = attrTokens.length ? attrTokens.filter((a) => content.some((t) => wordStem(t) === a)).length / attrTokens.length : 1;
   const precision = content.length ? supported.length / content.length : 0;
   let factRelevance = 0.55 * coverage + 0.45 * precision;
   if (unsupportedAttrs.length) {

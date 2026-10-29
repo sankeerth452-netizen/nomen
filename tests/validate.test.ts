@@ -32,9 +32,9 @@ describe("recommendation validator", () => {
     const strict = parseBrandSettings({ prohibitedTerms: ["ruched"] });
     expect(v({}, strict).errors.join()).toMatch(/prohibited term "ruched"/);
   });
-  it("warns (not errors) when over the length limit", () => {
+  it("errors (triggering the repair call) when over the length limit", () => {
     const r = v({ recommended_title: "Black Ruched Midi Dress Dress Dress Dress" });
-    expect(r.warnings.join()).toMatch(/characters/);
+    expect(r.errors.join()).toMatch(/41 characters; the brand maximum is 30/);
   });
   it("only allows keywords and evidence ids that exist in this generation", () => {
     expect(v({ primary_keyword: "invented keyword" }).errors.join()).toMatch(/not in the keyword evidence/);

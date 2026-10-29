@@ -4,6 +4,8 @@ import { createGeneration, runPipeline } from "@/lib/pipeline/run";
 import { MockFactExtractor, MockRecommender, MockSerpProvider } from "@/lib/providers/mock";
 import type { Providers } from "@/lib/providers";
 import { loadGenerationFor } from "@/lib/pipeline/access";
+import type { Recommendation } from "@/lib/pipeline/types";
+import type { Recommender } from "@/lib/providers/types";
 import { resetDb, seedBrand } from "./helpers";
 
 const fresh = () => {
@@ -126,6 +128,58 @@ describe("no paid calls before the input is sound", () => {
     expect(g.status).toBe("needs_input");
     expect((g.result as { needs: string }).needs).toBe("product_type");
     expect(serp.calls).toHaveLength(0);
+  });
+
+  it("no real product details (only the type and praise) stops before any SERP or recommendation call", async () => {
+    const { brand, user } = await seedBrand();
+    const { serp, recommender, providers } = fresh();
+    const g = await run(user, brand.id, { freeText: "nice dress", productType: "dress" }, providers);
+    expect(g.status).toBe("needs_input");
+    expect(g.result).toMatchObject({ needs: "details", message: expect.stringMatching(/at least one real detail about this dress/) });
+    expect(serp.calls).toHaveLength(0);
+    expect(recommender.calls).toBe(0);
+  });
+});
+
+describe("accuracy end to end", () => {
+  const tooLong: Recommender & { calls: number } = {
+    calls: 0,
+    async recommend() {
+      this.calls++;
+      const recommendation = { recommended_title: "Black Ruched Midi Dress Black Ruched Midi Dress", confidence: "high" as const, primary_keyword: null, supporting_keywords: [], title_structure: [], alternatives: [], reason: "r", warnings: [], evidence_keyword_ids: [], evidence_serp_result_ids: [] };
+      return { recommendation, usage: { inputTokens: 0, outputTokens: 0 } };
+    },
+  };
+
+  it("keeps 'mesh sleeves' on the sleeves: no whole-mesh title or keyword", async () => {
+    const { brand, user } = await seedBrand();
+    const g = await run(user, brand.id, { freeText: "black dress with ruching, midi length, mesh sleeves", productType: "dress" }, fresh().providers);
+    expect(g.status).toBe("completed");
+    const r = (g.result as { recommendation: Recommendation }).recommendation;
+    expect(r.recommended_title).toMatch(/Mesh Sleeve/);
+    expect(r.recommended_title).toMatch(/Ruched/);
+    expect(r.recommended_title).not.toMatch(/Mesh (?!Sleeve)/);
+    const cited = [r.primary_keyword, ...r.supporting_keywords].join(", ");
+    expect(cited).not.toMatch(/mesh midi dress/);
+  });
+
+  it("fits the brand's maximum title length", async () => {
+    const { brand, user } = await seedBrand({ maxTitleLength: 20 });
+    const g = await run(user, brand.id, dress, fresh().providers);
+    expect(g.status).toBe("completed");
+    const r = (g.result as { recommendation: Recommendation }).recommendation;
+    expect(r.recommended_title.length).toBeLessThanOrEqual(20);
+    r.alternatives.forEach((a) => expect(a.title.length).toBeLessThanOrEqual(20));
+  });
+
+  it("a recommender that stays over the limit after its one repair fails safely, never shows the long title", async () => {
+    const { brand, user } = await seedBrand({ maxTitleLength: 30 });
+    tooLong.calls = 0;
+    const g = await run(user, brand.id, dress, { ...fresh().providers, recommender: tooLong });
+    expect(tooLong.calls).toBe(2);
+    expect(g.status).toBe("failed");
+    expect(g.errorCode).toBe("ai_invalid");
+    expect(g.result).toBeNull();
   });
 });
 

@@ -53,17 +53,17 @@ npm run dataset:import -- --brand sportsgirl --file ./keywords.xlsx --sheet "Gen
 **Retrieval + scoring** (`src/lib/keywords/`): Postgres full-text + trigram pull ~100-400 candidates, code scores them
 (40% fact relevance, 20% product type + intent, 15% title suitability, 15% log-scaled demand, 10% category fit) and keeps the top 30.
 **Attribute order is learned, not configured.** At import we measure, per word, where it sits among the other attribute words in your real keywords (volume-weighted), plus head-to-head word-pair evidence, per category where there's enough data. e.g. colours lead; "slip", "crossbody" and "wedding" hug the product noun; "leather" comes before "platform" in shoes. It's stored with the dataset version. A brand can still force an order with `attributeOrder` in settings.
-Keywords with a colour/material/audience term the buyer didn't supply are excluded outright. Weights and attribute order are configurable.
+Keywords with a colour/material/audience term the buyer didn't supply are excluded outright, and so are keywords that put a part-only detail on the whole product ("black mesh midi dress" when only the sleeves are mesh). Weights and attribute order are configurable.
 
 ## Recommendation pipeline (`src/lib/pipeline/`)
 `POST /api/generations` starts a run in the background and returns an id; the client polls `GET /api/generations/:id` (status moves through
 extracting, matching, searching, building, then completed / needs_input / failed).
 
-1. **Facts:** Claude extracts structured facts; code then drops anything the buyer didn't write (grounding check). Conflicts or an unrecognised product type stop here, before any paid call.
+1. **Facts:** Claude extracts structured facts; code then drops anything the buyer didn't write (grounding check). Words match by form ("ruching" = "ruched") but never across opposites ("strappy" is not "strapless", "puff sleeve" is not "sleeveless"). A colour or material the buyer only wrote before a garment part ("mesh sleeves", "lace trim") is kept with that part, never as the whole product's. Conflicts, an unrecognised product type, or no real detail beyond the product type stop here, before any paid call.
 2. **Keywords:** top 30 from the active dataset (see above).
 3. **Live queries:** up to 3 (brand + env cap), planned in code: best dataset keyword, the buyer's details in learned order, an alternative phrasing. Cache-first (7 days), DataForSEO AU / English / desktop.
 4. **Patterns + order:** SERP intent mix, wording, and the word order result titles use. Final order = the keyword list's order, unless 3+ result titles clearly (75%+) disagree for a word pair.
-5. **Claude recommends** from a small evidence bundle (never the full dataset or raw SERP), then a **deterministic validator** checks: product noun present, no prohibited words, no word the buyer didn't supply, cited keywords/evidence ids exist, alternatives genuinely different. One repair call on failure, then it fails safe.
+5. **Claude recommends** from a small evidence bundle (never the full dataset or raw SERP), then a **deterministic validator** checks: product noun present, no prohibited words, no word the buyer didn't supply (any word form, no opposites), part-only details kept with their part, title within the brand's maximum length (hard limit), cited keywords/evidence ids exist, alternatives genuinely different. One repair call on failure, then it fails safe.
 6. **Honest caps:** SERP down means max Medium confidence and a visible label; limited keyword evidence means Low, no primary keyword, no demand claimed.
 
 Claude failure keeps all evidence; `POST /api/generations/:id/retry` resumes from it with no repeat SERP spend.
