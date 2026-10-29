@@ -6,8 +6,8 @@ export class DatasetError extends Error {}
 export async function activateDataset(datasetId: string, actorId?: string | null) {
   return db.$transaction(async (tx) => {
     const ds = await tx.keywordDataset.findUnique({ where: { id: datasetId }, include: { brand: true } });
-    if (!ds) throw new DatasetError("Dataset not found");
-    if (!["ready", "archived"].includes(ds.status)) throw new DatasetError(`A ${ds.status} dataset can't be activated`);
+    if (!ds) throw new DatasetError("We couldn't find that keyword list.");
+    if (!["ready", "archived"].includes(ds.status)) throw new DatasetError("This version can't be switched on. Only a version that uploaded cleanly can be used.");
 
     const previousId = ds.brand.activeKeywordDatasetId;
     if (previousId && previousId !== ds.id) {

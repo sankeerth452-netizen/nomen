@@ -21,9 +21,9 @@ export default async function DatasetsPage() {
     <main>
       <div className="page-head">
         <div>
-          <span className="eyebrow">Search demand</span>
-          <h1>Keyword <em>datasets</em></h1>
-          <p>Upload the brand&apos;s keyword export (Ahrefs or Keyword Planner). Every upload becomes a new version; nothing changes until you activate it.</p>
+          <span className="eyebrow">What shoppers search</span>
+          <h1>Keyword <em>lists</em></h1>
+          <p>The search figures behind every name. Upload a fresh export whenever you like: each one is saved as its own version, and nothing changes until you choose to use it.</p>
         </div>
       </div>
       <DatasetsClient
@@ -31,7 +31,7 @@ export default async function DatasetsPage() {
         datasets={datasets.map((d) => ({
           id: d.id, name: d.name, status: d.status, active: activeIds.has(d.id), brandId: d.brandId,
           accepted: d.rowsAccepted, rejected: d.rowsRejected, duplicate: d.rowsDuplicate,
-          created: d.createdAt.toISOString().slice(0, 16).replace("T", " "),
+          created: d.createdAt.toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }),
         }))}
       />
     </main>

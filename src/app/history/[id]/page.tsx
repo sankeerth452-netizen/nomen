@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requirePageUser, hasRole, HttpError } from "@/lib/auth/guards";
+import { requirePageUser, HttpError } from "@/lib/auth/guards";
 import { loadGenerationFor, presentGeneration } from "@/lib/pipeline/access";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -30,7 +30,7 @@ export default async function HistoryItem({ params }: { params: Promise<{ id: st
             <h1 style={{ fontSize: "clamp(28px, 3.4vw, 40px)", fontStyle: "italic", marginTop: 10 }}>“{gen.input.freeText}”</h1>
           </div>
         </div>
-        <ResultView gen={gen} brandName={brandName} canFeedback={g.userId === user.id} isAdmin={hasRole(user, "admin")} />
+        <ResultView gen={gen} brandName={brandName} canFeedback={g.userId === user.id} />
       </main>
       <Footer />
     </>

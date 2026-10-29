@@ -324,3 +324,5 @@ details[open].more summary::before, details[open].why summary::before { content:
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .card p > button { margin-top: 14px; }
+.card table select { min-width: 190px; font-size: 15px; }
+.card table td:first-child { padding-right: 16px; }

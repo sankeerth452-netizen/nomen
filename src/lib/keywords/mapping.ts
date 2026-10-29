@@ -51,7 +51,7 @@ export function suggestMapping(headers: string[]): ColumnMapping {
 
 export function validateMapping(m: ColumnMapping): string | null {
   const targets = Object.values(m);
-  if (targets.filter((t) => t === "keyword").length !== 1) return "Map exactly one column to keyword";
+  if (targets.filter((t) => t === "keyword").length !== 1) return "Choose exactly one column as the keyword.";
   for (const t of ["category", "subcategory", "competition", "cpc", "intent", "country", "language", "updated_at"] as const) {
     if (targets.filter((x) => x === t).length > 1) return `Only one column can map to ${t}`;
   }

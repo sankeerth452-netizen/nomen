@@ -18,9 +18,9 @@ export default async function UsersPage() {
     <main>
       <div className="page-head">
         <div>
-          <span className="eyebrow">Access</span>
+          <span className="eyebrow">Who can sign in</span>
           <h1>Client <em>logins</em></h1>
-          <p>Logins are created here only. There is no sign-up and no self-service password reset.</p>
+          <p>Create a login for each person who needs one. There&apos;s no public sign-up, and passwords are only reset from here.</p>
         </div>
       </div>
       <UsersClient
@@ -31,7 +31,7 @@ export default async function UsersPage() {
           role: u.role,
           brand: u.brand?.name ?? "—",
           active: u.active,
-          lastLogin: u.lastLoginAt?.toISOString().slice(0, 16).replace("T", " ") ?? "never",
+          lastLogin: u.lastLoginAt?.toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) ?? "Not yet",
         }))}
       />
     </main>

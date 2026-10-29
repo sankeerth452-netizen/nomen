@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { createGeneration, runPipeline } from "@/lib/pipeline/run";
 import { MockFactExtractor, MockRecommender, MockSerpProvider } from "@/lib/providers/mock";
 import type { Providers } from "@/lib/providers";
-import { loadGenerationFor } from "@/lib/pipeline/access";
+import { loadGenerationFor, presentGeneration } from "@/lib/pipeline/access";
 import type { Recommendation } from "@/lib/pipeline/types";
 import type { Recommender } from "@/lib/providers/types";
 import { resetDb, seedBrand } from "./helpers";
@@ -71,7 +71,7 @@ describe("fallbacks", () => {
     expect(g.status).toBe("completed");
     const r = g.result as { recommendation: { confidence: string; warnings: string[] }; meta: { serpStatus: string } };
     expect(r.meta.serpStatus).toBe("unavailable");
-    expect(r.recommendation.warnings).toContain("Live search results were unavailable; recommendation used the keyword dataset only.");
+    expect(r.recommendation.warnings).toContain("We couldn't check Google today, so this name is based on search figures only.");
     expect(["medium", "low"]).toContain(r.recommendation.confidence);
   });
 
@@ -100,14 +100,14 @@ describe("fallbacks", () => {
     expect(r.recommendation.confidence).toBe("low");
     expect(r.recommendation.primary_keyword).toBeNull();
     expect(r.recommendation.recommended_title).toBe("Zebraprint Dress"); // buyer's detail is never dropped
-    expect(r.recommendation.warnings.join(" ")).toMatch(/Limited keyword evidence/);
+    expect(r.recommendation.warnings.join(" ")).toMatch(/couldn't find search figures that match/);
   });
 
   it("works with no active dataset (clearly labelled)", async () => {
     const { brand, user } = await seedBrand({}, false);
     const g = await run(user, brand.id, dress, fresh().providers);
     expect(g.status).toBe("completed");
-    expect((g.result as { recommendation: { warnings: string[] } }).recommendation.warnings.join(" ")).toMatch(/No keyword dataset is active/);
+    expect((g.result as { recommendation: { warnings: string[] } }).recommendation.warnings.join(" ")).toMatch(/keyword list hasn't been uploaded yet/);
   });
 });
 
@@ -135,9 +135,42 @@ describe("no paid calls before the input is sound", () => {
     const { serp, recommender, providers } = fresh();
     const g = await run(user, brand.id, { freeText: "nice dress", productType: "dress" }, providers);
     expect(g.status).toBe("needs_input");
-    expect(g.result).toMatchObject({ needs: "details", message: expect.stringMatching(/at least one real detail about this dress/) });
+    expect(g.result).toMatchObject({ needs: "details", message: expect.stringMatching(/a little more about this dress/) });
     expect(serp.calls).toHaveLength(0);
     expect(recommender.calls).toBe(0);
+  });
+});
+
+describe("words on screen are for buyers; technical detail stays in the database", () => {
+  // Words an engineer would use. None of them may reach a buyer's screen.
+  const TECHNICAL = /dataset|serp|dataforseo|keyword evidence|primary keyword|validation|alternative "|maximum 3|http|\bapi\b|mock|\bai\b|supplied/i;
+
+  it("a Google outage shows a plain sentence; the raw provider error is kept for engineers only", async () => {
+    const { brand, user } = await seedBrand();
+    const { serp, providers } = fresh();
+    serp.fail = true;
+    const g = await run(user, brand.id, dress, providers);
+    const r = g.result as { recommendation: { reason: string; warnings: string[]; alternatives: { trade_off: string }[] } };
+    for (const w of [r.recommendation.reason, ...r.recommendation.warnings, ...r.recommendation.alternatives.map((a) => a.trade_off)]) expect(w).not.toMatch(TECHNICAL);
+    const notes = ((g.usage ?? {}) as { notes?: string[] }).notes ?? [];
+    expect(notes.join(" ")).toMatch(/mock SERP outage/);
+  });
+
+  it("the browser never receives usage, cost, raw errors or model details, even for admins", async () => {
+    const { brand, user } = await seedBrand();
+    const g = await run(user, brand.id, dress, fresh().providers);
+    const admin = { id: "a", username: "a", displayName: "A", role: "owner" as const, brandId: null, brandName: null };
+    const shown = presentGeneration(g, admin);
+    expect(Object.keys(shown)).not.toEqual(expect.arrayContaining(["usage"]));
+    for (const k of ["usage", "errorMessage", "modelName", "promptVersions"]) expect(shown).not.toHaveProperty(k);
+  });
+
+  it("needs-input messages are friendly questions", async () => {
+    const { brand, user } = await seedBrand();
+    const conflict = await run(user, brand.id, { freeText: "mini and maxi dress", productType: "dress", length: "mini, maxi" }, fresh().providers);
+    expect((conflict.result as { conflicts: string[] }).conflicts).toEqual(["It can't be both mini and maxi. Which length is it?"]);
+    const unknown = await run(user, brand.id, { freeText: "blue ceramic vase", productType: "vase" }, fresh().providers);
+    expect((unknown.result as { message: string }).message).not.toMatch(TECHNICAL);
   });
 });
 

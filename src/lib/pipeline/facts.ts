@@ -1,6 +1,7 @@
 import { COLOURS, LENGTHS, MATERIALS, OCCASIONS, STYLES, isGarmentPart, singular, wordStem } from "../vocab/fashion";
 import type { ProductFacts } from "../providers/types";
 import type { GenerationInput } from "./types";
+import { COPY } from "../copy";
 
 const words = (s: string) => s.toLowerCase().split(/[^a-z0-9'-]+/).filter(Boolean);
 const empty = (): ProductFacts => ({ product_type: null, colour: [], material: [], pattern: [], fit_or_silhouette: [], length: [], features: [], occasion_or_style: [], audience: null, buyer_terms: [], unknowns: [], conflicts: [] });
@@ -44,12 +45,12 @@ export function deterministicFacts(input: GenerationInput): ProductFacts {
 export function detectConflicts(f: ProductFacts): string[] {
   const out: string[] = [];
   const len = f.length.filter((l) => ["mini", "midi", "maxi"].includes(l));
-  if (new Set(len).size > 1) out.push(`Length: ${len.join(" and ")} can't both be true`);
+  if (new Set(len).size > 1) out.push(COPY.lengthConflict(len));
   const details = [...f.features, ...f.fit_or_silhouette, ...f.pattern, ...f.material];
   for (const neg of details.flatMap(words).filter((w) => /less$/.test(w))) {
     const base = wordStem(neg.slice(0, -4));
     const pos = details.find((d) => words(d).some((w) => w !== neg && wordStem(w).startsWith(base)));
-    if (pos) out.push(`"${neg}" and "${pos}" can't both be true`);
+    if (pos) out.push(COPY.oppositeConflict(neg, pos));
   }
   return out;
 }

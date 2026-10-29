@@ -22,14 +22,14 @@ export async function createUser(input: {
   const username = normalizeUsername(input.username);
   const bad = validateUsername(username);
   if (bad) throw new UserError(bad);
-  if (input.role !== "owner" && !input.brandId) throw new UserError("Admin and buyer accounts need a brand");
-  if (input.role === "owner" && input.brandId) throw new UserError("Owner accounts are not tied to a brand");
+  if (input.role !== "owner" && !input.brandId) throw new UserError("Brand admins and buyers need a brand.");
+  if (input.role === "owner" && input.brandId) throw new UserError("Owner logins aren't tied to a brand.");
 
   const password = input.password ?? generatePassword();
   const badPw = validatePassword(password);
   if (badPw) throw new UserError(badPw);
 
-  if (await db.user.findUnique({ where: { username } })) throw new UserError(`Username "${username}" is taken`);
+  if (await db.user.findUnique({ where: { username } })) throw new UserError(`The username “${username}” is already taken.`);
 
   const user = await db.user.create({
     data: {
@@ -57,7 +57,7 @@ export async function createUser(input: {
 
 export async function resetPassword(username: string, password?: string, actorId?: string | null) {
   const user = await db.user.findUnique({ where: { username: normalizeUsername(username) } });
-  if (!user) throw new UserError("No such user");
+  if (!user) throw new UserError("We couldn't find that login.");
   const next = password ?? generatePassword();
   const bad = validatePassword(next);
   if (bad) throw new UserError(bad);
@@ -78,7 +78,7 @@ export async function resetPassword(username: string, password?: string, actorId
 
 export async function setUserActive(username: string, active: boolean, actorId?: string | null) {
   const user = await db.user.findUnique({ where: { username: normalizeUsername(username) } });
-  if (!user) throw new UserError("No such user");
+  if (!user) throw new UserError("We couldn't find that login.");
   await db.user.update({
     where: { id: user.id },
     data: { active, ...(active ? {} : { sessionVersion: { increment: 1 } }) },

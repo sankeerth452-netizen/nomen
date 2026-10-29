@@ -16,14 +16,14 @@ export function normalizeUsername(u: string) {
 
 export function validateUsername(u: string): string | null {
   if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(u)) {
-    return "Username must be 3-40 characters: letters, numbers, dot, dash or underscore";
+    return "Usernames need 3 to 40 characters: letters, numbers, dots, dashes or underscores.";
   }
   return null;
 }
 
 export function validatePassword(pw: string): string | null {
-  if (pw.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
-  if (pw.length > 128) return "Password is too long";
+  if (pw.length < MIN_PASSWORD_LENGTH) return `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`;
+  if (pw.length > 128) return "That password is too long.";
   return null;
 }
 

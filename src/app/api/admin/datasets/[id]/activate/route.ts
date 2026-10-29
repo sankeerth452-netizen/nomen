@@ -8,7 +8,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const user = await requireUser("admin");
     const { id } = await params;
     const ds = await db.keywordDataset.findUnique({ where: { id }, select: { brandId: true } });
-    if (!ds) return Response.json({ error: "Not found" }, { status: 404 });
+    if (!ds) return Response.json({ error: "We couldn't find that keyword list." }, { status: 404 });
     assertBrandAccess(user, ds.brandId);
     await activateDataset(id, user.id);
     return Response.json({ ok: true });

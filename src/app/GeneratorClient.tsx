@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import ResultView, { type Gen } from "@/components/ResultView";
 import { PHOTOS, TYPE_TILES, photoForType, tileForType } from "@/lib/photos";
 
-const STEPS = ["Understanding the piece", "Matching search demand", "Reading what ranks now", "Writing the name"];
+const STEPS = ["Understanding the piece", "Checking what shoppers search", "Looking at Google right now", "Writing the name"];
 const STAGE: Record<string, number> = { pending: 0, extracting: 0, matching: 1, searching: 2, building: 3 };
 const FIELDS: [string, string, string][] = [
   ["colour", "Colour", "black"], ["material", "Material", "linen blend"], ["pattern", "Pattern or finish", "floral"], ["fit", "Fit or silhouette", "wrap"],
   ["length", "Length", "midi"], ["feature", "Key detail", "ruched"], ["occasion", "Occasion or style", "cocktail"], ["audience", "Audience", ""],
 ];
 
-export default function GeneratorClient({ productTypes, brands, brandName, isAdmin }: { productTypes: string[]; brands: { id: string; name: string }[]; brandName: string | null; isAdmin: boolean }) {
+export default function GeneratorClient({ productTypes, brands, brandName }: { productTypes: string[]; brands: { id: string; name: string }[]; brandName: string | null }) {
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState(0);
   const [gen, setGen] = useState<Gen | null>(null);
@@ -30,11 +30,11 @@ export default function GeneratorClient({ productTypes, brands, brandName, isAdm
 
   async function poll(id: string, started = Date.now()) {
     const res = await fetch(`/api/generations/${id}`, { cache: "no-store" });
-    if (!res.ok) { setBusy(false); setError("Lost track of that request. Check History."); return; }
+    if (!res.ok) { setBusy(false); setError("Something went wrong on our side. If it finished, you'll find it in History."); return; }
     const g = await res.json();
     if (g.status in STAGE) {
       setStage(STAGE[g.status]);
-      if (Date.now() - started > 120_000) { setBusy(false); setError("This is taking too long. Check History in a minute."); return; }
+      if (Date.now() - started > 120_000) { setBusy(false); setError("This is taking longer than usual. It will appear in History when it's done."); return; }
       timer.current = setTimeout(() => poll(id, started), 900);
     } else { setGen(g); setBusy(false); }
   }
@@ -46,7 +46,7 @@ export default function GeneratorClient({ productTypes, brands, brandName, isAdm
     const f = Object.fromEntries(new FormData(e.currentTarget).entries());
     const res = await fetch("/api/generations", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(f) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { setBusy(false); setError(data.error ?? "Something went wrong"); return; }
+    if (!res.ok) { setBusy(false); setError(data.error ?? "Something went wrong. Please try again."); return; }
     poll(data.id);
   }
 
@@ -55,7 +55,7 @@ export default function GeneratorClient({ productTypes, brands, brandName, isAdm
     setBusy(true); setError("");
     const id = gen.id; setGen(null); setStage(3);
     const res = await fetch(`/api/generations/${id}/retry`, { method: "POST" });
-    if (!res.ok) { setBusy(false); setError((await res.json().catch(() => ({}))).error ?? "Retry failed"); return; }
+    if (!res.ok) { setBusy(false); setError((await res.json().catch(() => ({}))).error ?? "That didn't work. Please try again."); return; }
     poll(id);
   }
 
@@ -114,7 +114,7 @@ export default function GeneratorClient({ productTypes, brands, brandName, isAdm
 
         <div className="submit-row">
           <button className="btn-lg" disabled={busy}>{busy ? "Working…" : "Create the name"}</button>
-          <p>Uses only what you&apos;ve entered above. Runs up to three live searches and takes about twenty seconds.</p>
+          <p>We only use what you&apos;ve entered above. It takes about twenty seconds.</p>
         </div>
       </form>
 
@@ -129,7 +129,7 @@ export default function GeneratorClient({ productTypes, brands, brandName, isAdm
           </div>
         )}
         {error && <p className="err" style={{ marginTop: 24 }}>{error}</p>}
-        {gen && <ResultView gen={gen} brandName={shownBrand} canFeedback isAdmin={isAdmin} onRetry={retry} />}
+        {gen && <ResultView gen={gen} brandName={shownBrand} canFeedback onRetry={retry} />}
       </div>
     </>
   );

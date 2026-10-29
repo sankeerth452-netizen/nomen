@@ -32,8 +32,8 @@ export class MockRecommender implements Recommender {
     let title = p.title_order.suggested_title;
     while (title.length > max && attrs.length) { attrs = attrs.slice(0, -1); title = cap([...attrs, noun].join(" ")); }
     const alts: { title: string; trade_off: string }[] = [];
-    if (attrs.length >= 2) alts.push({ title: cap([...attrs.slice(1), noun].join(" ")), trade_off: `Drops "${attrs[0]}" for a shorter, broader title.` });
-    if (attrs.length >= 3) alts.push({ title: cap([...attrs.slice(0, -1), noun].join(" ")), trade_off: `Drops "${attrs[attrs.length - 1]}" for a shorter title.` });
+    if (attrs.length >= 2) alts.push({ title: cap([...attrs.slice(1), noun].join(" ")), trade_off: `Leaves out "${attrs[0]}" for a shorter, broader name.` });
+    if (attrs.length >= 3) alts.push({ title: cap([...attrs.slice(0, -1), noun].join(" ")), trade_off: `Leaves out "${attrs[attrs.length - 1]}" for a shorter name.` });
     return {
       recommendation: Recommendation.parse({
         recommended_title: title,
@@ -42,7 +42,7 @@ export class MockRecommender implements Recommender {
         supporting_keywords: kws.slice(1, 3).map((k) => k.keyword),
         title_structure: [...attrs.map((a): string => classify(a) ?? "feature"), "product_type"],
         alternatives: alts,
-        reason: "[mock recommender] Built from the learned word order and the buyer's supplied details.",
+        reason: "Built from your details, in the order shoppers most often search for them.",
         warnings: [],
         evidence_keyword_ids: kws.slice(0, 3).map((k) => k.id),
         evidence_serp_result_ids: p.serp_evidence.slice(0, 2).map((s) => s.id),

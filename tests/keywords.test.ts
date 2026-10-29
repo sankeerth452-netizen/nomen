@@ -107,7 +107,7 @@ describe("versioning", () => {
   it("refuses to activate a failed dataset", async () => {
     await expect(run("bad", Buffer.from("Keyword\n\n"))).rejects.toThrow();
     const failed = await db.keywordDataset.findFirstOrThrow({ where: { status: "failed" } });
-    await expect(activateDataset(failed.id)).rejects.toThrow(/can't be activated/);
+    await expect(activateDataset(failed.id)).rejects.toThrow(/can't be switched on/);
   });
 });
 

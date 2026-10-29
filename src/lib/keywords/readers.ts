@@ -22,7 +22,7 @@ export async function openCsv(buf: Buffer): Promise<RowSource> {
   );
   const it = parser[Symbol.asyncIterator]();
   const first = await it.next();
-  if (first.done) throw new Error("File is empty");
+  if (first.done) throw new Error("That file is empty.");
   const headers = (first.value as string[]).map((h) => String(h).trim());
   async function* rows(): AsyncGenerator<RawRow> {
     let n = 1;
@@ -43,11 +43,11 @@ export async function openXlsx(buf: Buffer, sheet?: string): Promise<RowSource> 
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf as unknown as ArrayBuffer);
   const ws = (sheet ? wb.getWorksheet(sheet) : wb.worksheets[0]) ?? undefined;
-  if (!ws) throw new Error(sheet ? `No sheet named "${sheet}"` : "Workbook has no sheets");
+  if (!ws) throw new Error(sheet ? `There's no tab called “${sheet}” in that spreadsheet.` : "That spreadsheet has no tabs.");
   const headerRow = ws.getRow(1);
   const headers: string[] = [];
   headerRow.eachCell({ includeEmpty: true }, (c, i) => (headers[i - 1] = String(cellValue(c.value) ?? "").trim()));
-  if (!headers.some(Boolean)) throw new Error("First row has no headers");
+  if (!headers.some(Boolean)) throw new Error("The first row needs column names, like Keyword and Volume.");
   async function* rows(): AsyncGenerator<RawRow> {
     for (let r = 2; r <= ws!.rowCount; r++) {
       const row = ws!.getRow(r);
@@ -63,5 +63,5 @@ export async function openXlsx(buf: Buffer, sheet?: string): Promise<RowSource> 
 export async function openFile(buf: Buffer, filename: string, sheet?: string): Promise<RowSource> {
   if (/\.xlsx$/i.test(filename)) return openXlsx(buf, sheet);
   if (/\.csv$/i.test(filename)) return openCsv(buf);
-  throw new Error("Upload a .csv or .xlsx file");
+  throw new Error("Please upload a CSV or Excel (.xlsx) file.");
 }

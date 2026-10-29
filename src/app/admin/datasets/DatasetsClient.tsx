@@ -6,7 +6,18 @@ type DS = { id: string; name: string; status: string; active: boolean; brandId: 
 type Preview = { headers: string[]; suggestedMapping: Record<string, string>; preview: Record<string, unknown>[] };
 type Summary = { datasetId: string; rowsRead: number; accepted: number; rejected: number; duplicates: number; warnings: Record<string, { count: number }> };
 
-const TARGETS = ["keyword", "category", "subcategory", "volume", "competition", "cpc", "intent", "country", "language", "updated_at", "metadata", "ignore"];
+// Column roles. The value is what the importer understands; the label is what people see.
+const TARGETS: [string, string][] = [
+  ["keyword", "The keyword"], ["volume", "Monthly searches"], ["category", "Category"], ["subcategory", "Sub-category"],
+  ["competition", "Competition"], ["cpc", "Cost per click"], ["intent", "Search intent"], ["country", "Country"],
+  ["language", "Language"], ["updated_at", "Date updated"], ["metadata", "Keep as extra info"], ["ignore", "Don't use"],
+];
+const WARNING: Record<string, string> = {
+  unparseable_volume: "search numbers we couldn't read", negative_volume: "negative search numbers (left out)",
+  extreme_volume: "unusually high search numbers (worth a check)", no_volume: "rows without a search number",
+  unparseable_date: "dates we couldn't read",
+};
+const STATUS: Record<string, string> = { uploading: "Uploading", validating: "Checking", ready: "Ready to use", archived: "Earlier version", failed: "Couldn't be read" };
 
 export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; datasets: DS[] }) {
   const [file, setFile] = useState<File | null>(null);
@@ -27,7 +38,7 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
     const res = await fetch("/api/admin/datasets/validate", { method: "POST", body: f });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
-    if (!res.ok) { setError(data.error ?? "Upload failed"); return null; }
+    if (!res.ok) { setError(data.error ?? "That upload didn't work. Please try again."); return null; }
     return data;
   };
 
@@ -41,7 +52,7 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
   }
   async function activate(id: string) {
     const res = await fetch(`/api/admin/datasets/${id}/activate`, { method: "POST" });
-    if (res.ok) location.reload(); else setError((await res.json().catch(() => ({}))).error ?? "Failed");
+    if (res.ok) location.reload(); else setError((await res.json().catch(() => ({}))).error ?? "That didn't work. Please try again.");
   }
   const volCols = Object.values(mapping).filter((t) => t === "volume").length;
 
@@ -50,60 +61,61 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
       <div>
       <div className="card">
         <strong>Upload a new version</strong>
-        <p className="muted" style={{ fontSize: 14 }}>CSV or XLSX, up to 30MB. A bad file never touches the active version.</p>
+        <p className="muted" style={{ fontSize: 14 }}>Your keyword export from Ahrefs or Google Keyword Planner, as CSV or Excel (up to 30MB). The list you&apos;re using now stays in place until you switch to the new one.</p>
         {brands.length > 1 && <><label>Brand</label><select value={brandId} onChange={(e) => setBrandId(e.target.value)}>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></>}
-        <label>Version name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Generic Oct 2026" />
+        <label>Name this version</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Dresses, October 2026" />
         <label>File</label><input type="file" accept=".csv,.xlsx" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setSummary(null); }} />
-        <p><button disabled={!file || busy} onClick={inspect}>{busy && !preview ? "Reading…" : "Read file"}</button></p>
+        <p><button disabled={!file || busy} onClick={inspect}>{busy && !preview ? "Opening…" : "Open the file"}</button></p>
       </div>
 
       {preview && (
         <div className="card" style={{ marginTop: 16 }}>
-          <strong>Check the columns</strong>
+          <strong>Tell us what each column is</strong>
+          <p className="muted" style={{ fontSize: 14 }}>We&apos;ve made our best guess. The grey text is the first value in each column.</p>
           <table><tbody>
             {preview.headers.filter(Boolean).map((h) => (
               <tr key={h}><td>{h}<br /><span className="muted">{String(preview.preview[0]?.[h] ?? "")}</span></td>
-                <td><select value={mapping[h]} onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })}>{TARGETS.map((t) => <option key={t}>{t}</option>)}</select></td></tr>
+                <td><select value={mapping[h]} onChange={(e) => setMapping({ ...mapping, [h]: e.target.value })}>{TARGETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td></tr>
             ))}
           </tbody></table>
           {volCols > 1 && (<>
-            <label>{volCols} volume columns, combine as</label>
+            <label>You have {volCols} search-number columns. Use</label>
             <select value={rule} onChange={(e) => setRule(e.target.value)}>
-              <option value="max">Highest value (default)</option>
-              <option value="first_available">First available, left to right</option>
-              <option value="sum">Add together (double-counts overlap)</option>
+              <option value="max">The highest number (recommended)</option>
+              <option value="first_available">The first column that has a number</option>
+              <option value="sum">Both added together (can double-count)</option>
             </select>
-            <p className="muted">Every raw value is kept on the keyword either way.</p>
+            <p className="muted">We keep every original number either way.</p>
           </>)}
-          <p><button disabled={busy} onClick={runImport}>{busy ? "Importing… (can take a minute)" : "Validate and import"}</button></p>
+          <p><button disabled={busy} onClick={runImport}>{busy ? "Saving… this can take a minute" : "Check and save this version"}</button></p>
         </div>
       )}
 
       {summary && (
         <div className="card" style={{ marginTop: 16 }}>
-          <strong>Import summary</strong>
-          <p>{summary.accepted.toLocaleString()} accepted · {summary.rejected.toLocaleString()} rejected · {summary.duplicates.toLocaleString()} duplicates (of {summary.rowsRead.toLocaleString()} rows)</p>
-          {Object.entries(summary.warnings).map(([k, v]) => <p key={k} className="muted">{k.replace(/_/g, " ")}: {v.count.toLocaleString()}</p>)}
-          <p className="muted">Saved as an inactive version. Activate it below when you&apos;re happy.</p>
+          <strong>Saved</strong>
+          <p>{summary.accepted.toLocaleString()} keywords added from {summary.rowsRead.toLocaleString()} rows. {summary.rejected + summary.duplicates > 0 && `${(summary.rejected + summary.duplicates).toLocaleString()} left out (${summary.duplicates.toLocaleString()} repeats, ${summary.rejected.toLocaleString()} we couldn't use).`}</p>
+          {Object.entries(summary.warnings).map(([k, v]) => <p key={k} className="muted">{v.count.toLocaleString()} {WARNING[k] ?? "rows to check"}</p>)}
+          <p className="muted">It isn&apos;t in use yet. Switch to it in the list when you&apos;re happy.</p>
         </div>
       )}
       {error && <p className="err">{error}</p>}
       </div>
 
       <div className="admin-section">
-      <h2>Versions</h2>
+      <h2>Your keyword lists</h2>
       <div className="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Status</th><th>Rows</th><th>Uploaded</th><th /></tr></thead>
+        <thead><tr><th>Version</th><th>Status</th><th>Keywords</th><th>Uploaded</th><th /></tr></thead>
         <tbody>{datasets.map((d) => (
           <tr key={d.id}>
-            <td>{d.name}</td><td><span className={`status${d.active ? " on" : d.status === "failed" ? " off" : ""}`}>{d.active ? "Active" : d.status}</span></td>
-            <td>{d.accepted.toLocaleString()}{d.rejected + d.duplicate > 0 && <> · <a href={`/api/admin/datasets/${d.id}/rejections`}>{(d.rejected + d.duplicate).toLocaleString()} rejected</a></>}</td>
+            <td>{d.name}</td><td><span className={`status${d.active ? " on" : d.status === "failed" ? " off" : ""}`}>{d.active ? "In use" : STATUS[d.status] ?? d.status}</span></td>
+            <td>{d.accepted.toLocaleString()}{d.rejected + d.duplicate > 0 && <> · <a href={`/api/admin/datasets/${d.id}/rejections`}>{(d.rejected + d.duplicate).toLocaleString()} left out (download)</a></>}</td>
             <td>{d.created}</td>
-            <td>{!d.active && ["ready", "archived"].includes(d.status) && <button className="link" onClick={() => activate(d.id)}>{d.status === "archived" ? "Roll back to this" : "Activate"}</button>}</td>
+            <td>{!d.active && ["ready", "archived"].includes(d.status) && <button className="link" onClick={() => activate(d.id)}>{d.status === "archived" ? "Go back to this one" : "Use this list"}</button>}</td>
           </tr>
         ))}</tbody>
       </table></div>
-      {datasets.length === 0 && <p className="muted" style={{ marginTop: 16 }}>No versions yet. Upload the first keyword file on the left.</p>}
+      {datasets.length === 0 && <p className="muted" style={{ marginTop: 16 }}>Nothing uploaded yet. Add your first keyword list on the left.</p>}
       </div>
     </div>
   );

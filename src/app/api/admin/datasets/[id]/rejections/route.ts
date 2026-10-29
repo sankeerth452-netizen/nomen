@@ -7,7 +7,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const user = await requireUser("admin");
     const { id } = await params;
     const ds = await db.keywordDataset.findUnique({ where: { id }, select: { brandId: true } });
-    if (!ds) return Response.json({ error: "Not found" }, { status: 404 });
+    if (!ds) return Response.json({ error: "We couldn't find that keyword list." }, { status: 404 });
     assertBrandAccess(user, ds.brandId);
     const rows = await db.datasetRejection.findMany({ where: { datasetId: id }, orderBy: { rowNumber: "asc" } });
     const lines = ["row,keyword,reason", ...rows.map((r) => [r.rowNumber, csvSafe(r.keyword), csvSafe(r.reason)].join(","))];

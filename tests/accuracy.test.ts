@@ -132,6 +132,7 @@ describe("the brand's maximum title length is a hard limit", () => {
     const salvaged = dropBadAlternatives(v, r, f, bundle, tight);
     expect(salvaged.errors).toEqual([]);
     expect(salvaged.cleaned.alternatives.map((a) => a.title)).toEqual(["Black Midi Dress"]);
-    expect(salvaged.warnings.join()).toMatch(/Dropped alternative "Black Ruched Cocktail Party Midi Dress"/);
+    expect(salvaged.internal.join()).toMatch(/Dropped alternative "Black Ruched Cocktail Party Midi Dress"/); // for engineers
+    expect(salvaged.warnings.join()).not.toMatch(/Dropped/); // never on the buyer's screen
   });
 });

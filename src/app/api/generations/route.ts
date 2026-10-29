@@ -8,17 +8,17 @@ import { rateLimit } from "@/lib/rateLimit";
 export async function POST(req: Request) {
   try {
     const user = await requireUser("buyer");
-    if (!rateLimit(`gen:${user.id}`, 40, 3_600_000)) throw new HttpError(429, "Too many requests this hour. Try again later.");
+    if (!rateLimit(`gen:${user.id}`, 40, 3_600_000)) throw new HttpError(429, "You've named a lot of pieces this hour. Take a short break and try again.");
     const body = await req.json().catch(() => null);
-    if (!body) throw new HttpError(400, "Invalid request");
+    if (!body) throw new HttpError(400, "Something went wrong sending that. Please try again.");
     const brandId = user.brandId ?? body.brandId; // owners pick a brand
-    if (!brandId || typeof brandId !== "string") throw new HttpError(400, "brandId required");
+    if (!brandId || typeof brandId !== "string") throw new HttpError(400, "Choose a brand first.");
     assertBrandAccess(user, brandId);
     const id = await createGeneration(user, brandId, body);
     void runPipeline(id).catch((e) => console.error("runPipeline crashed", id, e instanceof Error ? e.message : e));
     return Response.json({ id }, { status: 202 });
   } catch (e) {
-    if (e instanceof z.ZodError) return Response.json({ error: "Enter what you'd call the product and choose a product type", issues: e.issues.map((i) => i.path.join(".")) }, { status: 400 });
+    if (e instanceof z.ZodError) return Response.json({ error: "Describe the piece and choose what it is.", issues: e.issues.map((i) => i.path.join(".")) }, { status: 400 });
     return errorResponse(e);
   }
 }

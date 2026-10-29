@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     return Response.json({ id: user.id, username: user.username, password }, { status: 201 });
   } catch (e) {
     if (e instanceof UserError) return Response.json({ error: e.message }, { status: 400 });
-    if (e instanceof z.ZodError) return Response.json({ error: "Invalid input" }, { status: 400 });
+    if (e instanceof z.ZodError) return Response.json({ error: "Please check the details and try again." }, { status: 400 });
     return errorResponse(e);
   }
 }
@@ -60,7 +60,7 @@ export async function PATCH(req: Request) {
     return Response.json({ ok: true });
   } catch (e) {
     if (e instanceof UserError) return Response.json({ error: e.message }, { status: 400 });
-    if (e instanceof z.ZodError) return Response.json({ error: "Invalid input" }, { status: 400 });
+    if (e instanceof z.ZodError) return Response.json({ error: "Please check the details and try again." }, { status: 400 });
     return errorResponse(e);
   }
 }

@@ -5,6 +5,7 @@ import { parseBrandSettings } from "../brand";
 import { keywordEvidenceFor } from "../keywords/evidence";
 import { attributeTerms } from "../keywords/retrieve";
 import { FILLER_WORDS, categoryForType } from "../vocab/fashion";
+import { COPY } from "../copy";
 import { AiError, type AiUsage, type ProductFacts } from "../providers/types";
 import { getProviders, type Providers } from "../providers";
 import { EXTRACTION_PROMPT_VERSION, RECOMMEND_PROMPT_VERSION } from "../prompts";
@@ -16,6 +17,7 @@ import { dropBadAlternatives, validateRecommendation } from "./validate";
 import { GenerationInput, type EvidenceBundle, type KeywordEvidenceItem, type Recommendation, type SerpEvidenceItem } from "./types";
 
 const RANK = { low: 0, medium: 1, high: 2 } as const;
+
 const MAX_SERP_ITEMS_PER_QUERY = 7;
 const STALE_MS = 4 * 60_000;
 
@@ -29,12 +31,14 @@ async function setStage(id: string, status: Stage, extra: Prisma.GenerationUpdat
   await db.generation.update({ where: { id }, data: { status, ...extra } });
 }
 
-async function addUsage(id: string, add: { ai?: AiUsage; serpCalls?: number; serpCached?: number; serpCostUsd?: number; errorMessage?: string }) {
+/** Usage and technical notes for engineers. Stored with the generation, never shown on screen. */
+async function addUsage(id: string, add: { ai?: AiUsage; serpCalls?: number; serpCached?: number; serpCostUsd?: number; errorMessage?: string; notes?: string[] }) {
   const g = await db.generation.findUniqueOrThrow({ where: { id }, select: { usage: true } });
-  const u = (g.usage ?? {}) as { ai?: { input: number; output: number; calls: number }; serp?: { calls: number; cached: number; costUsd: number }; errorMessage?: string };
+  const u = (g.usage ?? {}) as { ai?: { input: number; output: number; calls: number }; serp?: { calls: number; cached: number; costUsd: number }; errorMessage?: string; notes?: string[] };
   u.ai = { input: (u.ai?.input ?? 0) + (add.ai?.inputTokens ?? 0), output: (u.ai?.output ?? 0) + (add.ai?.outputTokens ?? 0), calls: (u.ai?.calls ?? 0) + (add.ai ? 1 : 0) };
   u.serp = { calls: (u.serp?.calls ?? 0) + (add.serpCalls ?? 0), cached: (u.serp?.cached ?? 0) + (add.serpCached ?? 0), costUsd: +((u.serp?.costUsd ?? 0) + (add.serpCostUsd ?? 0)).toFixed(5) };
   if (add.errorMessage) u.errorMessage = add.errorMessage;
+  if (add.notes?.length) u.notes = [...(u.notes ?? []), ...add.notes];
   await db.generation.update({ where: { id }, data: { usage: json(u) } });
 }
 
@@ -76,7 +80,7 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
       await addUsage(id, { ai: ex.usage });
       const grounded = groundFacts(ex.facts, input);
       facts = grounded.facts;
-      if (grounded.dropped.length) notes.push(`Ignored details that weren't in your input: ${grounded.dropped.join(", ")}`);
+      if (grounded.dropped.length) notes.push(COPY.ignoredDetails(grounded.dropped));
       await db.generation.update({ where: { id }, data: { extractedFacts: json(facts) } });
       if (facts.conflicts.length) {
         await setStage(id, "needs_input", { result: json({ needs: "correction", conflicts: facts.conflicts }), durationMs: Date.now() - t0 });
@@ -87,11 +91,11 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
       await setStage(id, "matching");
       const ev = await keywordEvidenceFor(g.brandId, facts, { keep: 30 });
       if (categoryForType(facts.product_type) === null && ev.rawCount === 0 && ev.datasetId) {
-        await setStage(id, "needs_input", { result: json({ needs: "product_type", message: `We couldn't find "${facts.product_type}" in the keyword data. Choose a more specific product type (e.g. dress, top, boots).` }), durationMs: Date.now() - t0 });
+        await setStage(id, "needs_input", { result: json({ needs: "product_type", message: COPY.unknownType(facts.product_type ?? "") }), durationMs: Date.now() - t0 });
         return; // before any paid call
       }
       if (!attributeTerms(facts).some((t) => !FILLER_WORDS.has(t))) {
-        await setStage(id, "needs_input", { result: json({ needs: "details", message: `Add at least one real detail about this ${facts.product_type}: a colour, material, fit, length or feature. A title can't be built from the product type alone.` }), durationMs: Date.now() - t0 });
+        await setStage(id, "needs_input", { result: json({ needs: "details", message: COPY.tooFewDetails(facts.product_type ?? "piece") }), durationMs: Date.now() - t0 });
         return; // before any paid call
       }
       const keywords: KeywordEvidenceItem[] = ev.top.map((k, i) => ({ id: `K${i + 1}`, keyword: k.normalizedKeyword, searchVolume: k.searchVolume, category: k.category, score: +k.score.toFixed(3), flags: k.flags }));
@@ -107,15 +111,16 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
       const fetched = await Promise.all(queries.map((q) => fetchSerp(providers.serp, q.query, settings, env().SERP_CACHE_TTL_DAYS)));
       const serp: SerpEvidenceItem[] = [];
       let failed = 0, cachedN = 0, calls = 0, cost = 0;
+      const searchErrors: string[] = [];
       fetched.forEach((f) => {
         calls += f.calls;
-        if ("error" in f) { failed++; notes.push(`Live search for "${f.query}" failed: ${f.error}`); return; }
+        if ("error" in f) { failed++; searchErrors.push(`Live search for "${f.query}" failed: ${f.error}`); return; }
         if (f.cached) cachedN++; else cost += f.response.costUsd ?? 0;
         for (const r of f.response.results.slice(0, MAX_SERP_ITEMS_PER_QUERY)) {
           serp.push({ id: `S${serp.length + 1}`, query: f.response.query, rank: r.rank, title: r.title, domain: r.domain, pageClass: r.pageClass, snippet: r.snippet, checkedAt: f.response.checkedAt, cached: f.cached });
         }
       });
-      await addUsage(id, { serpCalls: calls - cachedN, serpCached: cachedN, serpCostUsd: cost });
+      await addUsage(id, { serpCalls: calls - cachedN, serpCached: cachedN, serpCostUsd: cost, notes: searchErrors });
       const serpStatus: EvidenceBundle["serpStatus"] = !queries.length ? "skipped" : failed === queries.length ? "unavailable" : failed ? "partial" : "ok";
 
       // ── Stage 6: SERP patterns + best-case word order from both sources ──
@@ -123,7 +128,7 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
       order = blendOrder(ev.orderModel, category, facts, attrs, serp, patterns);
 
       bundle = { datasetId: ev.datasetId, limitedKeywordEvidence: ev.limited, keywords, queries, serp, serpStatus, patterns, order };
-      if (!ev.datasetId) notes.push("No keyword dataset is active for this brand.");
+      if (!ev.datasetId) notes.push(COPY.noKeywordList);
       await db.generation.update({ where: { id }, data: { candidateEvidence: json({ ...bundle, notes }), selectedQueries: json(queries), datasetId: ev.datasetId } });
     } else {
       notes.push(...(((g.candidateEvidence as { notes?: string[] })?.notes) ?? []));
@@ -136,6 +141,7 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
     let r = await providers.recommender.recommend(payload);
     await addUsage(id, { ai: r.usage });
     let v = validateRecommendation(r.recommendation, facts, bundle, brand);
+    if (v.errors.length) await addUsage(id, { notes: v.errors.map((e) => `Validation (first answer): ${e}`) });
     if (v.errors.length) {
       r = await providers.recommender.recommend(payload, { errors: v.errors, previous: r.recommendation });
       await addUsage(id, { ai: r.usage });
@@ -149,6 +155,7 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
       }
     }
     rec = v.cleaned;
+    if (v.internal.length) await addUsage(id, { notes: v.internal });
     // With limited evidence the dataset keywords don't reflect this product: don't present them as its demand signal.
     if (bundle.limitedKeywordEvidence) rec = { ...rec, primary_keyword: null, supporting_keywords: [], evidence_keyword_ids: [] };
 
@@ -156,13 +163,13 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
     const warnings = [...rec.warnings, ...notes];
     let confidence = rec.confidence;
     const cap = (level: keyof typeof RANK) => { if (RANK[confidence] > RANK[level]) confidence = level; };
-    if (bundle.serpStatus === "unavailable") { cap("medium"); warnings.push("Live search results were unavailable; recommendation used the keyword dataset only."); }
-    else if (bundle.serpStatus === "partial") { cap("medium"); warnings.push("Some live searches failed; the search evidence is partial."); }
+    if (bundle.serpStatus === "unavailable") { cap("medium"); warnings.push(COPY.googleUnavailable); }
+    else if (bundle.serpStatus === "partial") { cap("medium"); warnings.push(COPY.googlePartial); }
     else if (bundle.serpStatus === "skipped") cap("medium");
-    if (bundle.limitedKeywordEvidence) { cap("low"); warnings.push("Limited keyword evidence: no keyword in the dataset matched this product's details. No search demand is claimed."); }
-    if (bundle.patterns?.intent === "mixed") warnings.push("Search-result intent was mixed.");
+    if (bundle.limitedKeywordEvidence) { cap("low"); warnings.push(COPY.noMatchingSearches); }
+    if (bundle.patterns?.intent === "mixed") warnings.push(COPY.mixedIntent);
     const wantsLength = ["Dresses", "Skirts", "Pants", "Shorts", "Jeans & Denim", "Coats & Jackets"].includes(categoryForType(facts.product_type) ?? "");
-    for (const k of ["colour", "material", "length"] as const) if (!facts[k].length && (k !== "length" || wantsLength)) warnings.push(`${k} was not supplied`);
+    for (const k of ["colour", "material", "length"] as const) if (!facts[k].length && (k !== "length" || wantsLength)) warnings.push(COPY.missing[k]);
 
     const result = { recommendation: { ...rec, confidence, warnings: [...new Set(warnings)] }, meta: { serpStatus: bundle.serpStatus, limitedKeywordEvidence: bundle.limitedKeywordEvidence, datasetId: bundle.datasetId, orderFinal: bundle.order.final } };
     await setStage(id, "completed", { result: json(result), confidence, durationMs: Date.now() - t0 });

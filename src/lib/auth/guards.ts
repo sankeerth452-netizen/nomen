@@ -15,8 +15,8 @@ export const hasRole = (user: Pick<SessionUser, "role">, min: Role) => RANK[user
 /** For API routes: throws HttpError(401/403). */
 export async function requireUser(min: Role = "buyer"): Promise<SessionUser> {
   const user = await getSessionUser();
-  if (!user) throw new HttpError(401, "Not signed in");
-  if (!hasRole(user, min)) throw new HttpError(403, "Not allowed");
+  if (!user) throw new HttpError(401, "Your session has ended. Please sign in again.");
+  if (!hasRole(user, min)) throw new HttpError(403, "You don't have access to this.");
   return user;
 }
 
@@ -34,11 +34,11 @@ export async function requirePageUser(min: Role = "buyer"): Promise<SessionUser>
  */
 export function assertBrandAccess(user: SessionUser, brandId: string) {
   if (user.role === "owner") return;
-  if (user.brandId !== brandId) throw new HttpError(403, "Not allowed");
+  if (user.brandId !== brandId) throw new HttpError(403, "You don't have access to this.");
 }
 
 export function errorResponse(e: unknown) {
   if (e instanceof HttpError) return Response.json({ error: e.message }, { status: e.status });
   console.error(e);
-  return Response.json({ error: "Something went wrong" }, { status: 500 });
+  return Response.json({ error: "Something went wrong on our side. Please try again." }, { status: 500 });
 }

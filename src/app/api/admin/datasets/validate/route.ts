@@ -24,12 +24,12 @@ const options = z.object({
 export async function POST(req: Request) {
   try {
     const user = await requireUser("admin");
-    if (!rateLimit(`upload:${user.id}`, 10, 3_600_000)) throw new HttpError(429, "Too many uploads. Try again later.");
+    if (!rateLimit(`upload:${user.id}`, 10, 3_600_000)) throw new HttpError(429, "That's a lot of uploads this hour. Please try again a little later.");
 
     const form = await req.formData();
     const file = form.get("file");
-    if (!(file instanceof File)) throw new HttpError(400, "Attach a file");
-    if (file.size > MAX_BYTES) throw new HttpError(413, "File too large (30MB max)");
+    if (!(file instanceof File)) throw new HttpError(400, "Choose a file to upload.");
+    if (file.size > MAX_BYTES) throw new HttpError(413, "That file is too big. The limit is 30MB.");
     const opts = options.parse({
       brandId: form.get("brandId") || undefined,
       name: form.get("name") || undefined,
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       mapping: form.get("mapping") ? JSON.parse(String(form.get("mapping"))) : undefined,
     });
     const brandId = opts.brandId ?? user.brandId;
-    if (!brandId) throw new HttpError(400, "brandId required");
+    if (!brandId) throw new HttpError(400, "Choose a brand first.");
     assertBrandAccess(user, brandId);
 
     const buf = Buffer.from(await file.arrayBuffer());
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     });
     return Response.json(summary, { status: 201 });
   } catch (e) {
-    if (e instanceof z.ZodError) return Response.json({ error: "Invalid options" }, { status: 400 });
+    if (e instanceof z.ZodError) return Response.json({ error: "Something about those upload settings didn't work. Please try again." }, { status: 400 });
     if (e instanceof Error && !(e instanceof HttpError) && /No valid rows|Map exactly|Only one column/.test(e.message)) {
       return Response.json({ error: e.message }, { status: 400 });
     }

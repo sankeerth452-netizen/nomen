@@ -4,12 +4,14 @@ import type { EvidenceBundle, Recommendation } from "./types";
 import { STOP_WORDS, keepsPartScope, partScoped, singular, wordStem } from "../vocab/fashion";
 import { normalizeKeyword } from "../keywords/normalize";
 import { titleCase } from "../serp/patterns";
+import { COPY } from "../copy";
 
 const toks = (s: string) => s.toLowerCase().split(/[^a-z0-9'-]+/).filter(Boolean);
 const flat = (s: string) => toks(s).join("");
 const sameSet = (a: string, b: string) => [...new Set(toks(a).map(singular))].sort().join(" ") === [...new Set(toks(b).map(singular))].sort().join(" ");
 
-export type Validated = { errors: string[]; warnings: string[]; cleaned: Recommendation };
+/** errors: sent back to Claude for the repair call. warnings: shown to the buyer. internal: for engineers only (stored, never shown). */
+export type Validated = { errors: string[]; warnings: string[]; internal: string[]; cleaned: Recommendation };
 
 /**
  * Words a title may contain: the buyer's own facts, the product noun, stop words, and brand-approved vocabulary, in any
@@ -32,6 +34,7 @@ const unsupportedIn = (title: string, allowed: Set<string>) =>
 export function validateRecommendation(rec: Recommendation, facts: ProductFacts, bundle: EvidenceBundle, brand: BrandSettings): Validated {
   const errors: string[] = [];
   const warnings = [...rec.warnings];
+  const internal: string[] = [];
   const allowed = allowedWords(facts, brand);
   const scoped = partScoped([...facts.features, ...facts.fit_or_silhouette], [...facts.colour, ...facts.material, ...facts.pattern]);
   const noun = singular((facts.product_type ?? "").toLowerCase().split(/\s+/).pop() ?? "");
@@ -54,13 +57,13 @@ export function validateRecommendation(rec: Recommendation, facts: ProductFacts,
   };
   check(title, "Recommended title");
 
-  for (const core of brand.requiredCoreTerms) if (core && !title.toLowerCase().includes(core.toLowerCase())) warnings.push(`Brand core term "${core}" is not in the title`);
+  for (const core of brand.requiredCoreTerms) if (core && !title.toLowerCase().includes(core.toLowerCase())) warnings.push(COPY.brandTerm(core));
 
   // keyword citations must exist in THIS generation's evidence
   const known = new Map(bundle.keywords.map((k) => [normalizeKeyword(k.keyword), k]));
   const cited = [rec.primary_keyword, ...rec.supporting_keywords].filter((k): k is string => !!k);
   for (const k of cited) if (!known.has(normalizeKeyword(k))) errors.push(`Keyword "${k}" is not in the keyword evidence`);
-  if (rec.primary_keyword === null && bundle.keywords.length) warnings.push("No primary keyword was chosen even though keyword evidence exists");
+  if (rec.primary_keyword === null && bundle.keywords.length) internal.push("No primary keyword was chosen even though keyword evidence exists");
   const kIds = new Set(bundle.keywords.map((k) => k.id)), sIds = new Set(bundle.serp.map((s) => s.id));
   for (const id of rec.evidence_keyword_ids) if (!kIds.has(id)) errors.push(`Unknown keyword evidence id ${id}`);
   for (const id of rec.evidence_serp_result_ids) if (!sIds.has(id)) errors.push(`Unknown search-result evidence id ${id}`);
@@ -70,13 +73,13 @@ export function validateRecommendation(rec: Recommendation, facts: ProductFacts,
   for (const a of rec.alternatives) {
     const t = a.title.replace(/\s+/g, " ").trim();
     if (!t || sameSet(t, title) || flat(t) === flat(title) || alts.some((x) => sameSet(x.title, t))) continue; // punctuation/duplicate: drop silently
-    if (alts.length >= 3) { warnings.push("Extra alternatives were dropped (maximum 3)"); break; }
+    if (alts.length >= 3) { internal.push("Extra alternatives were dropped (maximum 3)"); break; }
     const before = errors.length;
     check(t, `Alternative "${t}"`);
     if (errors.length === before && toks(t).some((w) => singular(w) === noun)) alts.push({ title: fmt(t), trade_off: a.trade_off });
   }
 
-  return { errors, warnings: [...new Set(warnings)], cleaned: { ...rec, recommended_title: fmt(title), alternatives: alts, warnings: [...new Set(warnings)] } };
+  return { errors, warnings: [...new Set(warnings)], internal, cleaned: { ...rec, recommended_title: fmt(title), alternatives: alts, warnings: [...new Set(warnings)] } };
 }
 
 /** Alternatives that still fail after the repair attempt are dropped with a visible note instead of failing the generation. */
@@ -87,9 +90,9 @@ export function dropBadAlternatives(v: Validated, rec: Recommendation, facts: Pr
   const notes: string[] = [];
   for (const a of rec.alternatives) {
     const t = validateRecommendation({ ...rec, alternatives: [a] }, facts, bundle, brand);
-    if (t.errors.length) notes.push(`Dropped alternative "${a.title}": ${t.errors[0]}`);
+    if (t.errors.length) notes.push(`Dropped alternative "${a.title}": ${t.errors[0]}`); // engineers only
     else kept.push(...t.cleaned.alternatives.filter((x) => !kept.some((k) => sameSet(k.title, x.title))));
   }
-  const cleaned = { ...own.cleaned, alternatives: kept.slice(0, 3), warnings: [...own.warnings, ...notes] };
-  return { errors: [], warnings: cleaned.warnings, cleaned };
+  const cleaned = { ...own.cleaned, alternatives: kept.slice(0, 3) };
+  return { errors: [], warnings: cleaned.warnings, internal: [...own.internal, ...notes], cleaned };
 }

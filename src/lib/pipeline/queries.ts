@@ -1,6 +1,7 @@
 import type { ProductFacts } from "../providers/types";
 import type { KeywordEvidenceItem, OrderGuidance } from "./types";
 import { normalizeKeyword } from "../keywords/normalize";
+import { COPY } from "../copy";
 
 export type PlannedQuery = { query: string; reason: string };
 const MAX_WORDS = 6; // real shopper phrasing, not a sentence
@@ -27,15 +28,15 @@ export function planQueries(facts: ProductFacts, keywords: KeywordEvidenceItem[]
   };
 
   const best = keywords[0];
-  if (best) add(best.keyword, `Strongest keyword in the dataset for this product${best.searchVolume !== null ? ` (${best.searchVolume.toLocaleString()} searches)` : ""}`);
+  if (best) add(best.keyword, COPY.query.mostSearched(best.searchVolume));
 
   const attrs = order.final;
-  if (attrs.length) add([...attrs.slice(0, 3), noun].join(" "), "Buyer's attributes in the order the keyword list uses them");
-  else add(noun, "Product type only: no attributes supplied");
+  if (attrs.length) add([...attrs.slice(0, 3), noun].join(" "), COPY.query.yourDetails);
+  else add(noun, COPY.query.typeOnly);
 
   const second = keywords.find((k) => k !== best && out.every((o) => jaccard(o.query, k.keyword) < 0.75));
-  if (second) add(second.keyword, "Alternative phrasing from the dataset");
-  else if (attrs.length > 1) add([attrs[0], noun].join(" "), "Broader phrasing: lead attribute + product type");
+  if (second) add(second.keyword, COPY.query.anotherWay);
+  else if (attrs.length > 1) add([attrs[0], noun].join(" "), COPY.query.broader);
 
   return out;
 }
