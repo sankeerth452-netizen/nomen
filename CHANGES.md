@@ -116,3 +116,18 @@ What changed:
 - **Reasons claiming shopper searches with no data.** Claude wrote "Shoppers searched 'white satin slip dress'" when only Google result pages had been checked. The recommend prompt now says only the keyword list shows what shoppers search for, and no longer tells Claude the word order "was learned from real search queries" (without a keyword list it is the usual order for the type). The search labels and the result page's "Why this order" say "the usual order for this kind of piece" in that case.
 
 Still open: 7 named products read as a stack of features ("Black Relaxed Fit Cotton Blend Crew Neckline Sweater"; the validator won't allow "Crew Neck" when the buyer wrote "crew neckline"). Two runs cost US$2.59 and US$2.60.
+
+## Shorter, natural names (30 Oct 2026)
+
+The quality test showed 7 names reading as a stack of features ("Black Relaxed Fit Cotton Blend Crew Neckline Sweater"). Two causes:
+- Claude was handed a ready-made title holding every detail in order (17 words for one sweater) and told to follow it. Claude now gets only the word order, as an order rather than a list to include, and the recommend prompt (`recommend-v5`) says what a product name looks like: usually 3 to 6 words, the colour plus the one to three details a shopper picks the piece by, then the noun. Fit words, fabric percentages and second fibres, mood words, and pockets or closures that don't define the piece are left to the description. Two colours join with "&".
+- The validator rejected "Neck" when the buyer wrote "neckline", so "Crew Neck" could never appear. A small list of retail short forms (`RETAIL_SHORT_FORMS`) now allows it, including next to a part ("Lace Neck" for "lace neckline"). The test's own word checker counts the same short form.
+
+| First try per case (46) | Original | Previous fixes | Now (`recommend-v5`) |
+| --- | --- | --- | --- |
+| Passes | 25 | 36 | 41 (89%) |
+| Reads naturally | 21 of 29 | 32 of 39 | 37 of 40 |
+| Median name length | 44 characters, 6.8 words | 42, 6.7 | 35, 5.5 |
+| Accurate, honest reason | all / 76% | all / 100% | all / 100% |
+
+For example: "Black Cotton Knit Crew Neck Sweater", "Lemon Knit Crew Neck Tee", "Cotton Speckle Cropped Vest". Of the 5 still not passing, 2 are questions about real contradictions in the product data (a "nylon" bag listed as polyester; "neutral" beads on a gold necklace) and 3 are judged slightly awkward ("Silver Sequin Detailing Bag"). The run cost US$2.37.

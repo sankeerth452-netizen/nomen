@@ -90,6 +90,10 @@ export function wordStem(w: string): string {
 export const GARMENT_PARTS = ["sleeve","trim","hem","collar","cuff","panel","strap","neckline","yoke","lining","insert","waistband","bodice","pocket","hood","back","detail","overlay","sole","handle","button","buckle","zip"];
 export const isGarmentPart = (w: string) => GARMENT_PARTS.some((p) => wordStem(p) === wordStem(w));
 
+/** The shorter word retail uses for the buyer's word: "crew neckline" is sold as a "Crew Neck". Never an opposite. */
+export const RETAIL_SHORT_FORMS: Record<string, string[]> = { neckline: ["neck"] };
+export const shortForms = (w: string): string[] => RETAIL_SHORT_FORMS[singular(w.toLowerCase())] ?? [];
+
 export type PartScope = { word: string; parts: string[] };
 
 /**
@@ -116,7 +120,7 @@ export function partScoped(units: string[], wholeProduct: string[]): PartScope[]
 
 /** True when every use of the scoped word sits right before one of its parts (within two words: "Mesh Puff Sleeve" counts). */
 export function keepsPartScope(tokens: string[], s: PartScope): boolean {
-  const word = wordStem(s.word), parts = s.parts.map(wordStem);
+  const word = wordStem(s.word), parts = s.parts.flatMap((p) => [p, ...shortForms(p)]).map(wordStem);
   return tokens.every((t, i) => wordStem(t) !== word || tokens.slice(i + 1, i + 3).some((n) => parts.includes(wordStem(n))));
 }
 

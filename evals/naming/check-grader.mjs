@@ -3,7 +3,7 @@
 //   EVAL_JUDGE_MODEL=<model> npx tsx --env-file=.env evals/naming/check-grader.mjs --judge 3
 //       also asks the judge about 3 cases x 4 answers (the buyer's own words, empty, "I don't know", wrong product)
 import { readFileSync } from "node:fs";
-import { demandClaims, grade, stem } from "./grade.mjs";
+import { demandClaims, grade, inventedWords, stem } from "./grade.mjs";
 
 const cases = JSON.parse(readFileSync("evals/naming/cases.json", "utf8"));
 const judgeN = process.argv.includes("--judge") ? +process.argv[process.argv.indexOf("--judge") + 1] : 0;
@@ -15,6 +15,8 @@ const expect = (label, got, want) => { const ok = got === want; if (!ok) bad++; 
 // 1. Word matcher: forms the same word, and opposites that must stay apart.
 for (const [a, b] of [["ruching", "ruched"], ["sleeves", "sleeved"], ["knitted", "knit"], ["dresses", "dress"], ["pleated", "pleats"], ["frilled", "frill"]]) expect(`same word ${a}/${b}`, stem(a), stem(b));
 for (const [a, b] of [["strappy", "strapless"], ["sleeve", "sleeveless"], ["long", "longline"]]) expect(`different words ${a}/${b}`, stem(a) === stem(b), false);
+expect("'Crew Neck' from 'crew neckline' is not invented", inventedWords("Black Crew Neck Sweater", { freeText: "black sweater, crew neckline" }).length, 0);
+expect("'Neck' with no neckline is invented", inventedWords("Black Crew Neck Sweater", { freeText: "black crew sweater" }).join(), "neck");
 
 // 2. Honesty check on reasons (used when there's no keyword list).
 // Includes sentences from the first paid pilot (29 Oct), both claims it missed and harmless ones it wrongly flagged.

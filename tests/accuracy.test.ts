@@ -110,6 +110,15 @@ describe("a detail limited to one part stays attached to that part", () => {
 });
 
 describe("the buyer's word in its natural retail form", () => {
+  it("allows the retail short form 'Crew Neck' for a buyer's 'crew neckline', and only then", () => {
+    const sweater = facts({ product_type: "sweater", colour: ["black"], features: ["crew neckline"] });
+    const v = (t: string, f = sweater) => validateRecommendation(rec(t), f, bundle, brand).errors;
+    expect(v("Black Crew Neck Sweater")).toEqual([]);
+    expect(v("Black Crew Neck Sweater", facts({ product_type: "sweater", colour: ["black"], features: ["crew"] })).join()).toMatch(/did not supply: neck/);
+    const laceNeck = facts({ product_type: "top", colour: ["cream"], features: ["lace neckline"] });
+    expect(v("Cream Lace Neck Top", laceNeck)).toEqual([]); // the part's short form keeps the lace on its part
+  });
+
   const f = facts({ product_type: "dress", colour: ["black"], features: ["ruching"], length: ["midi"] });
 
   it("accepts 'Ruched' when the buyer wrote 'ruching', but never an opposite form", () => {

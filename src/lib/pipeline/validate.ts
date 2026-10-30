@@ -1,7 +1,7 @@
 import type { ProductFacts } from "../providers/types";
 import type { BrandSettings } from "../brand";
 import type { EvidenceBundle, Recommendation } from "./types";
-import { STOP_WORDS, keepsPartScope, partScoped, singular, wordStem } from "../vocab/fashion";
+import { STOP_WORDS, keepsPartScope, partScoped, shortForms, singular, wordStem } from "../vocab/fashion";
 import { normalizeKeyword } from "../keywords/normalize";
 import { titleCase } from "../serp/patterns";
 import { COPY } from "../copy";
@@ -15,12 +15,13 @@ export type Validated = { errors: string[]; warnings: string[]; internal: string
 
 /**
  * Words a title may contain: the buyer's own facts, the product noun, stop words, and brand-approved vocabulary, in any
- * word form ("ruching" allows "Ruched"). Word forms never cross into opposites: "sleeve" does not allow "Sleeveless".
+ * word form ("ruching" allows "Ruched") or retail short form ("neckline" allows "Neck"). Word forms never cross into
+ * opposites: "sleeve" does not allow "Sleeveless".
  */
 export function allowedWords(facts: ProductFacts, brand: BrandSettings): Set<string> {
   const vals = [facts.product_type ?? "", ...facts.colour, ...facts.material, ...facts.pattern, ...facts.fit_or_silhouette, ...facts.length, ...facts.features, ...facts.occasion_or_style, facts.audience ?? "", ...facts.buyer_terms, ...brand.allowedVocabulary, ...brand.requiredCoreTerms];
   const set = new Set<string>();
-  for (const v of vals) for (const w of toks(v)) { set.add(singular(w)); set.add(w); set.add(wordStem(w)); }
+  for (const v of vals) for (const w of toks(v)) for (const f of [w, ...shortForms(w)]) { set.add(singular(f)); set.add(f); set.add(wordStem(f)); }
   return set;
 }
 

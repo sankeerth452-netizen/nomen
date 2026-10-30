@@ -35,9 +35,12 @@ export function inputText(input) {
   return Object.values(input).filter((v) => typeof v === "string").join(" ");
 }
 
+// The shorter word retail uses for one the buyer typed ("crew neckline" is sold as a "Crew Neck"). Same thing, not invented.
+const SHORT_FORMS = { neckline: ["neck"], necklines: ["neck"] };
+
 /** Words in a name that the buyer never typed (stop words aside). */
 export function inventedWords(title, input) {
-  const have = new Set(words(inputText(input)).map(stem));
+  const have = new Set(words(inputText(input)).flatMap((w) => [w, ...(SHORT_FORMS[w] ?? [])]).map(stem));
   return [...new Set(words(title).filter((w) => !STOP.has(w) && !have.has(stem(w))))];
 }
 

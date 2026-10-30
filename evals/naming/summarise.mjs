@@ -32,11 +32,11 @@ for (const v of variants) {
 
 // Before vs after, one try per case (rep 0) so a case run twice in the pilot doesn't count double.
 const last = variants.at(-1);
-if (variants.length > 1) {
-  const first = (v) => new Map(rows(v, "results.jsonl").filter((r) => r.status === "ok" && r.rep === 0).map((r) => [r.prompt_id, r]));
-  const a = first("baseline"), b = first(last);
+const first = (v) => new Map(rows(v, "results.jsonl").filter((r) => r.status === "ok" && r.rep === 0).map((r) => [r.prompt_id, r]));
+for (const prev of [...new Set(["baseline", variants.at(-2)])].filter((v) => v && v !== last)) {
+  const a = first(prev), b = first(last);
   const ids = [...a.keys()].filter((id) => b.has(id));
-  console.log(`\n== baseline vs ${last}, first try per case (${ids.length} cases in both)`);
+  console.log(`\n== ${prev} vs ${last}, first try per case (${ids.length} cases in both)`);
   for (const m of metrics) console.log(`  ${m.padEnd(14)} ${pct(ids.map((id) => a.get(id).grade?.[m])).padEnd(14)} -> ${pct(ids.map((id) => b.get(id).grade?.[m]))}`);
   const show = (r) => r.output?.title ?? `(${r.output?.status}${r.output?.message ? `: ${r.output.message}` : ""})`;
   for (const id of ids) {
