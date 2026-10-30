@@ -99,4 +99,9 @@ describe("query planning", () => {
     expect(planQueries(facts, [kw("black midi dress")], order, 0)).toEqual([]);
     expect(planQueries(facts, [kw("black midi dress")], order, 1)).toHaveLength(1);
   });
+
+  it("only says 'the order shoppers search them' when matching keywords back it", () => {
+    expect(planQueries(facts, [], order, 3)[0].reason).not.toMatch(/shoppers/i);
+    expect(planQueries(facts, [kw("midi dress")], order, 3).map((q) => q.reason).join()).toMatch(/order shoppers search/);
+  });
 });

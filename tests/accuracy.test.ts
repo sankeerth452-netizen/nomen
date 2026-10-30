@@ -95,6 +95,14 @@ describe("a detail limited to one part stays attached to that part", () => {
     expect(v("Black Ruched Midi Dress With Mesh Sleeves")).toEqual([]);
   });
 
+  it("accepts a word tied to two parts next to either part ('lace trim' and 'lace inserts')", () => {
+    const laceFacts = facts({ product_type: "dress", colour: ["cornflower blue"], length: ["maxi"], features: ["white lace trim", "white lace inserts"] });
+    const v = (t: string) => validateRecommendation(rec(t), laceFacts, bundle, brand).errors;
+    expect(v("Cornflower Blue Lace Trim Maxi Dress")).toEqual([]);
+    expect(v("Cornflower Blue Maxi Dress With White Lace Inserts")).toEqual([]);
+    expect(v("Cornflower Blue Lace Maxi Dress").join()).toMatch(/only the trim and inserts are lace/);
+  });
+
   it("excludes keywords that call the whole product mesh", () => {
     expect(scoreCandidate(kw("black mesh midi dress"), meshFacts)?.flags).toContain("unsupported_attribute:mesh");
     expect(scoreCandidate(kw("mesh sleeve midi dress"), meshFacts)?.flags.join()).not.toMatch(/unsupported_attribute/);

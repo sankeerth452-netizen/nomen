@@ -42,7 +42,7 @@ export class MockRecommender implements Recommender {
         supporting_keywords: kws.slice(1, 3).map((k) => k.keyword),
         title_structure: [...attrs.map((a): string => classify(a) ?? "feature"), "product_type"],
         alternatives: alts,
-        reason: "Built from your details, in the order shoppers most often search for them.",
+        reason: "Built from your details, in the usual order for this kind of piece.",
         warnings: [],
         evidence_keyword_ids: kws.slice(0, 3).map((k) => k.id),
         evidence_serp_result_ids: p.serp_evidence.slice(0, 2).map((s) => s.id),

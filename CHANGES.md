@@ -95,3 +95,24 @@ Seen but not changed yet: on the blouse, Claude's reason said shoppers "searched
 
 - `render.yaml`: `PROVIDER_MODE` switched from `mock` to `live`, after the Anthropic and DataForSEO keys were set in Render. Real Claude names and real Google results; the "Preview version" strip goes away.
 - `/api/health` now also says `mode` (`live` / `preview`) and `configured` (whether all four keys are set). Yes/no flags only, never a key, so the switch can be confirmed from outside without signing in.
+
+## Naming quality test, and three fixes it found (30 Oct 2026)
+
+A repeatable test of how good Nomen's names are, built from 40 real Sportsgirl products (public product pages, 12 categories, crawled politely at one page per 10 s as their robots.txt asks) plus 6 tricky inputs. Each case runs through the real pipeline with real Claude and Google checks, on a separate local database with no keyword list (as the live site has today). Code in `evals/naming/` (see the README there); the cases themselves hold Sportsgirl's own product copy, so they are rebuilt locally and never committed.
+
+A name **passes** when Nomen finished with one, invented no words (checked by the test's own word matcher, not Nomen's), kept it to 70 characters, and a second model (Claude Sonnet 5.5) judged it accurate to the input and natural as a product name. Separately, with no keyword list behind it, the reason must not claim what shoppers search for.
+
+| First try per case (46) | Before (`extract-v3`, `recommend-v3`) | After (`extract-v4`, `recommend-v4`) |
+| --- | --- | --- |
+| Passes | 25 (54%) | 36 (78%) |
+| Right outcome (named, or asked when it should) | 33 | 43 |
+| Accurate, no invented words, fits 70 | all 29 named | all 39 named |
+| Reads naturally | 21 of 29 | 32 of 39 |
+| Honest reason | 22 of 29 (76%) | 39 of 39 (100%) |
+
+What changed:
+- **Crash on a material used on two parts.** "Lace trim" plus "lace inserts" (or lace on neckline and sleeves) made the validator demand both at once, so 3 of 40 real products failed with an error. A colour or material can now belong to several parts and may sit next to any of them.
+- **Questions that didn't need asking.** 7 real products stopped to ask: descriptions listing other colourways ("comes in black, oatmeal, chocolate and mint"), a pink necklace with multicoloured beads, "pebble" next to a blue colour. The extraction prompt now says what is not a conflict: other colourways, a part in another colour, a texture word next to a given colour. 6 of the 7 now get a name. Real contradictions (mini and maxi, a "nylon" bag listed as polyester) still ask.
+- **Reasons claiming shopper searches with no data.** Claude wrote "Shoppers searched 'white satin slip dress'" when only Google result pages had been checked. The recommend prompt now says only the keyword list shows what shoppers search for, and no longer tells Claude the word order "was learned from real search queries" (without a keyword list it is the usual order for the type). The search labels and the result page's "Why this order" say "the usual order for this kind of piece" in that case.
+
+Still open: 7 named products read as a stack of features ("Black Relaxed Fit Cotton Blend Crew Neckline Sweater"; the validator won't allow "Crew Neck" when the buyer wrote "crew neckline"). Two runs cost US$2.59 and US$2.60.

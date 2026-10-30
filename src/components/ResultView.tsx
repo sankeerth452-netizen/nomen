@@ -16,7 +16,7 @@ export type Gen = {
   id: string; status: string; errorCode?: string | null;
   input?: { productType?: string; freeText?: string };
   result: { recommendation?: Rec; meta?: { serpStatus: string; orderFinal: string[] }; needs?: string; conflicts?: string[]; message?: string } | null;
-  evidence: { keywords: Kw[]; serp: Serp[]; queries: { query: string; reason: string }[]; serpStatus: string; patterns: { intent: string; resultsAnalysed: number; productNouns: { term: string; count: number }[]; attributeWording: { term: string; count: number }[]; serpOrder: string[] | null } | null; order: { keywordOrder: string[]; serpOrder: string[] | null; final: string[] } } | null;
+  evidence: { datasetId?: string | null; limitedKeywordEvidence?: boolean; keywords: Kw[]; serp: Serp[]; queries: { query: string; reason: string }[]; serpStatus: string; patterns: { intent: string; resultsAnalysed: number; productNouns: { term: string; count: number }[]; attributeWording: { term: string; count: number }[]; serpOrder: string[] | null } | null; order: { keywordOrder: string[]; serpOrder: string[] | null; final: string[] } } | null;
 };
 
 const vol = (v: number | null) => (v === null ? "no monthly figure" : `${v.toLocaleString()} a month`);
@@ -97,6 +97,8 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
   const title = chosen ?? rec.recommended_title;
   const ev = gen.evidence;
   const order = ev?.order.final ?? gen.result?.meta?.orderFinal ?? [];
+  // Only a keyword list says how shoppers search; without one the order is the usual one for the type.
+  const searchBacked = !!ev?.datasetId && !ev.limitedKeywordEvidence;
   const parts = anatomy(title, order, productType);
   const pageTitle = brandName ? `${title} | ${brandName}` : title;
   const fits = pageTitle.length <= SEARCH_TITLE_CHARS;
@@ -158,7 +160,7 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
 
           <details className="why" style={{ marginTop: 18 }}>
             <summary>Why this order</summary>
-            <p className="muted">Shoppers usually type these words in this order: {[...order, productType || "product"].join(", ")}. We checked that against how the top Google results word it.</p>
+            <p className="muted">{searchBacked ? "Shoppers usually type these words in this order" : "The usual order for this kind of piece"}: {[...order, productType || "product"].join(", ")}. We checked that against how the top Google results word it.</p>
             {ev?.order.serpOrder && <p className="muted">The top results put them in this order: {ev.order.serpOrder.join(", ")}.</p>}
           </details>
         </div>

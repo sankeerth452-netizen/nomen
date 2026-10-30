@@ -6,3 +6,8 @@ node_modules
 *.csv
 !tests/fixtures/*.csv
 *.tsbuildinfo
+
+# Eval: inputs hold Sportsgirl's own product copy (public repo), so they are rebuilt locally, never committed
+evals/naming/cases.json
+evals/naming/cases.md
+.claude/hillclimb/

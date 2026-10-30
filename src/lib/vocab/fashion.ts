@@ -90,31 +90,34 @@ export function wordStem(w: string): string {
 export const GARMENT_PARTS = ["sleeve","trim","hem","collar","cuff","panel","strap","neckline","yoke","lining","insert","waistband","bodice","pocket","hood","back","detail","overlay","sole","handle","button","buckle","zip"];
 export const isGarmentPart = (w: string) => GARMENT_PARTS.some((p) => wordStem(p) === wordStem(w));
 
-export type PartScope = { word: string; part: string };
+export type PartScope = { word: string; parts: string[] };
 
 /**
- * Colours/materials a buyer detail ties to one part: "mesh sleeve" means only the sleeve is mesh. Not scoped when the
- * same word is also stated for the whole product (`wholeProduct`: the colour/material/pattern facts).
+ * Colours/materials a buyer detail ties to parts: "mesh sleeve" means only the sleeve is mesh. One word can belong to
+ * several parts ("lace trim" + "lace inserts"). Not scoped when the same word is also stated for the whole product
+ * (`wholeProduct`: the colour/material/pattern facts).
  */
 export function partScoped(units: string[], wholeProduct: string[]): PartScope[] {
   const whole = new Set(wholeProduct.flatMap((x) => x.toLowerCase().split(/\s+/)).map(wordStem));
-  const out: PartScope[] = [];
+  const byWord = new Map<string, PartScope>();
   for (const u of units) {
     const t = u.toLowerCase().split(/\s+/).filter(Boolean);
     const part = t[t.length - 1];
     if (t.length < 2 || !isGarmentPart(part)) continue;
     for (const w of t.slice(0, -1)) {
       const cls = classify(w);
-      if ((cls === "colour" || cls === "material") && !whole.has(wordStem(w))) out.push({ word: w, part });
+      if ((cls !== "colour" && cls !== "material") || whole.has(wordStem(w))) continue;
+      const s = byWord.get(wordStem(w)) ?? byWord.set(wordStem(w), { word: w, parts: [] }).get(wordStem(w))!;
+      if (!s.parts.includes(part)) s.parts.push(part);
     }
   }
-  return out;
+  return [...byWord.values()];
 }
 
-/** True when every use of the scoped word sits right before its part (within two words: "Mesh Puff Sleeve" counts). */
+/** True when every use of the scoped word sits right before one of its parts (within two words: "Mesh Puff Sleeve" counts). */
 export function keepsPartScope(tokens: string[], s: PartScope): boolean {
-  const word = wordStem(s.word), part = wordStem(s.part);
-  return tokens.every((t, i) => wordStem(t) !== word || tokens.slice(i + 1, i + 3).some((n) => wordStem(n) === part));
+  const word = wordStem(s.word), parts = s.parts.map(wordStem);
+  return tokens.every((t, i) => wordStem(t) !== word || tokens.slice(i + 1, i + 3).some((n) => parts.includes(wordStem(n))));
 }
 
 /** Praise and filler that say nothing about the product: not a detail a title can be built from. */

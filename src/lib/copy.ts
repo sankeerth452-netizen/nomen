@@ -21,6 +21,7 @@ export const COPY = {
   query: {
     mostSearched: (volume: number | null) => `The most-searched phrase for this piece${volume !== null ? ` (${volume.toLocaleString()} a month)` : ""}`,
     yourDetails: "Your details, in the order shoppers search them",
+    yourDetailsUsualOrder: "Your details, in the usual order for this kind of piece",
     typeOnly: "Just the product type",
     anotherWay: "Another way shoppers search for it",
     broader: "A broader search",
@@ -49,7 +50,7 @@ const LEGACY: [RegExp, (m: RegExpMatchArray) => string | null][] = [
   [/^Sleeveless and sleeved details both supplied$/, () => COPY.oppositeConflict("sleeveless", "sleeved")],
   [/^We couldn't find "(.*)" in the keyword data\..*$/, (m) => COPY.unknownType(m[1])],
   [/^Add at least one real detail about this (.*?):.*$/, (m) => COPY.tooFewDetails(m[1])],
-  [/^\[mock recommender\].*$/, () => "Built from your details, in the order shoppers most often search for them."],
+  [/^\[mock recommender\].*$/, () => "Built from your details, in the usual order for this kind of piece."],
   [/^Drops "(.*)" for a shorter(, broader)? title\.$/, (m) => `Leaves out "${m[1]}" for a shorter${m[2] ?? ""} name.`],
   [/^Title is \d+ characters \(brand maximum \d+\)$/, () => "This name is longer than your brand usually allows."],
   [/^Dropped alternative ".*": .*$|^Extra alternatives were dropped \(maximum 3\)$|^No primary keyword was chosen even though keyword evidence exists$/, () => null],

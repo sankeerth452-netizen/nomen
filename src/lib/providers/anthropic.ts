@@ -34,7 +34,7 @@ export class ClaudeClient {
         output_config: { format: betaZodOutputFormat(schema), effort },
         ...(fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
       });
-      const usage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens };
+      const usage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens, model: res.model };
       if (res.stop_reason === "refusal") throw new AiError("The model declined this request", "ai_refusal");
       if (res.stop_reason === "max_tokens") throw new AiError("Model output was cut off", "ai_invalid");
       if (!res.parsed_output) throw new AiError("Model returned unreadable output", "ai_invalid");

@@ -28,7 +28,8 @@ export type SerpResult = {
 
 export type SerpResponse = { query: string; checkedAt: string; results: SerpResult[]; costUsd?: number };
 
-export type AiUsage = { inputTokens: number; outputTokens: number };
+/** model: the model that actually answered (with refusal fallbacks on, it can differ from the one requested). */
+export type AiUsage = { inputTokens: number; outputTokens: number; model?: string };
 
 export class AiError extends Error {
   constructor(message: string, public code: "ai_unavailable" | "ai_refusal" | "ai_invalid") {

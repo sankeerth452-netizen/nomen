@@ -34,8 +34,9 @@ async function setStage(id: string, status: Stage, extra: Prisma.GenerationUpdat
 /** Usage and technical notes for engineers. Stored with the generation, never shown on screen. */
 async function addUsage(id: string, add: { ai?: AiUsage; serpCalls?: number; serpCached?: number; serpCostUsd?: number; errorMessage?: string; notes?: string[] }) {
   const g = await db.generation.findUniqueOrThrow({ where: { id }, select: { usage: true } });
-  const u = (g.usage ?? {}) as { ai?: { input: number; output: number; calls: number }; serp?: { calls: number; cached: number; costUsd: number }; errorMessage?: string; notes?: string[] };
-  u.ai = { input: (u.ai?.input ?? 0) + (add.ai?.inputTokens ?? 0), output: (u.ai?.output ?? 0) + (add.ai?.outputTokens ?? 0), calls: (u.ai?.calls ?? 0) + (add.ai ? 1 : 0) };
+  const u = (g.usage ?? {}) as { ai?: { input: number; output: number; calls: number; models?: string[] }; serp?: { calls: number; cached: number; costUsd: number }; errorMessage?: string; notes?: string[] };
+  const models = [...new Set([...(u.ai?.models ?? []), ...(add.ai?.model ? [add.ai.model] : [])])];
+  u.ai = { input: (u.ai?.input ?? 0) + (add.ai?.inputTokens ?? 0), output: (u.ai?.output ?? 0) + (add.ai?.outputTokens ?? 0), calls: (u.ai?.calls ?? 0) + (add.ai ? 1 : 0), ...(models.length ? { models } : {}) };
   u.serp = { calls: (u.serp?.calls ?? 0) + (add.serpCalls ?? 0), cached: (u.serp?.cached ?? 0) + (add.serpCached ?? 0), costUsd: +((u.serp?.costUsd ?? 0) + (add.serpCostUsd ?? 0)).toFixed(5) };
   if (add.errorMessage) u.errorMessage = add.errorMessage;
   if (add.notes?.length) u.notes = [...(u.notes ?? []), ...add.notes];

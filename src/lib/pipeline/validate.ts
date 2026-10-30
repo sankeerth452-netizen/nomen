@@ -52,7 +52,7 @@ export function validateRecommendation(rec: Recommendation, facts: ProductFacts,
     for (const b of banned) if (new RegExp(`(^|\\s)${b.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(t.toLowerCase())) errors.push(`${label} contains prohibited term "${b}"`);
     const bad = unsupportedIn(t, allowed);
     if (bad.length) errors.push(`${label} uses words the buyer did not supply: ${bad.join(", ")}`);
-    for (const sc of scoped) if (!keepsPartScope(toks(t), sc)) errors.push(`${label} uses "${sc.word}" for the whole product, but only the ${sc.part} is ${sc.word}: keep it as "${sc.word} ${sc.part}"`);
+    for (const sc of scoped) if (!keepsPartScope(toks(t), sc)) errors.push(`${label} uses "${sc.word}" for the whole product, but only the ${sc.parts.join(" and ")} ${sc.parts.length > 1 ? "are" : "is"} ${sc.word}: keep it as ${sc.parts.map((p) => `"${sc.word} ${p}"`).join(" or ")}`);
     if (t.length > brand.maxTitleLength) errors.push(`${label} is ${t.length} characters; the brand maximum is ${brand.maxTitleLength}`);
   };
   check(title, "Recommended title");

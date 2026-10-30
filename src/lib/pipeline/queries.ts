@@ -31,7 +31,8 @@ export function planQueries(facts: ProductFacts, keywords: KeywordEvidenceItem[]
   if (best) add(best.keyword, COPY.query.mostSearched(best.searchVolume));
 
   const attrs = order.final;
-  if (attrs.length) add([...attrs.slice(0, 3), noun].join(" "), COPY.query.yourDetails);
+  // The order only reflects shopper searches when it came with matching keywords; otherwise it's the usual order for the type.
+  if (attrs.length) add([...attrs.slice(0, 3), noun].join(" "), keywords.length ? COPY.query.yourDetails : COPY.query.yourDetailsUsualOrder);
   else add(noun, COPY.query.typeOnly);
 
   const second = keywords.find((k) => k !== best && out.every((o) => jaccard(o.query, k.keyword) < 0.75));
