@@ -35,7 +35,8 @@ export function planQueries(facts: ProductFacts, keywords: KeywordEvidenceItem[]
   // them: "girls burgundy tennis dress" finds girls' tennis dresses, not women's party dresses.
   const who = facts.audience && !isDefaultAudience(facts.audience) ? facts.audience.trim().toLowerCase() : null;
   const use = facts.occasion_or_style.map((o) => o.trim().toLowerCase()).find(isUseWord) ?? null;
-  const attrs = order.final.filter((a) => a.toLowerCase() !== use);
+  // Shoppers search "viscose", never "73% viscose": percentages come out of the searches (the fibre word stays).
+  const attrs = [...new Set(order.final.filter((a) => a.toLowerCase() !== use).map((a) => a.replace(/\d+(?:\.\d+)?\s*%\s*/g, "").trim()).filter(Boolean))];
   const head = who ? [who] : [], tail = [...(use ? [use] : []), noun];
   const words = (parts: string[]) => parts.join(" ").split(" ").length;
   const mid: string[] = [];

@@ -127,6 +127,15 @@ describe("query planning", () => {
     expect(planQueries(pant, [], pantOrder, 3).map((x) => x.query)[0]).toBe("linen blend stripe pant");
   });
 
+  it("keeps fabric percentages out of searches, but not the fibre or a decade style", () => {
+    const pant = { ...emptyFacts, product_type: "pant", material: ["linen blend", "73% viscose"], pattern: ["stripe"] };
+    const pantOrder = { keywordOrder: [], serpOrder: null, final: ["linen blend", "73% viscose", "stripe"], suggestedTitle: "" };
+    expect(planQueries(pant, [], pantOrder, 3).map((x) => x.query)).toEqual(["linen blend viscose stripe pant", "linen blend pant"]);
+    const tee = { ...emptyFacts, product_type: "tee", material: ["100% cotton"], occasion_or_style: ["90s"] };
+    const teeOrder = { keywordOrder: [], serpOrder: null, final: ["90s", "100% cotton"], suggestedTitle: "" };
+    expect(planQueries(tee, [], teeOrder, 3)[0].query).toBe("90s cotton tee");
+  });
+
   it("only says 'the order shoppers search them' when matching keywords back it", () => {
     expect(planQueries(facts, [], order, 3)[0].reason).not.toMatch(/shoppers/i);
     expect(planQueries(facts, [kw("midi dress")], order, 3).map((q) => q.reason).join()).toMatch(/order shoppers search/);
