@@ -8,6 +8,7 @@ import { FILLER_WORDS, categoryForType } from "../vocab/fashion";
 import { COPY } from "../copy";
 import { AiError, type AiUsage, type ProductFacts } from "../providers/types";
 import { getProviders, type Providers } from "../providers";
+import type { Photo } from "../photo";
 import { EXTRACTION_PROMPT_VERSION, RECOMMEND_PROMPT_VERSION } from "../prompts";
 import { fetchSerp } from "../serp/cache";
 import { blendOrder, derivePatterns } from "../serp/patterns";
@@ -43,12 +44,19 @@ async function addUsage(id: string, add: { ai?: AiUsage; serpCalls?: number; ser
   await db.generation.update({ where: { id }, data: { usage: json(u) } });
 }
 
-/** Create the generation row. The caller kicks off runPipeline (background) and returns the id for polling. */
-export async function createGeneration(user: { id: string; brandId: string | null }, brandId: string, rawInput: unknown) {
+/**
+ * Create the generation row. The caller kicks off runPipeline (background) and returns the id for polling.
+ * `photo` is the buyer's display thumbnail; `fromPhoto` names the fields their photo filled in (engineers only).
+ */
+export async function createGeneration(user: { id: string; brandId: string | null }, brandId: string, rawInput: unknown, extra: { photo?: Photo; fromPhoto?: string[] } = {}) {
   const input = GenerationInput.parse(rawInput);
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
   const g = await db.generation.create({
-    data: { brandId, userId: user.id, datasetId: brand.activeKeywordDatasetId, originalInput: json(input), status: "pending", promptVersions: { extraction: EXTRACTION_PROMPT_VERSION, recommend: RECOMMEND_PROMPT_VERSION } },
+    data: {
+      brandId, userId: user.id, datasetId: brand.activeKeywordDatasetId, originalInput: json(input), status: "pending", promptVersions: { extraction: EXTRACTION_PROMPT_VERSION, recommend: RECOMMEND_PROMPT_VERSION },
+      ...(extra.photo ? { photo: { create: { mediaType: extra.photo.mediaType, data: new Uint8Array(extra.photo.data) } } } : {}),
+      ...(extra.fromPhoto?.length ? { usage: json({ notes: [`Filled in from the buyer's photo, then checked by them: ${extra.fromPhoto.join(", ")}`] }) } : {}),
+    },
   });
   return g.id;
 }

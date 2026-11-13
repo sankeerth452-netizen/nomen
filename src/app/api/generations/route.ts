@@ -3,6 +3,10 @@ import { db } from "@/lib/db";
 import { assertBrandAccess, errorResponse, HttpError, requireUser, hasRole } from "@/lib/auth/guards";
 import { createGeneration, runPipeline } from "@/lib/pipeline/run";
 import { rateLimit } from "@/lib/rateLimit";
+import { COPY } from "@/lib/copy";
+import { MAX_THUMB_BYTES, parsePhoto, type Photo } from "@/lib/photo";
+
+const FORM_FIELDS = new Set(["productType", "freeText", "colour", "material", "pattern", "fit", "length", "feature", "occasion", "audience", "extra"]);
 
 // Start a generation. Runs in the background (single long-lived Node service); the client polls GET /api/generations/:id.
 export async function POST(req: Request) {
@@ -14,7 +18,15 @@ export async function POST(req: Request) {
     const brandId = user.brandId ?? body.brandId; // owners pick a brand
     if (!brandId || typeof brandId !== "string") throw new HttpError(400, "Choose a brand first.");
     assertBrandAccess(user, brandId);
-    const id = await createGeneration(user, brandId, body);
+    let photo: Photo | undefined;
+    if (body.photo) {
+      const p = parsePhoto(body.photo, MAX_THUMB_BYTES);
+      if (p === "too_large") throw new HttpError(413, COPY.photo.tooLarge);
+      if (p === "not_a_photo") throw new HttpError(400, COPY.photo.notAPhoto);
+      photo = p;
+    }
+    const fromPhoto = Array.isArray(body.fromPhoto) ? body.fromPhoto.filter((f: unknown): f is string => typeof f === "string" && FORM_FIELDS.has(f)) : [];
+    const id = await createGeneration(user, brandId, body, { photo, fromPhoto });
     void runPipeline(id).catch((e) => console.error("runPipeline crashed", id, e instanceof Error ? e.message : e));
     return Response.json({ id }, { status: 202 });
   } catch (e) {

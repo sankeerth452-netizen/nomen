@@ -11,13 +11,15 @@ export class SerpProviderError extends Error {
   }
 }
 
-type Item = { type?: string; rank_group?: number; domain?: string; title?: string; url?: string; description?: string };
+type Item = { type?: string; rank_group?: number; domain?: string; title?: string; url?: string; description?: string; breadcrumb?: string; website_name?: string };
 
 /**
  * DataForSEO Google Organic Live Advanced.
  * NOTE: written from the public docs and covered by mocked-response tests only. It has NOT been run against the live API.
  */
 export class DataForSeoProvider implements SerpProvider {
+  // "live2": results cached before Google-wrapped links were read (Nov 2026) came back empty, so they are never reused.
+  readonly cacheNamespace = "live2";
   constructor(private login: string, private password: string, private fetchImpl: typeof fetch = fetch) {}
 
   async search(opts: { query: string; location: string; language: string; device: string; depth: number }): Promise<SerpResponse> {
@@ -52,18 +54,33 @@ export function parseResponse(query: string, json: unknown): SerpResponse {
   if (j.status_code !== 20000 || !task || task.status_code !== 20000) {
     throw new SerpProviderError(`DataForSEO task failed: ${task?.status_message ?? "unknown"}`, false);
   }
-  // Google's own pages (shopping and image links) aren't competitors' titles, so they aren't evidence of market wording.
-  const items = (task.result?.[0]?.items ?? []).filter((i) => i.type === "organic" && i.title && i.url && !/(^|\.)google\.[a-z.]+$/i.test(i.domain ?? safeHost(i.url)));
+  // Google now wraps result links (google.com/goto?url=...) and reports google.com as the domain. The shop's real
+  // address is in the breadcrumb ("https://www.shop.com.au › collections › lace-tops"), so read it from there.
+  // Google's own pages (shopping and image links) aren't competitors' titles, so they still aren't evidence.
+  const items = (task.result?.[0]?.items ?? []).filter((i) => i.type === "organic" && i.title && i.url).map((i) => ({ ...i, ...realPage(i) }))
+    .filter((i): i is typeof i & { url: string; domain: string } => !!i.url && !!i.domain && !isGoogle(i.domain));
   const results: SerpResult[] = items.slice(0, 10).map((i, idx) => ({
     rank: i.rank_group ?? idx + 1,
     title: String(i.title).slice(0, 200),
-    domain: i.domain ?? safeHost(i.url!),
-    url: String(i.url).slice(0, 300),
+    domain: i.domain,
+    url: i.url.slice(0, 300),
     resultType: "organic",
     snippet: String(i.description ?? "").slice(0, 200),
-    pageClass: classifyPage(String(i.url), String(i.title), i.domain ?? ""),
+    pageClass: classifyPage(i.url, String(i.title), i.domain),
   }));
   return { query, checkedAt: new Date().toISOString(), results, costUsd: task.cost };
 }
 
 const safeHost = (u: string) => { try { return new URL(u).host; } catch { return ""; } };
+const isGoogle = (host: string) => /(^|\.)google\.[a-z.]+$/i.test(host);
+
+/** The page a result really points to: its own URL, or for a Google-wrapped link, the address in its breadcrumb. */
+function realPage(i: Item): { url: string | undefined; domain: string | undefined } {
+  const host = i.domain || safeHost(i.url ?? "");
+  if (!isGoogle(host) || !/^https?:\/\/[^/]*google\.[a-z.]+\/(goto|url)\b/i.test(i.url ?? "")) return { url: i.url, domain: host };
+  const m = /^(https?:\/\/[^\s›]+)((?:\s*›\s*[^›]+)*)$/.exec((i.breadcrumb ?? "").trim());
+  const bHost = m ? safeHost(m[1]) : "";
+  if (!bHost) return { url: undefined, domain: undefined }; // can't tell where it goes: not evidence
+  const path = m![2].split("›").map((p) => p.trim()).filter((p) => p && !/\.\.\.|…/.test(p)).map((p) => encodeURIComponent(p.toLowerCase().replace(/\s+/g, "-")));
+  return { url: `${m![1].replace(/\/$/, "")}${path.length ? `/${path.join("/")}` : ""}`, domain: bHost };
+}

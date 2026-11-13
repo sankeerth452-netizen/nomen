@@ -28,7 +28,7 @@ export default async function History({ searchParams }: { searchParams: Promise<
   const where = user.role === "owner" ? {} : hasRole(user, "admin") ? { brandId: user.brandId! } : { userId: user.id };
   await failStaleGenerations(where);
   const [rows, total] = await Promise.all([
-    db.generation.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * PAGE, take: PAGE, include: { user: { select: { displayName: true } }, feedback: { orderBy: { createdAt: "desc" }, take: 1 } } }),
+    db.generation.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * PAGE, take: PAGE, include: { user: { select: { displayName: true } }, feedback: { orderBy: { createdAt: "desc" }, take: 1 }, photo: { select: { generationId: true } } } }),
     db.generation.count({ where }),
   ]);
   const rec = (r: unknown) => (r as { recommendation?: { recommended_title?: string } } | null)?.recommendation?.recommended_title ?? null;
@@ -62,7 +62,9 @@ export default async function History({ searchParams }: { searchParams: Promise<
               const final = fb?.outcome === "edited" ? fb.finalTitle : null;
               return (
                 <Link key={g.id} href={`/history/${g.id}`} className="look">
-                  <div className="look-photo"><Image src={photo.src} alt="" fill placeholder="blur" sizes="92px" style={{ objectPosition: photo.position }} /></div>
+                  {g.photo
+                    ? <div className="look-photo own"><Image src={`/api/generations/${g.id}/photo`} alt="" fill unoptimized sizes="92px" /></div>
+                    : <div className="look-photo"><Image src={photo.src} alt="" fill placeholder="blur" sizes="92px" style={{ objectPosition: photo.position }} /></div>}
                   <div>
                     <h3>{title ?? (input.productType ? `Untitled ${input.productType}` : "Untitled")}</h3>
                     {final && <span className="final">Published as “{final}”</span>}

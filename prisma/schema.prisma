@@ -137,12 +137,22 @@ model Generation {
   usage             Json?
   createdAt         DateTime @default(now())
 
-  brand    Brand      @relation(fields: [brandId], references: [id])
-  user     User       @relation(fields: [userId], references: [id])
+  brand    Brand            @relation(fields: [brandId], references: [id])
+  user     User             @relation(fields: [userId], references: [id])
   feedback Feedback[]
+  photo    GenerationPhoto?
 
   @@index([brandId, createdAt])
   @@index([userId, createdAt])
+}
+
+/// The buyer's product photo, kept small (a display thumbnail) so results and History show the real piece.
+model GenerationPhoto {
+  generationId String     @id
+  mediaType    String
+  data         Bytes
+  createdAt    DateTime   @default(now())
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
 }
 
 model SerpCache {

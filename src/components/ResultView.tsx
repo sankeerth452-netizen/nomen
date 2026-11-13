@@ -13,7 +13,7 @@ type Rec = {
   title_structure: string[]; alternatives: { title: string; trade_off: string }[]; reason: string; warnings: string[];
 };
 export type Gen = {
-  id: string; status: string; errorCode?: string | null;
+  id: string; status: string; errorCode?: string | null; hasPhoto?: boolean;
   input?: { productType?: string; freeText?: string };
   result: { recommendation?: Rec; meta?: { serpStatus: string; orderFinal: string[] }; needs?: string; conflicts?: string[]; message?: string } | null;
   evidence: { datasetId?: string | null; limitedKeywordEvidence?: boolean; keywords: Kw[]; serp: Serp[]; queries: { query: string; reason: string }[]; serpStatus: string; patterns: { intent: string; resultsAnalysed: number; productNouns: { term: string; count: number }[]; attributeWording: { term: string; count: number }[]; serpOrder: string[] | null } | null; order: { keywordOrder: string[]; serpOrder: string[] | null; final: string[] } } | null;
@@ -58,11 +58,14 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
   const top = useRef<HTMLElement>(null);
   const productType = gen.input?.productType ?? "";
   const photo = photoForType(productType);
+  const statePhoto = gen.hasPhoto
+    ? <div className="state-photo own"><Image src={`/api/generations/${gen.id}/photo`} alt="" fill unoptimized /></div>
+    : <div className="state-photo"><Image src={photo.src} alt="" fill placeholder="blur" sizes="200px" style={{ objectPosition: photo.position }} /></div>;
 
   if (["pending", "extracting", "matching", "searching", "building"].includes(gen.status)) {
     return (
       <div className="state">
-        <div className="state-photo"><Image src={photo.src} alt="" fill placeholder="blur" sizes="200px" style={{ objectPosition: photo.position }} /></div>
+        {statePhoto}
         <div><h3>Still working on this one…</h3><p className="muted">Check back in a few seconds.</p></div>
       </div>
     );
@@ -70,7 +73,7 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
   if (gen.status === "failed") {
     return (
       <div className="state">
-        <div className="state-photo"><Image src={photo.src} alt="" fill placeholder="blur" sizes="200px" style={{ objectPosition: photo.position }} /></div>
+        {statePhoto}
         <div>
           <h3>That didn&apos;t work</h3>
           <p className="muted">{gen.errorCode === "config_error" ? "This isn't quite ready for you yet. Please let your account manager know." : gen.errorCode === "ai_unavailable" || gen.errorCode === "timeout" ? "We couldn't finish this one just now. Your details are saved, so you can try again in a moment." : "We couldn't come up with a name we were sure was accurate, so we're not showing a doubtful one. Adding a detail or two usually helps."}</p>
@@ -82,7 +85,7 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
   if (gen.status === "needs_input") {
     return (
       <div className="state">
-        <div className="state-photo"><Image src={photo.src} alt="" fill placeholder="blur" sizes="200px" style={{ objectPosition: photo.position }} /></div>
+        {statePhoto}
         <div>
           <h3>One thing first</h3>
           {plainList(gen.result?.conflicts).map((c) => <div className="warn" key={c}>{c}</div>)}
@@ -124,12 +127,14 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
     <article className="result" ref={top} style={{ scrollMarginTop: 96 }}>
       <div className="result-grid">
         <figure className="pdp">
-          <div className="pdp-photo"><Image src={photo.src} alt={photo.alt} fill placeholder="blur" sizes="(max-width: 860px) 100vw, 40vw" style={{ objectPosition: photo.position }} /></div>
+          {gen.hasPhoto
+            ? <div className="pdp-photo own"><Image src={`/api/generations/${gen.id}/photo`} alt="Your photo of the piece" fill unoptimized /></div>
+            : <div className="pdp-photo"><Image src={photo.src} alt={photo.alt} fill placeholder="blur" sizes="(max-width: 860px) 100vw, 40vw" style={{ objectPosition: photo.position }} /></div>}
           <figcaption>
             {brandName && <span className="pdp-brand">{brandName}</span>}
             <span className="pdp-title">{title}</span>
           </figcaption>
-          <p className="pdp-note">How the name reads on a product page. The photo is an illustration of the category, not this piece.</p>
+          <p className="pdp-note">{gen.hasPhoto ? "How the name reads on your product page, with your photo." : "How the name reads on a product page. The photo is an illustration of the category, not this piece."}</p>
         </figure>
 
         <div className="verdict">

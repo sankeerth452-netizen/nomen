@@ -43,6 +43,23 @@ export const Recommendation = z.object({
 });
 export type Recommendation = z.infer<typeof Recommendation>;
 
+/** What Claude can see in a product photo, in the form's own fields (also the Claude structured-output schema). */
+export const PhotoDetails = z.object({
+  not_a_product: z.boolean(),
+  product_type: z.string().nullable(),
+  colour: z.string().nullable(),
+  pattern: z.string().nullable(),
+  material: z.string().nullable(),
+  fit: z.string().nullable(),
+  length: z.string().nullable(),
+  feature: z.string().nullable(),
+  description: z.string(),
+  unsure: z.array(z.string()),
+  /** Pixel box around the piece being named, used to frame the photo for the product page. */
+  focus: z.object({ left: z.number(), top: z.number(), right: z.number(), bottom: z.number() }).nullable(),
+});
+export type PhotoDetails = z.infer<typeof PhotoDetails>;
+
 export type KeywordEvidenceItem = {
   id: string; // K1..
   keyword: string;

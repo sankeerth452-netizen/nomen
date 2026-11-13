@@ -72,12 +72,24 @@ describe("serp helpers", () => {
     const s = { location: "Australia", language: "English", device: "desktop", depth: 10 };
     const live = new DataForSeoProvider("a", "b");
     expect(providerCacheKey(new MockSerpProvider(), "black midi dress", s)).not.toBe(providerCacheKey(live, "black midi dress", s));
-    expect(providerCacheKey(live, "black midi dress", s)).toBe(`live:${serpCacheKey("black midi dress", s)}`);
+    expect(providerCacheKey(live, "black midi dress", s)).toBe(`live2:${serpCacheKey("black midi dress", s)}`); // empty results cached before the Nov 2026 fix are never reused
   });
   it("drops Google's own pages from the results", () => {
     const withGoogle = structuredClone(fixture);
     withGoogle.tasks[0].result[0].items.push({ type: "organic", rank_group: 9, domain: "google.com", title: "Shop Ruched Detail Maxi Dress", url: "https://www.google.com/search?q=x" });
     expect(parseResponse("q", withGoogle).results.map((r) => r.domain)).not.toContain("google.com");
+  });
+
+  it("reads the real shop from the breadcrumb when Google wraps the link (google.com/goto)", () => {
+    const wrapped = { status_code: 20000, tasks: [{ status_code: 20000, cost: 0.002, result: [{ items: [
+      { type: "organic", rank_group: 1, domain: "google.com", title: "Lace Tops - Princess Polly", url: "https://google.com/goto?url=CAES123", breadcrumb: "https://www.princesspolly.com.au › collections › lace-tops" },
+      { type: "organic", rank_group: 2, domain: "google.com", title: "Black Lace Top Full Sleeves", url: "https://google.com/goto?url=CAES456", breadcrumb: "https://www.revolveclothing.com.au › black-lace-top-fu..." },
+      { type: "organic", rank_group: 3, domain: "google.com", title: "Mystery", url: "https://google.com/goto?url=CAES789" },
+    ] }] }] };
+    const r = parseResponse("black lace top", wrapped).results;
+    expect(r.map((x) => x.domain)).toEqual(["www.princesspolly.com.au", "www.revolveclothing.com.au"]); // no breadcrumb: dropped
+    expect(r[0].url).toBe("https://www.princesspolly.com.au/collections/lace-tops");
+    expect(r[1].url).toBe("https://www.revolveclothing.com.au"); // a cut-off path segment is left out, not guessed
   });
   it("classifies pages and strips site names", () => {
     expect(classifyPage("https://x.com/p/1", "Black Dress", "x.com")).toBe("product");

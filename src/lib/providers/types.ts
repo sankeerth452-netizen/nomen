@@ -51,3 +51,8 @@ export interface SerpProvider {
 export interface Recommender {
   recommend(payload: Record<string, unknown>, repair?: { errors: string[]; previous: unknown }): Promise<{ recommendation: import("../pipeline/types").Recommendation; usage: AiUsage }>;
 }
+
+/** Reads a product photo into the details a buyer would type. They pre-fill the form; the buyer checks them before naming. */
+export interface PhotoReader {
+  read(input: { image: import("../photo").Photo; productType?: string }): Promise<{ details: import("../pipeline/types").PhotoDetails; usage: AiUsage }>;
+}

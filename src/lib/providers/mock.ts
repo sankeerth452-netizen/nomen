@@ -1,8 +1,8 @@
 import { deterministicFacts } from "../pipeline/facts";
 import type { GenerationInput } from "../pipeline/types";
-import { Recommendation } from "../pipeline/types";
+import { Recommendation, type PhotoDetails } from "../pipeline/types";
 import { classify } from "../vocab/fashion";
-import type { FactExtractor, Recommender, SerpProvider, SerpResponse } from "./types";
+import type { FactExtractor, PhotoReader, Recommender, SerpProvider, SerpResponse } from "./types";
 import { classifyPage } from "../serp/reduce";
 import { titleCase } from "../serp/patterns";
 
@@ -64,5 +64,20 @@ export class MockSerpProvider implements SerpProvider {
     const t = query.replace(/(^|\s)([a-z])/g, (_, a, b) => a + b.toUpperCase());
     const mk = (rank: number, domain: string, path: string, title: string) => ({ rank, title, domain, url: `https://${domain}${path}`, resultType: "organic", snippet: "", pageClass: classifyPage(`https://${domain}${path}`, title, domain) });
     return { query, checkedAt: new Date().toISOString(), costUsd: 0, results: [mk(1, "retailer-a.example", "/p/12345", `${t} | Retailer A`), mk(2, "retailer-b.example", "/products/x", `${t} - Retailer B`), mk(3, "retailer-c.example", "/collections/dresses", `${t}s | Retailer C`)] };
+  }
+}
+
+/** Example details, the same for every photo. MOCK, not AI: lets the photo flow run without paid keys (the screen says so). */
+export class MockPhotoReader implements PhotoReader {
+  calls = 0;
+  async read({ productType }: { productType?: string }) {
+    this.calls++;
+    const type = productType?.trim().toLowerCase() || "dress";
+    const details: PhotoDetails = {
+      not_a_product: false, product_type: type, colour: "black", pattern: null, material: null, fit: null,
+      length: type === "dress" || type === "skirt" ? "midi" : null, feature: "square neckline",
+      description: `black ${type} with a square neckline`, unsure: ["fabric"], focus: null,
+    };
+    return { details, usage: NO_USAGE };
   }
 }

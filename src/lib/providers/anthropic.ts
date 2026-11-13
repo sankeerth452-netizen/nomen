@@ -1,9 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import type { BetaContentBlockParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { z } from "zod";
-import { EXTRACTION_SYSTEM, RECOMMEND_SYSTEM } from "../prompts";
-import { ExtractedFacts, Recommendation } from "../pipeline/types";
-import { AiError, type AiUsage, type FactExtractor, type ProductFacts, type Recommender } from "./types";
+import { EXTRACTION_SYSTEM, PHOTO_SYSTEM, RECOMMEND_SYSTEM } from "../prompts";
+import { ExtractedFacts, PhotoDetails, Recommendation } from "../pipeline/types";
+import { imageSize, type Photo } from "../photo";
+import { AiError, type AiUsage, type FactExtractor, type PhotoReader, type ProductFacts, type Recommender } from "./types";
 
 /** Models that accept server-side refusal fallbacks in the "default" form on the Claude API. */
 const FALLBACK_DEFAULT = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"]);
@@ -23,7 +25,8 @@ export class ClaudeClient {
     this.client = client ?? new Anthropic({ apiKey, timeout: 60_000, maxRetries: 2 });
   }
 
-  async json<T extends z.ZodType>(system: string, user: string, schema: T, effort: Effort = "medium", maxTokens = 16000): Promise<{ data: z.infer<T>; usage: AiUsage }> {
+  /** `user` is plain text, or content blocks when a photo goes with it. */
+  async json<T extends z.ZodType>(system: string, user: string | BetaContentBlockParam[], schema: T, effort: Effort = "medium", maxTokens = 16000): Promise<{ data: z.infer<T>; usage: AiUsage }> {
     try {
       const fallback = FALLBACK_DEFAULT.has(this.model);
       const res = await this.client.beta.messages.parse({
@@ -64,5 +67,19 @@ export class ClaudeRecommender implements Recommender {
     const user = JSON.stringify(repair ? { ...payload, repair: { your_previous_answer: repair.previous, validation_errors: repair.errors, instruction: "Fix every validation error. Change nothing else." } } : payload);
     const { data, usage } = await this.c.json(RECOMMEND_SYSTEM, user, Recommendation, "medium");
     return { recommendation: data, usage };
+  }
+}
+
+export class ClaudePhotoReader implements PhotoReader {
+  constructor(private c: ClaudeClient) {}
+  async read({ image, productType }: { image: Photo; productType?: string }) {
+    const size = imageSize(image);
+    // Image first, then the request: the order Claude reads best.
+    const content: BetaContentBlockParam[] = [
+      { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data.toString("base64") } },
+      { type: "text", text: JSON.stringify({ task: "Fill in the details of the piece in this photo.", ...(size ? { image_width: size.width, image_height: size.height } : {}), ...(productType ? { buyer_product_type: productType } : {}) }) },
+    ];
+    const { data, usage } = await this.c.json(PHOTO_SYSTEM, content, PhotoDetails, "low"); // reading what's visible: simple
+    return { details: data, usage };
   }
 }

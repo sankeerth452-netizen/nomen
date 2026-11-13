@@ -26,6 +26,21 @@ export const COPY = {
     anotherWay: "Another way shoppers search for it",
     broader: "A broader search",
   },
+  photo: {
+    notAPhoto: "That file isn't a photo we can read. Try a JPG, PNG or WebP.",
+    tooLarge: "That photo is too large. Try a smaller one.",
+    cantOpen: "We can't open that photo here. Try a JPG or PNG.",
+    readFailed: "We couldn't read that photo just now. You can still describe the piece yourself.",
+    tooMany: "You've added a lot of photos this hour. Take a short break and try again.",
+    notProduct: "We couldn't see a fashion piece in this photo. Try another one, or describe it yourself.",
+    filled: "We filled in what we could see. Check it, change anything that's wrong, then create the name.",
+    nothingNew: "Your photo matches what you've already written.",
+    unsure: (things: string[]) => `We couldn't tell the ${things.join(" or the ")} from the photo. Add it if you know it.`,
+    mismatch: (seen: string, typed: string) => `Your photo looks ${seen}, but you wrote ${typed}. Which is right?`,
+    typeMismatch: (seen: string, chosen: string) => `Your photo looks like a ${seen}, but you chose ${chosen}. Which is right?`,
+    fromPhoto: "From your photo",
+    example: "Preview version: these details are an example, not read from your photo.",
+  },
 } as const;
 
 // Older generations stored engineer wording. Translate it when shown, so History reads the same as new results.

@@ -321,6 +321,31 @@ details[open].more summary::before, details[open].why summary::before { content:
 /* Category photos stand in for the real product, so wherever they sit next to a specific piece they're shown in
    black and white: an illustrative red dress must never contradict a name that says "Black". */
 .pdp-photo img, .look-photo img, .state-photo img, .working-photo img { filter: grayscale(1) contrast(1.05); }
+/* The buyer's own photo is the real piece: always in colour, shown whole rather than cropped. */
+.pdp-photo.own img, .look-photo.own img, .state-photo.own img, .working-photo.own img { filter: none; object-fit: cover; animation: none; }
+.pdp-photo.own, .look-photo.own, .state-photo.own, .working-photo.own { background: var(--card); }
+
+/* Start with a photo */
+.photo-drop { display: grid; grid-template-columns: 148px minmax(0, 1fr); gap: 24px; align-items: center; padding: 18px; border: 1px dashed var(--line-strong); background: var(--card); transition: border-color .2s var(--ease), background .2s var(--ease); }
+.photo-drop.over { border-color: var(--ink); background: var(--paper-deep); }
+.photo-drop.has { border-style: solid; border-color: var(--line); }
+.photo-frame { position: relative; aspect-ratio: 4 / 5; display: grid; place-items: center; background: var(--paper); color: var(--line-strong); overflow: hidden; }
+.photo-frame svg { width: 46px; height: 46px; }
+.photo-frame img { object-fit: cover; }
+.photo-reading { position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 253, 249, .55) 50%, transparent 70%) 0 0 / 250% 100%; animation: sheen 1.4s linear infinite; }
+@keyframes sheen { from { background-position: 125% 0; } to { background-position: -125% 0; } }
+.photo-status { margin: 0 0 14px; font: italic 400 clamp(18px, 2vw, 22px)/1.35 var(--display); }
+.photo-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.photo-btns label.btn { margin: 0; padding: 13px 20px; font: 500 11.5px/1 var(--text); letter-spacing: .18em; color: var(--ink); }
+.photo-copy:has(#photoFile:focus-visible) label.btn { outline: 2px solid var(--ink); outline-offset: 2px; } /* the real file input is hidden; show its focus on the button */
+.photo-copy .err { margin: 12px 0 0; }
+.photo-notes { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.photo-notes li { font-size: 14px; color: var(--ink-soft); padding-left: 16px; border-left: 2px solid var(--rouge); display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.from-photo { margin-left: 10px; font: 500 9.5px/1 var(--text); letter-spacing: .16em; text-transform: uppercase; color: var(--sage); background: var(--sage-soft); padding: 4px 6px; vertical-align: 1px; }
+.step-head > .from-photo { margin-left: 0; align-self: center; }
+.field-grid .filled input { border-bottom-color: var(--sage); }
+.from-photo.below { display: inline-block; margin: 7px 0 0; }
+@media (max-width: 640px) { .photo-drop { grid-template-columns: 104px minmax(0, 1fr); gap: 16px; padding: 14px; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

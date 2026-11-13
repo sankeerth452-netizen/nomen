@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "@/lib/db";
 import { createGeneration, runPipeline } from "@/lib/pipeline/run";
-import { MockFactExtractor, MockRecommender, MockSerpProvider } from "@/lib/providers/mock";
+import { MockFactExtractor, MockPhotoReader, MockRecommender, MockSerpProvider } from "@/lib/providers/mock";
 import type { Providers } from "@/lib/providers";
 import { loadGenerationFor, presentGeneration } from "@/lib/pipeline/access";
 import type { Recommendation } from "@/lib/pipeline/types";
@@ -11,7 +11,7 @@ import { resetDb, seedBrand } from "./helpers";
 const fresh = () => {
   const recommender = new MockRecommender();
   const serp = new MockSerpProvider();
-  const providers: Providers = { extractor: new MockFactExtractor(), recommender, serp, modelName: "mock" };
+  const providers: Providers = { extractor: new MockFactExtractor(), recommender, serp, photo: new MockPhotoReader(), modelName: "mock" };
   return { recommender, serp, providers };
 };
 const dress = { freeText: "black midi dress with ruching", productType: "dress", colour: "black", length: "midi", feature: "ruched" };
