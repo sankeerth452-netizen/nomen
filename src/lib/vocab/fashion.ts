@@ -7,6 +7,13 @@ export const LENGTHS = ["mini","midi","maxi","short","long","cropped","longline"
 export const STYLES = ["backless","bodycon","boho","corset","casual","floral","flowy","formal","halter","leopard","oversized","pinafore","platform","skater","slip","sporty","strapless","strappy","studded","vintage","wrap","ruched","ruffle","pleated","tiered","smocked","puff","sleeve","sleeveless","bandeau","bardot","asymmetric","button","zip","tie","cutout","cut-out","off-shoulder","one-shoulder","v-neck","square-neck","high-neck","low-back","slit","split","a-line","shift","sheath","fit","flare","relaxed","wide","straight","slim","skinny","bootcut","mom","baggy","cargo","chunky","wedge","stiletto","block","kitten","knee-high","clutch","crossbody","tote","shoulder","bucket","mini"];
 export const OCCASIONS = ["beach","birthday","bridesmaid","christmas","cocktail","evening","formal","graduation","party","prom","summer","wedding","winter","work","festival","races","holiday","date","everyday","night","guest","bridal","autumn","spring"];
 
+/** What a piece is made for. Shoppers search with these ("tennis dress"), unlike mood words such as "everyday". */
+export const USE_WORDS = new Set(["tennis","golf","netball","gym","yoga","pilates","running","workout","training","active","activewear","sport","sports","swim","surf","ski","snow","hiking","bridal","wedding","bridesmaid","maternity","school","sleep","lounge"]);
+export const isUseWord = (unit: string) => unit.toLowerCase().split(/[\s-]+/).some((w) => USE_WORDS.has(w));
+
+/** Women's is the default audience in fashion naming: "Women's" in a name or search is noise. Children, men, maternity aren't. */
+export const isDefaultAudience = (a: string) => ["women", "womens", "woman", "ladies", "lady"].includes(a.toLowerCase().replace(/[^a-z]/g, ""));
+
 /** Words that describe WHO it's for. Never allowed unless the buyer supplied them. */
 export const AUDIENCE_TERMS = ["womens","women","womans","ladies","girls","girl","mens","men","boys","boy","kids","kid","baby","toddler","teen","teens","juniors","plus","petite","tall","curve","maternity","mother","mum","mom","bump"];
 

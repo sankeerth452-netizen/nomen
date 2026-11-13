@@ -25,6 +25,7 @@ export const COPY = {
     typeOnly: "Just the product type",
     anotherWay: "Another way shoppers search for it",
     broader: "A broader search",
+    whoAndWhat: "Who it's for and what kind of piece it is",
   },
   photo: {
     notAPhoto: "That file isn't a photo we can read. Try a JPG, PNG or WebP.",

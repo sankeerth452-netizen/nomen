@@ -26,7 +26,7 @@ export function allowedWords(facts: ProductFacts, brand: BrandSettings): Set<str
 }
 
 const unsupportedIn = (title: string, allowed: Set<string>) =>
-  toks(title).filter((w) => !STOP_WORDS.has(w) && !allowed.has(w) && !allowed.has(singular(w)) && !allowed.has(wordStem(w)));
+  toks(title).map((w) => w.replace(/'s?$/, "")).filter((w) => w && !STOP_WORDS.has(w) && !allowed.has(w) && !allowed.has(singular(w)) && !allowed.has(wordStem(w))); // "Girls'" is the buyer's "girls"
 
 /**
  * Stage 7 validator. Deterministic checks between Claude and the user (brief section 6). `errors` trigger one repair

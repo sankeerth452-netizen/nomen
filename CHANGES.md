@@ -145,3 +145,17 @@ Buyers can now add a product photo instead of typing everything. Claude (Opus 5.
 ## Google results were being thrown away (13 Nov 2026)
 
 Found while testing photos: Google now wraps every result link (`google.com/goto?url=…`) and DataForSEO reports `google.com` as the domain. The 29 Oct rule that drops Google's own pages therefore dropped every result, so names had no Google evidence. Cached searches show it started after 30 Oct (the quality test runs on 29–30 Oct had results in 79 of 80 searches; the 13 Nov ones in 0 of 3). The real shop and page are now read from each result's breadcrumb ("https://www.princesspolly.com.au › collections › lace-tops"); results with no breadcrumb are dropped, and Google's own pages still are. Searches cached while it was broken are never reused (cache keys are now `live2:`). A test search for "red one shoulder ruffle dress" went from 0 results to 7.
+
+## Who it's for, and what it's made for (13 Nov 2026)
+
+A girls' tennis dress, named from its photo, came out as "Burgundy Contrast Trim Half-Zip Mini Dress": accurate, but named like a women's party dress. Even when the buyer typed "girls" and "tennis", the name dropped "Girls'" and the Google checks still looked at women's dresses. Three fixes:
+
+- **The photo reader suggests the audience and the use** (`photo-v3`): kids, girls, boys, baby or men when the photo makes it plain (a piece worn by a child), and a sport, bridal or maternity use when the design makes it plain. Both fill the Audience and Occasion fields, tagged "From your photo" for the buyer to check; women's pieces and anything unsure stay blank.
+- **Names keep the audience** (`recommend-v6`): when the facts give one, the name opens with it ("Girls'", "Men's"), and what the piece is made for sits next to the noun ("Tennis Dress"). The validator accepts the possessive form of the buyer's own word. The reason no longer states a confidence level (the app sets the final one).
+- **Google checks search the right market:** searches lead with the audience and the use ("girls burgundy a-line tennis dress", "girls tennis dress"), fitting the buyer's details in around them. Without an audience or use word, searches are unchanged.
+
+Women's is treated as the default audience (`recommend-v7`): a name never says "Women's" and searches never lead with "women". The first quality-test run on the new rules caught this: three Sportsgirl pieces whose descriptions mention "women's" came back as "Women's Pink & Red Linen Blend Stripe Shirt" and the like.
+
+Quality test (46 cases, first try each): 42 pass, against 41 before. That counts the three pieces re-scored after the women's fix plus 43 from the full run on these rules; that run first lost 28 cases to a temporary Claude outage (503, "credential validation failed"), which were re-run. Accuracy and honest reasons stay at 100%; the remaining four are the two real contradictions in Sportsgirl's data, "Silver Sequin Detailing Bag", and a lace-trim top named "Lace Sleeve Top". Still open: some searches include fabric percentages ("linen blend 73% viscose stripe pant"), which shoppers never type. Runs cost US$2.49 and US$0.16.
+
+Retested with the same photo and no typing: "Girls' Burgundy Sleeveless Front-Zip Tennis Dress", with Google evidence from Etsy kids' tennis dresses, Amazon girls' sports dresses, Adidas girls' tennis gear and Tennis Direct junior apparel. The name breakdown now labels "Girls'" as who it's for and multi-word colours ("Light Pink") as colours. 108 tests pass.

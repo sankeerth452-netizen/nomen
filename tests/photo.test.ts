@@ -71,7 +71,7 @@ describe("framing the photo on the piece", () => {
 describe("reading a photo", () => {
   it("sends the photo first, then the request, with the buyer's product type and low effort", async () => {
     let sent: Record<string, unknown> = {};
-    const details = { not_a_product: false, product_type: "dress", colour: "red", pattern: null, material: null, fit: null, length: "midi", feature: "one-shoulder, ruffle", description: "red one-shoulder ruffle midi dress", unsure: ["fabric"], focus: { left: 300, top: 40, right: 560, bottom: 760 } };
+    const details = { not_a_product: false, product_type: "dress", colour: "red", pattern: null, material: null, fit: null, length: "midi", feature: "one-shoulder, ruffle", occasion: null, audience: null, description: "red one-shoulder ruffle midi dress", unsure: ["fabric"], focus: { left: 300, top: 40, right: 560, bottom: 760 } };
     const client = new ClaudeClient("k", "claude-opus-5-5", { beta: { messages: { parse: async (p: Record<string, unknown>) => { sent = p; return { stop_reason: "end_turn", parsed_output: details, usage: { input_tokens: 1800, output_tokens: 90 }, model: "claude-opus-5-5" }; } } } } as never);
     const r = await new ClaudePhotoReader(client).read({ image: { mediaType: "image/jpeg", data: JPEG }, productType: "dress" });
     expect(r.details.colour).toBe("red");

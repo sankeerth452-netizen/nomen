@@ -2,6 +2,7 @@ import type { ProductFacts } from "../providers/types";
 import type { KeywordEvidenceItem, OrderGuidance } from "./types";
 import { normalizeKeyword } from "../keywords/normalize";
 import { COPY } from "../copy";
+import { isDefaultAudience, isUseWord } from "../vocab/fashion";
 
 export type PlannedQuery = { query: string; reason: string };
 const MAX_WORDS = 6; // real shopper phrasing, not a sentence
@@ -30,13 +31,22 @@ export function planQueries(facts: ProductFacts, keywords: KeywordEvidenceItem[]
   const best = keywords[0];
   if (best) add(best.keyword, COPY.query.mostSearched(best.searchVolume));
 
-  const attrs = order.final;
+  // Who it's for ("girls") and what it's made for ("tennis") change the market entirely, so the searches lead with
+  // them: "girls burgundy tennis dress" finds girls' tennis dresses, not women's party dresses.
+  const who = facts.audience && !isDefaultAudience(facts.audience) ? facts.audience.trim().toLowerCase() : null;
+  const use = facts.occasion_or_style.map((o) => o.trim().toLowerCase()).find(isUseWord) ?? null;
+  const attrs = order.final.filter((a) => a.toLowerCase() !== use);
+  const head = who ? [who] : [], tail = [...(use ? [use] : []), noun];
+  const words = (parts: string[]) => parts.join(" ").split(" ").length;
+  const mid: string[] = [];
+  for (const a of attrs.slice(0, 3)) if (words([...head, ...mid, a, ...tail]) <= MAX_WORDS) mid.push(a);
   // The order only reflects shopper searches when it came with matching keywords; otherwise it's the usual order for the type.
-  if (attrs.length) add([...attrs.slice(0, 3), noun].join(" "), keywords.length ? COPY.query.yourDetails : COPY.query.yourDetailsUsualOrder);
+  if (mid.length || who || use) add([...head, ...mid, ...tail].join(" "), keywords.length ? COPY.query.yourDetails : COPY.query.yourDetailsUsualOrder);
   else add(noun, COPY.query.typeOnly);
 
   const second = keywords.find((k) => k !== best && out.every((o) => jaccard(o.query, k.keyword) < 0.75));
   if (second) add(second.keyword, COPY.query.anotherWay);
+  else if (who || use) add([...head, ...tail].join(" "), COPY.query.whoAndWhat);
   else if (attrs.length > 1) add([attrs[0], noun].join(" "), COPY.query.broader);
 
   return out;

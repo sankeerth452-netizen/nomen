@@ -112,6 +112,21 @@ describe("query planning", () => {
     expect(planQueries(facts, [kw("black midi dress")], order, 1)).toHaveLength(1);
   });
 
+  it("leads the Google searches with who it's for and what it's made for", () => {
+    const kids = { ...emptyFacts, product_type: "dress", colour: ["burgundy"], fit_or_silhouette: ["a-line"], features: ["white contrast trim", "half zip"], occasion_or_style: ["tennis"], audience: "girls" };
+    const kidsOrder = { keywordOrder: [], serpOrder: null, final: ["burgundy", "white contrast trim", "a-line", "half zip", "tennis"], suggestedTitle: "" };
+    const q = planQueries(kids, [], kidsOrder, 3).map((x) => x.query);
+    expect(q[0]).toMatch(/^girls burgundy .*tennis dress$/);
+    expect(q[0].split(" ").length).toBeLessThanOrEqual(6); // a long detail that doesn't fit is skipped, not truncated
+    expect(q).toContain("girls tennis dress");
+    // No audience or sport: the same searches as before.
+    expect(planQueries(facts, [], order, 3).map((x) => x.query)).toEqual(["black midi dress", "black dress"]);
+    // Women's is the default, so it doesn't lead the searches.
+    const pant = { ...emptyFacts, product_type: "pant", material: ["linen blend"], pattern: ["stripe"], audience: "women" };
+    const pantOrder = { keywordOrder: [], serpOrder: null, final: ["linen blend", "stripe"], suggestedTitle: "" };
+    expect(planQueries(pant, [], pantOrder, 3).map((x) => x.query)[0]).toBe("linen blend stripe pant");
+  });
+
   it("only says 'the order shoppers search them' when matching keywords back it", () => {
     expect(planQueries(facts, [], order, 3)[0].reason).not.toMatch(/shoppers/i);
     expect(planQueries(facts, [kw("midi dress")], order, 3).map((q) => q.reason).join()).toMatch(/order shoppers search/);

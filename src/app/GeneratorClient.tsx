@@ -59,7 +59,7 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
     let description = d.description?.trim() || null;
     if (differs(productType, d.product_type)) description = null;
     else if (description && d.colour && differs(values.colour, d.colour)) description = description.replace(new RegExp(`\\b${d.colour.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"), "").replace(/\s{2,}/g, " ").trim() || null;
-    const seen: Record<string, string | null> = { productType: d.product_type, freeText: description, colour: d.colour, material: d.material, pattern: d.pattern, fit: d.fit, length: d.length, feature: d.feature };
+    const seen: Record<string, string | null> = { productType: d.product_type, freeText: description, colour: d.colour, material: d.material, pattern: d.pattern, fit: d.fit, length: d.length, feature: d.feature, occasion: d.occasion, audience: d.audience };
     const filled: string[] = [];
     const notes: { text: string; fix?: { label: string; apply: () => void } }[] = example ? [{ text: COPY.photo.example }] : [];
     const next = { ...values };

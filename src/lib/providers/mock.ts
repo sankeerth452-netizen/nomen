@@ -75,7 +75,7 @@ export class MockPhotoReader implements PhotoReader {
     const type = productType?.trim().toLowerCase() || "dress";
     const details: PhotoDetails = {
       not_a_product: false, product_type: type, colour: "black", pattern: null, material: null, fit: null,
-      length: type === "dress" || type === "skirt" ? "midi" : null, feature: "square neckline",
+      length: type === "dress" || type === "skirt" ? "midi" : null, feature: "square neckline", occasion: null, audience: null,
       description: `black ${type} with a square neckline`, unsure: ["fabric"], focus: null,
     };
     return { details, usage: NO_USAGE };

@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { photoForType } from "@/lib/photos";
-import { STOP_WORDS, classify, isGarmentPart, wordStem } from "@/lib/vocab/fashion";
+import { AUDIENCE_TERMS, STOP_WORDS, classify, isGarmentPart, wordStem } from "@/lib/vocab/fashion";
 import { plain, plainList } from "@/lib/copy";
 
 type Kw = { id: string; keyword: string; searchVolume: number | null; category: string | null };
@@ -22,7 +22,7 @@ export type Gen = {
 const vol = (v: number | null) => (v === null ? "no monthly figure" : `${v.toLocaleString()} a month`);
 const INTENT: Record<string, string> = { product_led: "Mostly other shops' product pages", category_led: "Mostly shop category pages", mixed: "A mix of shops and articles", none: "Nothing showing yet" };
 const PAGE: Record<string, string> = { product: "Product page", category: "Category page", editorial: "Article", marketplace: "Marketplace", other: "Other" };
-const KIND: Record<string, string> = { colour: "Colour", material: "Material", length: "Length", feature: "Detail", detail: "Detail", product: "Product" };
+const KIND: Record<string, string> = { colour: "Colour", material: "Material", length: "Length", feature: "Detail", detail: "Detail", product: "Product", audience: "For" };
 const SEARCH_TITLE_CHARS = 60; // roughly what Google shows of a page title before cutting it off
 
 const bare = (w: string) => w.toLowerCase().replace(/[^a-z0-9'-]/g, "");
@@ -39,7 +39,11 @@ function anatomy(title: string, units: string[], productType: string) {
     if (noun.length && key(words.slice(i, i + noun.length)) === key(noun)) { parts.push({ text: words.slice(i, i + noun.length).join(" "), kind: "product" }); i += noun.length; continue; }
     const u = unitWords.find((uw) => key(words.slice(i, i + uw.length)) === key(uw));
     const len = u?.length ?? 1;
-    const kind = len > 1 && isGarmentPart(bare(words[i + len - 1])) ? "detail" : classify(bare(words[i])) ?? "detail";
+    const piece = words.slice(i, i + len).map(bare);
+    // "Light Pink" is a colour even though "light" isn't; "Girls'" says who it's for.
+    const kind = len > 1 && isGarmentPart(piece[len - 1]) ? "detail"
+      : AUDIENCE_TERMS.includes(piece[0].replace(/'s?$/, "")) ? "audience"
+      : piece.map((w) => classify(w)).find((c) => c === "colour") ?? classify(piece[0]) ?? "detail";
     parts.push({ text: words.slice(i, i + len).join(" "), kind });
     i += len;
   }

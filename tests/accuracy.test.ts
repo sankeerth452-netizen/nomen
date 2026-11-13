@@ -110,6 +110,13 @@ describe("a detail limited to one part stays attached to that part", () => {
 });
 
 describe("the buyer's word in its natural retail form", () => {
+  it("allows the possessive 'Girls'' for a buyer's audience 'girls', and only then", () => {
+    const dress = facts({ product_type: "dress", colour: ["burgundy"], occasion_or_style: ["tennis"], audience: "girls" });
+    const v = (t: string, f = dress) => validateRecommendation(rec(t), f, bundle, brand).errors;
+    expect(v("Girls' Burgundy Tennis Dress")).toEqual([]);
+    expect(v("Girls' Burgundy Tennis Dress", facts({ product_type: "dress", colour: ["burgundy"], occasion_or_style: ["tennis"] })).join()).toMatch(/did not supply: girls/);
+  });
+
   it("allows the retail short form 'Crew Neck' for a buyer's 'crew neckline', and only then", () => {
     const sweater = facts({ product_type: "sweater", colour: ["black"], features: ["crew neckline"] });
     const v = (t: string, f = sweater) => validateRecommendation(rec(t), f, bundle, brand).errors;

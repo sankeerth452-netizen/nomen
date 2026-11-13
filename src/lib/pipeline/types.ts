@@ -53,6 +53,8 @@ export const PhotoDetails = z.object({
   fit: z.string().nullable(),
   length: z.string().nullable(),
   feature: z.string().nullable(),
+  occasion: z.string().nullable(),
+  audience: z.string().nullable(),
   description: z.string(),
   unsure: z.array(z.string()),
   /** Pixel box around the piece being named, used to frame the photo for the product page. */
