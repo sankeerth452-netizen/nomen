@@ -42,6 +42,15 @@ export const COPY = {
     fromPhoto: "From your photo",
     example: "Preview version: these details are an example, not read from your photo.",
   },
+  range: {
+    notFound: "We couldn't find that range.",
+    full: (max: number) => `A range holds up to ${max} photos. Start another range for the rest.`,
+    busy: "This piece is being worked on. Try again in a moment.",
+    tooManyPhotos: "You've added a lot of photos this hour. Take a short break and try again.",
+    tooManyNames: "You've named a lot of pieces this hour. Name fewer, or try again a little later.",
+    nothingReady: "No pieces are ready to name. Each one needs a product type and a description.",
+    title: (date: Date) => `Range · ${date.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`,
+  },
 } as const;
 
 // Older generations stored engineer wording. Translate it when shown, so History reads the same as new results.

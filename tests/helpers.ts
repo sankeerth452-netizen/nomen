@@ -7,6 +7,7 @@ import { activateDataset } from "@/lib/keywords/versions";
 
 export async function resetDb() {
   await db.auditEvent.deleteMany();
+  await db.batch.deleteMany(); // and their pieces
   await db.feedback.deleteMany();
   await db.generation.deleteMany();
   await db.serpCache.deleteMany();

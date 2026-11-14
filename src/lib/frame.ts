@@ -11,3 +11,10 @@ export function frameAround(box: Box, width: number, height: number) {
   const cx = ((box.left + box.right) / 2) * width, cy = ((box.top + box.bottom) / 2) * height;
   return { x: Math.min(Math.max(cx - w / 2, 0), width - w), y: Math.min(Math.max(cy - h / 2, 0), height - h), w, h };
 }
+
+/** CSS object-position that keeps the piece in view when a photo is cropped to fill a frame ("50% 30%"). */
+export function objectPosition(box: Box | null | undefined): string | undefined {
+  if (!box) return undefined;
+  const pc = (v: number) => `${Math.round(Math.min(1, Math.max(0, v)) * 100)}%`;
+  return `${pc((box.left + box.right) / 2)} ${pc((box.top + box.bottom) / 2)}`;
+}

@@ -13,7 +13,7 @@ type Rec = {
   title_structure: string[]; alternatives: { title: string; trade_off: string }[]; reason: string; warnings: string[];
 };
 export type Gen = {
-  id: string; status: string; errorCode?: string | null; hasPhoto?: boolean;
+  id: string; status: string; errorCode?: string | null; hasPhoto?: boolean; photoPosition?: string | null;
   input?: { productType?: string; freeText?: string };
   result: { recommendation?: Rec; meta?: { serpStatus: string; orderFinal: string[] }; needs?: string; conflicts?: string[]; message?: string } | null;
   evidence: { datasetId?: string | null; limitedKeywordEvidence?: boolean; keywords: Kw[]; serp: Serp[]; queries: { query: string; reason: string }[]; serpStatus: string; patterns: { intent: string; resultsAnalysed: number; productNouns: { term: string; count: number }[]; attributeWording: { term: string; count: number }[]; serpOrder: string[] | null } | null; order: { keywordOrder: string[]; serpOrder: string[] | null; final: string[] } } | null;
@@ -63,7 +63,7 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
   const productType = gen.input?.productType ?? "";
   const photo = photoForType(productType);
   const statePhoto = gen.hasPhoto
-    ? <div className="state-photo own"><Image src={`/api/generations/${gen.id}/photo`} alt="" fill unoptimized /></div>
+    ? <div className="state-photo own"><Image src={`/api/generations/${gen.id}/photo`} alt="" fill unoptimized style={{ objectPosition: gen.photoPosition ?? undefined }} /></div>
     : <div className="state-photo"><Image src={photo.src} alt="" fill placeholder="blur" sizes="200px" style={{ objectPosition: photo.position }} /></div>;
 
   if (["pending", "extracting", "matching", "searching", "building"].includes(gen.status)) {
@@ -132,7 +132,7 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
       <div className="result-grid">
         <figure className="pdp">
           {gen.hasPhoto
-            ? <div className="pdp-photo own"><Image src={`/api/generations/${gen.id}/photo`} alt="Your photo of the piece" fill unoptimized /></div>
+            ? <div className="pdp-photo own"><Image src={`/api/generations/${gen.id}/photo`} alt="Your photo of the piece" fill unoptimized style={{ objectPosition: gen.photoPosition ?? undefined }} /></div>
             : <div className="pdp-photo"><Image src={photo.src} alt={photo.alt} fill placeholder="blur" sizes="(max-width: 860px) 100vw, 40vw" style={{ objectPosition: photo.position }} /></div>}
           <figcaption>
             {brandName && <span className="pdp-brand">{brandName}</span>}

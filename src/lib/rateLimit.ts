@@ -8,3 +8,12 @@ export function rateLimit(key: string, max: number, windowMs: number): boolean {
   hits.set(key, recent);
   return true;
 }
+
+/** Take `n` uses at once, all or nothing (naming a whole range counts every piece). */
+export function rateLimitMany(key: string, n: number, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
+  if (recent.length + n > max) { hits.set(key, recent); return false; }
+  hits.set(key, [...recent, ...Array(n).fill(now)]);
+  return true;
+}

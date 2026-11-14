@@ -40,62 +40,64 @@ model Brand {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  users          User[]
-  datasets       KeywordDataset[] @relation("BrandDatasets")
-  activeDataset  KeywordDataset?  @relation("ActiveDataset", fields: [activeKeywordDatasetId], references: [id])
-  generations    Generation[]
-  auditEvents    AuditEvent[]
+  users         User[]
+  datasets      KeywordDataset[] @relation("BrandDatasets")
+  activeDataset KeywordDataset?  @relation("ActiveDataset", fields: [activeKeywordDatasetId], references: [id])
+  generations   Generation[]
+  auditEvents   AuditEvent[]
+  batches       Batch[]
 }
 
 model User {
-  id           String    @id @default(uuid())
-  username     String    @unique // stored lowercase; assigned by the owner, never self-service
-  displayName  String
-  email        String?
-  passwordHash String
-  role         Role      @default(buyer)
-  brandId      String?
-  active       Boolean   @default(true)
+  id             String    @id @default(uuid())
+  username       String    @unique // stored lowercase; assigned by the owner, never self-service
+  displayName    String
+  email          String?
+  passwordHash   String
+  role           Role      @default(buyer)
+  brandId        String?
+  active         Boolean   @default(true)
   // Bump to invalidate every session this user holds (password reset, disable, forced logout)
-  sessionVersion Int      @default(0)
-  failedLogins   Int      @default(0)
+  sessionVersion Int       @default(0)
+  failedLogins   Int       @default(0)
   lockedUntil    DateTime?
   lastLoginAt    DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   brand       Brand?       @relation(fields: [brandId], references: [id])
   generations Generation[]
   feedback    Feedback[]
   auditEvents AuditEvent[]
+  batches     Batch[]
 
   @@index([brandId])
 }
 
 model KeywordDataset {
-  id               String        @id @default(uuid())
-  brandId          String
-  name             String
-  originalFilename String?
-  status           DatasetStatus @default(uploading)
-  rowsAccepted     Int           @default(0)
-  rowsRejected     Int           @default(0)
-  rowsDuplicate    Int           @default(0)
-  validationSummary Json         @default("{}")
-  uploadedById     String?
-  createdAt        DateTime      @default(now())
-  activatedAt      DateTime?
+  id                String        @id @default(uuid())
+  brandId           String
+  name              String
+  originalFilename  String?
+  status            DatasetStatus @default(uploading)
+  rowsAccepted      Int           @default(0)
+  rowsRejected      Int           @default(0)
+  rowsDuplicate     Int           @default(0)
+  validationSummary Json          @default("{}")
+  uploadedById      String?
+  createdAt         DateTime      @default(now())
+  activatedAt       DateTime?
 
-  brand    Brand     @relation("BrandDatasets", fields: [brandId], references: [id])
-  activeFor Brand?   @relation("ActiveDataset")
-  keywords Keyword[]
+  brand      Brand              @relation("BrandDatasets", fields: [brandId], references: [id])
+  activeFor  Brand?             @relation("ActiveDataset")
+  keywords   Keyword[]
   rejections DatasetRejection[]
 
   @@index([brandId, status])
 }
 
 model Keyword {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   datasetId         String
   originalKeyword   String
   normalizedKeyword String
@@ -109,7 +111,7 @@ model Keyword {
   language          String?
   source            String?
   sourceUpdatedAt   DateTime?
-  metadata          Json     @default("{}")
+  metadata          Json      @default("{}")
 
   dataset KeywordDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
 
@@ -137,10 +139,11 @@ model Generation {
   usage             Json?
   createdAt         DateTime @default(now())
 
-  brand    Brand            @relation(fields: [brandId], references: [id])
-  user     User             @relation(fields: [userId], references: [id])
-  feedback Feedback[]
-  photo    GenerationPhoto?
+  brand     Brand            @relation(fields: [brandId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  feedback  Feedback[]
+  photo     GenerationPhoto?
+  batchItem BatchItem?
 
   @@index([brandId, createdAt])
   @@index([userId, createdAt])
@@ -151,6 +154,8 @@ model GenerationPhoto {
   generationId String     @id
   mediaType    String
   data         Bytes
+  /// Where the piece sits in the photo ({left, top, right, bottom} as fractions), so screens can frame it.
+  focus        Json?
   createdAt    DateTime   @default(now())
   generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
 }
@@ -203,14 +208,57 @@ model AuditEvent {
 }
 
 model DatasetRejection {
-  id         String   @id @default(uuid())
-  datasetId  String
-  rowNumber  Int
-  keyword    String?
-  reason     String
-  raw        Json     @default("{}")
+  id        String  @id @default(uuid())
+  datasetId String
+  rowNumber Int
+  keyword   String?
+  reason    String
+  raw       Json    @default("{}")
 
   dataset KeywordDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
 
   @@index([datasetId])
+}
+
+/// A range: many product photos a buyer names together.
+model Batch {
+  id        String   @id @default(uuid())
+  brandId   String
+  userId    String
+  title     String
+  createdAt DateTime @default(now())
+
+  brand Brand       @relation(fields: [brandId], references: [id])
+  user  User        @relation(fields: [userId], references: [id])
+  items BatchItem[]
+
+  @@index([userId, createdAt])
+  @@index([brandId, createdAt])
+}
+
+/// One photo in a range. Claude reads it, the buyer checks what it showed, then it is named like any other piece.
+/// status: queued -> reading -> review (or not_product / read_failed); review -> to_name -> naming -> named / needs_input / failed
+model BatchItem {
+  id           String    @id @default(uuid())
+  batchId      String
+  position     Int
+  filename     String
+  status       String    @default("queued")
+  photo        Bytes // the copy kept for screens (900px)
+  photoType    String
+  readImage    Bytes? // the larger copy Claude reads (1568px); cleared once read
+  readType     String?
+  details      Json? // the form fields the photo filled in, as the buyer has checked them
+  focus        Json?
+  generationId String?   @unique
+  attempts     Int       @default(0)
+  claimedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  batch      Batch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  generation Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  @@index([batchId, position])
+  @@index([status, updatedAt])
 }

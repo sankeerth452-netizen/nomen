@@ -9,6 +9,7 @@ import { COPY } from "../copy";
 import { AiError, type AiUsage, type ProductFacts } from "../providers/types";
 import { getProviders, type Providers } from "../providers";
 import type { Photo } from "../photo";
+import type { Box } from "../frame";
 import { EXTRACTION_PROMPT_VERSION, RECOMMEND_PROMPT_VERSION } from "../prompts";
 import { fetchSerp } from "../serp/cache";
 import { blendOrder, derivePatterns } from "../serp/patterns";
@@ -46,16 +47,17 @@ async function addUsage(id: string, add: { ai?: AiUsage; serpCalls?: number; ser
 
 /**
  * Create the generation row. The caller kicks off runPipeline (background) and returns the id for polling.
- * `photo` is the buyer's display thumbnail; `fromPhoto` names the fields their photo filled in (engineers only).
+ * `photo` is the buyer's display photo and `focus` where the piece sits in it; `fromPhoto` names the fields their photo
+ * filled in and `note` says where the request came from (both engineers only).
  */
-export async function createGeneration(user: { id: string; brandId: string | null }, brandId: string, rawInput: unknown, extra: { photo?: Photo; fromPhoto?: string[] } = {}) {
+export async function createGeneration(user: { id: string; brandId: string | null }, brandId: string, rawInput: unknown, extra: { photo?: Photo; focus?: Box | null; fromPhoto?: string[]; note?: string } = {}) {
   const input = GenerationInput.parse(rawInput);
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
   const g = await db.generation.create({
     data: {
       brandId, userId: user.id, datasetId: brand.activeKeywordDatasetId, originalInput: json(input), status: "pending", promptVersions: { extraction: EXTRACTION_PROMPT_VERSION, recommend: RECOMMEND_PROMPT_VERSION },
-      ...(extra.photo ? { photo: { create: { mediaType: extra.photo.mediaType, data: new Uint8Array(extra.photo.data) } } } : {}),
-      ...(extra.fromPhoto?.length ? { usage: json({ notes: [`Filled in from the buyer's photo, then checked by them: ${extra.fromPhoto.join(", ")}`] }) } : {}),
+      ...(extra.photo ? { photo: { create: { mediaType: extra.photo.mediaType, data: new Uint8Array(extra.photo.data), ...(extra.focus ? { focus: json(extra.focus) } : {}) } } } : {}),
+      ...(extra.fromPhoto?.length || extra.note ? { usage: json({ notes: [...(extra.note ? [extra.note] : []), ...(extra.fromPhoto?.length ? [`Filled in from the buyer's photo, then checked by them: ${extra.fromPhoto.join(", ")}`] : [])] }) } : {}),
     },
   });
   return g.id;
