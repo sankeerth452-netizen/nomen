@@ -1,4 +1,4 @@
-import { env } from "../env";
+import { env, type Env } from "../env";
 import { ClaudeClient, ClaudeFactExtractor, ClaudePhotoReader, ClaudeRecommender } from "./anthropic";
 import { DataForSeoProvider } from "./dataforseo";
 import { MockFactExtractor, MockPhotoReader, MockRecommender, MockSerpProvider } from "./mock";
@@ -8,13 +8,25 @@ export type Providers = { extractor: FactExtractor; recommender: Recommender; se
 
 let cached: Providers | undefined;
 export function getProviders(): Providers {
-  if (cached) return cached;
-  const e = env();
+  return (cached ??= providersFor(env()));
+}
+
+/** The models each step runs on: reading typed details, writing the name, reading a photo. Each defaults to ANTHROPIC_MODEL. */
+export function stepModels(e: Pick<Env, "ANTHROPIC_MODEL" | "ANTHROPIC_MODEL_READ" | "ANTHROPIC_MODEL_WRITE" | "ANTHROPIC_MODEL_PHOTO">) {
+  const main = e.ANTHROPIC_MODEL!;
+  return { read: e.ANTHROPIC_MODEL_READ ?? main, write: e.ANTHROPIC_MODEL_WRITE ?? main, photo: e.ANTHROPIC_MODEL_PHOTO ?? main };
+}
+
+export function providersFor(e: Env): Providers {
   if (e.PROVIDER_MODE === "mock") {
-    cached = { extractor: new MockFactExtractor(), recommender: new MockRecommender(), serp: new MockSerpProvider(), photo: new MockPhotoReader(), modelName: "mock" };
-  } else {
-    const claude = new ClaudeClient(e.ANTHROPIC_API_KEY!, e.ANTHROPIC_MODEL!);
-    cached = { extractor: new ClaudeFactExtractor(claude), recommender: new ClaudeRecommender(claude), serp: new DataForSeoProvider(e.DATAFORSEO_LOGIN!, e.DATAFORSEO_PASSWORD!), photo: new ClaudePhotoReader(claude), modelName: e.ANTHROPIC_MODEL! };
+    return { extractor: new MockFactExtractor(), recommender: new MockRecommender(), serp: new MockSerpProvider(), photo: new MockPhotoReader(), modelName: "mock" };
   }
-  return cached;
+  const m = stepModels(e);
+  const clients = new Map<string, ClaudeClient>(); // one client per distinct model
+  const client = (model: string) => clients.get(model) ?? clients.set(model, new ClaudeClient(e.ANTHROPIC_API_KEY!, model)).get(model)!;
+  return {
+    extractor: new ClaudeFactExtractor(client(m.read)), recommender: new ClaudeRecommender(client(m.write)), photo: new ClaudePhotoReader(client(m.photo)),
+    serp: new DataForSeoProvider(e.DATAFORSEO_LOGIN!, e.DATAFORSEO_PASSWORD!),
+    modelName: m.read === m.write ? m.write : `${m.read} + ${m.write}`, // what named it: details reader + name writer
+  };
 }

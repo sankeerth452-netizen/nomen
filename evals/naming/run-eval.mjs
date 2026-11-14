@@ -6,6 +6,7 @@
 //     npx tsx --env-file=.env evals/naming/run-eval.mjs --flow .claude/hillclimb/naming-dry --variant baseline
 //
 // Live (paid): PROVIDER_MODE=live EVAL_JUDGE_MODEL=<judge> ... --flow .claude/hillclimb/naming --model claude-opus-5-5
+// Two models (ANTHROPIC_MODEL_READ / ANTHROPIC_MODEL_WRITE): pass EVAL_EXPECT_MODELS="read,write" instead of --model.
 // EVAL_CASES=id1,id2 runs a subset. Everything below the fill-in section is the standard eval harness, unchanged.
 //
 // Runner scaffold for the build-eval / hillclimb loop. Copy this into the
@@ -185,9 +186,19 @@ async function runCase(c, ctx) {
   const g = await db.generation.findUniqueOrThrow({ where: { id } });
   const usage = g.usage ?? {};
   const models = usage.ai?.models ?? [];
+  // A setup can read with one model and write with another (EVAL_EXPECT_MODELS="read-model,write-model"); any other
+  // served model (a fallback, a substitution) fails the attempt, as --model does for a one-model setup.
+  const expected = (process.env.EVAL_EXPECT_MODELS ?? '').split(',').map(m => m.trim()).filter(Boolean);
+  const stranger = expected.length ? models.find(m => !expected.includes(m)) : null;
+  if (stranger) {
+    const e = new Error(`served model ${stranger} is not one of ${expected.join(', ')}`);
+    e.failure_class = 'serving_substitution';
+    throw e;
+  }
   const run = {
-    model: (ctx.model && models.find(m => m !== ctx.model)) ?? models[0] ?? g.modelName,
-    usage: { input_tokens: usage.ai?.input ?? 0, output_tokens: usage.ai?.output ?? 0 },
+    model: expected.length ? models.join(' + ') || g.modelName : (ctx.model && models.find(m => m !== ctx.model)) ?? models[0] ?? g.modelName,
+    usage: { input_tokens: usage.ai?.input ?? 0, output_tokens: usage.ai?.output ?? 0, cache_read_input_tokens: usage.ai?.cacheRead ?? 0, cache_creation_input_tokens: usage.ai?.cacheWrite ?? 0 },
+    usage_by_model: usage.ai?.byModel ?? null,
     stop_reason: 'end_turn',
     google_usd: usage.serp?.costUsd ?? 0,
     generation_id: id,
@@ -245,7 +256,7 @@ async function gradeCase(c, run, ref, ctx) {
 
 /** Side-channel perf fields beyond the built-ins (latency_s etc.). */
 function perfFrom(run) {
-  return { google_usd: run.google_usd, generation_id: run.generation_id, prompt_versions: run.prompt_versions, output: run.output };
+  return { google_usd: run.google_usd, usage_by_model: run.usage_by_model, generation_id: run.generation_id, prompt_versions: run.prompt_versions, output: run.output };
 }
 
 

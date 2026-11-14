@@ -13,6 +13,8 @@ Scores Nomen's names on real products. Results and history: `CHANGES.md`.
    DATABASE_URL=postgresql://…/pno_eval PROVIDER_MODE=live EVAL_JUDGE_MODEL=claude-sonnet-5-5 \
      npx tsx --env-file=.env evals/naming/run-eval.mjs --flow .claude/hillclimb/naming --variant v2 --model claude-opus-5-5
    ```
+   To test a setup that reads and writes on different models, set `ANTHROPIC_MODEL_READ` / `ANTHROPIC_MODEL_WRITE` and
+   pass `EVAL_EXPECT_MODELS="read-model,write-model"` instead of `--model`; cost is then priced per model.
    The runner refuses to start after its own code, `grade.mjs` or the cases change until a person re-approves with `--approve-harness`. `EVAL_CASES=id1,id2` runs a few cases; re-running resumes where it stopped.
 6. Read the results: `node evals/naming/summarise.mjs .claude/hillclimb/naming --fails` (every score, cost, and before/after per case). `regrade.mjs` re-applies the free checks to saved answers after a fix to them.
 

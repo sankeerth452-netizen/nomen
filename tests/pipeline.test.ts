@@ -23,6 +23,22 @@ async function run(user: { id: string }, brandId: string, input: object, p: Prov
 }
 
 beforeEach(async () => { await resetDb(); });
+describe("cost per model", () => {
+  it("tallies tokens per model when reading and writing run on different models, cached reads included", async () => {
+    const { brand, user } = await seedBrand();
+    const f = fresh();
+    const usage = (model: string, input: number, output: number, cacheRead = 0) => ({ inputTokens: input, outputTokens: output, model, cacheReadTokens: cacheRead, cacheWriteTokens: 0 });
+    const extractor = { extract: async (i: Parameters<MockFactExtractor["extract"]>[0]) => ({ ...(await new MockFactExtractor().extract(i)), usage: usage("claude-haiku-5-5", 900, 120) }) };
+    const recommender = { recommend: async (p: Record<string, unknown>) => ({ ...(await new MockRecommender().recommend(p)), usage: usage("claude-sonnet-5-5", 3000, 800, 1400) }) };
+    const g = await run(user, brand.id, dress, { ...f.providers, extractor, recommender });
+    expect(g.status).toBe("completed");
+    const ai = (g.usage as { ai: { calls: number; models: string[]; byModel: Record<string, { input: number; output: number; cacheRead: number }> } }).ai;
+    expect(ai.models).toEqual(["claude-haiku-5-5", "claude-sonnet-5-5"]);
+    expect(ai.byModel["claude-haiku-5-5"]).toMatchObject({ input: 900, output: 120 });
+    expect(ai.byModel["claude-sonnet-5-5"]).toMatchObject({ input: 3000, output: 800, cacheRead: 1400 });
+  });
+});
+
 afterAll(async () => { await resetDb(); await db.$disconnect(); });
 
 describe("successful generation", () => {

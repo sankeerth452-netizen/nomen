@@ -32,12 +32,17 @@ export class ClaudeClient {
       const res = await this.client.beta.messages.parse({
         model: this.model,
         max_tokens: maxTokens,
-        system,
+        // The instructions are the same on every call, so they are cached: back-to-back names (a range) read them at a
+        // fraction of the price. Below the model's minimum prefix this is simply ignored.
+        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
         messages: [{ role: "user", content: user }],
         output_config: { format: betaZodOutputFormat(schema), effort },
         ...(fallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
       });
-      const usage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens, model: res.model };
+      const usage = {
+        inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens, model: res.model,
+        cacheReadTokens: res.usage.cache_read_input_tokens ?? 0, cacheWriteTokens: res.usage.cache_creation_input_tokens ?? 0,
+      };
       if (res.stop_reason === "refusal") throw new AiError("The model declined this request", "ai_refusal");
       if (res.stop_reason === "max_tokens") throw new AiError("Model output was cut off", "ai_invalid");
       if (!res.parsed_output) throw new AiError("Model returned unreadable output", "ai_invalid");

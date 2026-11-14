@@ -180,3 +180,18 @@ A new **Ranges** section names many pieces together. The buyer starts a range, d
 - **How it runs:** photos are shrunk in the browser (a 900px copy to keep, 1568px for Claude) and stored with the range, so the buyer can close the tab and come back. A background worker in the web service claims pieces one at a time from the database (oldest first, across all ranges), reads before it names, and never runs more than 3 at once for the whole server, so a big range can't swamp Claude or Google. A photo read that fails is retried up to 3 times; anything left half-done by a restart is put back or settled from its result. Limits: 60 photos a range, 300 photos and 300 names a person an hour.
 - **Data:** new `Batch` and `BatchItem` tables, and `GenerationPhoto.focus` (where the piece sits, so results and History frame range photos on the piece). Migration `20261114154235_ranges`.
 - **Tested like a buyer** (live Claude and Google, local): a 7-photo range (red dress, lace blouse, pink bag, leather jacket, outfit skirt, cream knit, girls' tennis dress) was read in about 15 seconds and named in about 30, three at a time, e.g. "Rust Red Ribbed Knit A-Line Midi Skirt" after the buyer added the length, and "Girls' Burgundy Sleeveless Half-Zip Tennis Dress". Download, Copy all, Remove, History and the phone layout checked. Testing caught and fixed: the 3-at-once limit counted per copy of the code instead of per server, photos uploaded together could share a place and change order, the naming message didn't update when done, and the phone nav no longer fit. 119 tests pass (11 new).
+
+## Cheaper names: the right model for each step (15 Nov 2026)
+
+Goal from Nitin: deliver everything as cheaply as possible. Each step can now run on its own Claude model (`ANTHROPIC_MODEL_READ` for the buyer's typed details, `ANTHROPIC_MODEL_WRITE` for the name, `ANTHROPIC_MODEL_PHOTO` for photos; each defaults to `ANTHROPIC_MODEL`), the fixed instructions are cached (back-to-back names read them at 5% of the price on Opus 5.5, 10% on Sonnet and Haiku), and usage is now recorded per model, cached reads included.
+
+Measured on the 46-case quality test (first try each, Claude cost per name):
+
+| Setup | Passes | Accuracy | Claude per name |
+| --- | --- | --- | --- |
+| Opus reads and writes (before) | 42 | 100% | 4.9¢ |
+| **Haiku 5.5 reads, Opus 5.5 writes (now live)** | **43** | **100%** | **3.1¢** |
+| Haiku reads, Sonnet 5.5 writes | 41 | 100% | 1.0¢ (one validation failure, clunkier wording) |
+| Haiku reads and writes | 39 | 97% | 0.13¢ ("Lemon Polyester Knit Tee" for a 57% polyester tee) |
+
+Photo reading stays on Opus: on the same 7 photos Haiku cost 0.03¢ against 1.05¢ a photo but missed "saddle" on a saddle bag, added "Women's" to a top and said "kids'" where Opus said "girls'". With this switch a typed name costs about 3.5¢ instead of 5.3¢ and a photo name about 4.5¢ instead of 6.7¢ (Google included). The tests cost about US$2.35. The quality-test runner can now test two-model setups (`EVAL_EXPECT_MODELS`) and prices each step exactly.

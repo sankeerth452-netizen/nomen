@@ -76,7 +76,7 @@ describe("reading a photo", () => {
     const r = await new ClaudePhotoReader(client).read({ image: { mediaType: "image/jpeg", data: JPEG }, productType: "dress" });
     expect(r.details.colour).toBe("red");
     expect(r.usage).toMatchObject({ inputTokens: 1800, model: "claude-opus-5-5" });
-    expect(sent.system).toBe(PHOTO_SYSTEM);
+    expect(sent.system).toEqual([{ type: "text", text: PHOTO_SYSTEM, cache_control: { type: "ephemeral" } }]); // cached: the same on every call
     const content = (sent.messages as { content: { type: string; source?: { media_type: string; data: string }; text?: string }[] }[])[0].content;
     expect(content[0]).toMatchObject({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: JPEG.toString("base64") } });
     expect(JSON.parse(content[1].text!)).toMatchObject({ buyer_product_type: "dress" });

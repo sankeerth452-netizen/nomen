@@ -5,8 +5,15 @@ import { join } from "node:path";
 
 const flow = process.argv[2];
 const showFails = process.argv.includes("--fails");
-const PRICE = { "claude-opus-5-5": [4, 20], "claude-sonnet-5-5": [2, 10], "claude-haiku-5-5": [0.1, 0.5] }; // US$ per million in/out
-const usd = (model, u) => { const p = PRICE[model]; return p && u ? (u.input_tokens * p[0] + u.output_tokens * p[1]) / 1e6 : 0; };
+// US$ per million tokens in / out; cached reads are 5% of the input price on Opus 5.5, 10% elsewhere; cache writes 125%.
+const PRICE = { "claude-opus-5-5": [4, 20, 0.05], "claude-sonnet-5-5": [2, 10, 0.1], "claude-haiku-5-5": [0.1, 0.5, 0.1] };
+const priced = (model, input, output, cacheRead = 0, cacheWrite = 0) => {
+  const p = PRICE[model];
+  return p ? (input * p[0] + output * p[1] + cacheRead * p[0] * p[2] + cacheWrite * p[0] * 1.25) / 1e6 : 0;
+};
+const usd = (model, u, byModel) => byModel
+  ? Object.entries(byModel).reduce((a, [m, t]) => a + priced(m, t.input, t.output, t.cacheRead, t.cacheWrite), 0) // exact, per step
+  : u ? priced(model, u.input_tokens, u.output_tokens, u.cache_read_input_tokens, u.cache_creation_input_tokens) : 0;
 const state = JSON.parse(readFileSync(join(flow, "_state.json"), "utf8"));
 const metrics = state.metrics.map((m) => m.id);
 const rows = (v, f) => existsSync(join(flow, v, f)) ? readFileSync(join(flow, v, f), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
@@ -16,7 +23,7 @@ const variants = readdirSync(flow).filter((d) => /^(baseline|v\d+)$/.test(d)).so
 for (const v of variants) {
   const rs = rows(v, "results.jsonl").filter((r) => r.status === "ok");
   const errs = rows(v, "errors.jsonl");
-  const claude = rs.reduce((a, r) => a + usd(r.model, r.usage), 0) + errs.reduce((a, r) => a + usd(r.model, r.usage), 0);
+  const claude = rs.reduce((a, r) => a + usd(r.model, r.usage, r.usage_by_model), 0) + errs.reduce((a, r) => a + usd(r.model, r.usage), 0);
   const judge = rs.reduce((a, r) => a + usd(r.judge_model, r.judge_usage), 0);
   const google = rs.reduce((a, r) => a + (r.google_usd ?? 0), 0);
   console.log(`\n== ${v}: ${rs.length} scored, ${errs.length} failed attempts · cost US$${(claude + judge + google).toFixed(2)} (Nomen's Claude ${claude.toFixed(2)}, judge ${judge.toFixed(2)}, Google ${google.toFixed(3)}) · prompts ${[...new Set(rs.map((r) => r.prompt_versions?.recommend))].join(",")}`);

@@ -35,6 +35,10 @@ Do this when you have the keys, ideally after one test run on your computer with
 1. In Render, open **nomen → Environment** and fill in `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (`claude-opus-5-5`,
    the model it was tested with), `DATAFORSEO_LOGIN` and `DATAFORSEO_PASSWORD` (the API password from DataForSEO's
    dashboard, not the website password).
+   `render.yaml` also sets `ANTHROPIC_MODEL_READ` to `claude-haiku-5-5`: reading the buyer's typed details runs on the
+   small model (same name quality in the quality test, about a third less Claude cost), while writing names and reading
+   photos stay on `ANTHROPIC_MODEL`. `ANTHROPIC_MODEL_WRITE` and `ANTHROPIC_MODEL_PHOTO` can override those two steps.
+   Re-run the quality test (`evals/naming/README.md`) before changing any of them.
 2. In `render.yaml`, change `PROVIDER_MODE` from `mock` to `live`, commit and push. Render redeploys, and the
    "Preview version" strip disappears.
 3. Check `https://<your-site>/api/health` shows `"mode":"live","configured":true` (`configured:false` means a key is

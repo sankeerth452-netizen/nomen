@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { DataForSeoProvider, parseResponse, SerpProviderError } from "@/lib/providers/dataforseo";
 import { ClaudeClient } from "@/lib/providers/anthropic";
+import { providersFor, stepModels } from "@/lib/providers";
 import { AiError } from "@/lib/providers/types";
 import { Recommendation } from "@/lib/pipeline/types";
 import { providerCacheKey, serpCacheKey } from "@/lib/serp/cache";
@@ -44,9 +45,9 @@ describe("Claude client (mocked SDK)", () => {
   const rec = { recommended_title: "Black Midi Dress", confidence: "high", primary_keyword: null, supporting_keywords: [], title_structure: [], alternatives: [], reason: "r", warnings: [], evidence_keyword_ids: [], evidence_serp_result_ids: [] };
   const fake = (res: object) => new ClaudeClient("k", "any-model", { beta: { messages: { parse: async () => res } } } as never);
   it("returns parsed output and token usage", async () => {
-    const out = await fake({ stop_reason: "end_turn", parsed_output: rec, usage: { input_tokens: 10, output_tokens: 5 } }).json("sys", "user", Recommendation);
+    const out = await fake({ stop_reason: "end_turn", parsed_output: rec, usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 900 } }).json("sys", "user", Recommendation);
     expect(out.data.recommended_title).toBe("Black Midi Dress");
-    expect(out.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
+    expect(out.usage).toMatchObject({ inputTokens: 10, outputTokens: 5, cacheReadTokens: 900, cacheWriteTokens: 0 });
   });
   it("asks for structured output with an explicit effort, and opts into refusal fallbacks on models that support them", async () => {
     let sent: Record<string, unknown> = {};
@@ -59,6 +60,18 @@ describe("Claude client (mocked SDK)", () => {
   it("maps refusal and unparseable output to typed errors", async () => {
     await expect(fake({ stop_reason: "refusal", usage: { input_tokens: 1, output_tokens: 1 } }).json("s", "u", Recommendation)).rejects.toMatchObject({ code: "ai_refusal" });
     await expect(fake({ stop_reason: "end_turn", parsed_output: null, usage: { input_tokens: 1, output_tokens: 1 } }).json("s", "u", Recommendation)).rejects.toBeInstanceOf(AiError);
+  });
+});
+
+describe("which model each step uses", () => {
+  const base = { ANTHROPIC_MODEL: "claude-opus-5-5", ANTHROPIC_MODEL_READ: undefined, ANTHROPIC_MODEL_WRITE: undefined, ANTHROPIC_MODEL_PHOTO: undefined };
+  it("runs every step on the main model unless told otherwise", () => {
+    expect(stepModels(base)).toEqual({ read: "claude-opus-5-5", write: "claude-opus-5-5", photo: "claude-opus-5-5" });
+  });
+  it("setup A: typed details on the small model; names and photos stay on the main one", () => {
+    expect(stepModels({ ...base, ANTHROPIC_MODEL_READ: "claude-haiku-5-5" })).toEqual({ read: "claude-haiku-5-5", write: "claude-opus-5-5", photo: "claude-opus-5-5" });
+    const p = providersFor({ PROVIDER_MODE: "live", ANTHROPIC_API_KEY: "k", DATAFORSEO_LOGIN: "l", DATAFORSEO_PASSWORD: "p", ...base, ANTHROPIC_MODEL_READ: "claude-haiku-5-5" } as never);
+    expect(p.modelName).toBe("claude-haiku-5-5 + claude-opus-5-5");
   });
 });
 

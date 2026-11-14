@@ -8,6 +8,12 @@ const schema = z.object({
   PROVIDER_MODE: z.enum(["live", "mock"]).default("live"),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().optional(),
+  // Optional per step, each defaulting to ANTHROPIC_MODEL: reading the buyer's typed details, writing the name, and
+  // reading a product photo. The quality test (Nov 2026) found reading details on a small model costs a fraction and
+  // keeps name quality; photos read noticeably worse on it, so they have their own setting.
+  ANTHROPIC_MODEL_READ: z.string().optional(),
+  ANTHROPIC_MODEL_WRITE: z.string().optional(),
+  ANTHROPIC_MODEL_PHOTO: z.string().optional(),
   DATAFORSEO_LOGIN: z.string().optional(),
   DATAFORSEO_PASSWORD: z.string().optional(),
   SERP_CACHE_TTL_DAYS: z.coerce.number().int().min(0).default(7),

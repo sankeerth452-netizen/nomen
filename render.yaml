@@ -34,6 +34,10 @@ services:
         sync: false
       - key: ANTHROPIC_MODEL
         sync: false
+      # Reading the buyer's typed details runs on the small model: same name quality in the quality test, 37% lower
+      # Claude cost. Writing names and reading photos stay on ANTHROPIC_MODEL.
+      - key: ANTHROPIC_MODEL_READ
+        value: claude-haiku-5-5
       - key: DATAFORSEO_LOGIN
         sync: false
       - key: DATAFORSEO_PASSWORD
