@@ -56,3 +56,8 @@ export interface Recommender {
 export interface PhotoReader {
   read(input: { image: import("../photo").Photo; productType?: string }): Promise<{ details: import("../pipeline/types").PhotoDetails; usage: AiUsage }>;
 }
+
+/** Writes the product page (meta title, meta description, description) around a chosen name. `repair` on the single retry. */
+export interface ContentWriter {
+  write(payload: Record<string, unknown>, repair?: { errors: string[]; previous: unknown }): Promise<{ content: import("../pipeline/types").PageContent; usage: AiUsage }>;
+}

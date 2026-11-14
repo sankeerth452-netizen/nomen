@@ -38,6 +38,8 @@ Do this when you have the keys, ideally after one test run on your computer with
    `render.yaml` also sets `ANTHROPIC_MODEL_READ` to `claude-haiku-5-5`: reading the buyer's typed details runs on the
    small model (same name quality in the quality test, about a third less Claude cost), while writing names and reading
    photos stay on `ANTHROPIC_MODEL`. `ANTHROPIC_MODEL_WRITE` and `ANTHROPIC_MODEL_PHOTO` can override those two steps.
+   Each name also gets its product page (meta title, meta description, 600-800 word description), written on
+   `ANTHROPIC_MODEL` unless `ANTHROPIC_MODEL_CONTENT` is set. `PAGE_CONTENT=off` turns product pages off entirely.
    Re-run the quality test (`evals/naming/README.md`) before changing any of them.
 2. In `render.yaml`, change `PROVIDER_MODE` from `mock` to `live`, commit and push. Render redeploys, and the
    "Preview version" strip disappears.

@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { photoForType } from "@/lib/photos";
 import { AUDIENCE_TERMS, STOP_WORDS, classify, isGarmentPart, wordStem } from "@/lib/vocab/fashion";
 import { plain, plainList } from "@/lib/copy";
@@ -12,10 +12,13 @@ type Rec = {
   recommended_title: string; confidence: "high" | "medium" | "low"; primary_keyword: string | null; supporting_keywords: string[];
   title_structure: string[]; alternatives: { title: string; trade_off: string }[]; reason: string; warnings: string[];
 };
+/** The product page around the name, or where its writing stands. */
+type Page = { status: "writing" | "failed" | "ready"; for_title: string; meta_title?: string; meta_description?: string; description?: string; words?: number };
+
 export type Gen = {
   id: string; status: string; errorCode?: string | null; hasPhoto?: boolean; photoPosition?: string | null;
   input?: { productType?: string; freeText?: string };
-  result: { recommendation?: Rec; meta?: { serpStatus: string; orderFinal: string[] }; needs?: string; conflicts?: string[]; message?: string } | null;
+  result: { recommendation?: Rec; meta?: { serpStatus: string; orderFinal: string[] }; needs?: string; conflicts?: string[]; message?: string; content?: Page | null } | null;
   evidence: { datasetId?: string | null; limitedKeywordEvidence?: boolean; keywords: Kw[]; serp: Serp[]; queries: { query: string; reason: string }[]; serpStatus: string; patterns: { intent: string; resultsAnalysed: number; productNouns: { term: string; count: number }[]; attributeWording: { term: string; count: number }[]; serpOrder: string[] | null } | null; order: { keywordOrder: string[]; serpOrder: string[] | null; final: string[] } } | null;
 };
 
@@ -59,6 +62,17 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
   const [sent, setSent] = useState("");
   const [copied, setCopied] = useState(false);
   const [err, setErr] = useState("");
+  const [page, setPage] = useState<Page | null>(gen.result?.content ?? null);
+
+  // The page is written just after the name: keep checking until it's there (also after "Rewrite").
+  useEffect(() => {
+    if (page?.status !== "writing") return;
+    const t = setInterval(async () => {
+      const res = await fetch(`/api/generations/${gen.id}`, { cache: "no-store" });
+      if (res.ok) { const g = await res.json(); if (g.result?.content?.status !== "writing") setPage(g.result?.content ?? null); }
+    }, 2500);
+    return () => clearInterval(t);
+  }, [page?.status, gen.id]);
   const top = useRef<HTMLElement>(null);
   const productType = gen.input?.productType ?? "";
   const photo = photoForType(productType);
@@ -107,7 +121,8 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
   // Only a keyword list says how shoppers search; without one the order is the usual one for the type.
   const searchBacked = !!ev?.datasetId && !ev.limitedKeywordEvidence;
   const parts = anatomy(title, order, productType);
-  const pageTitle = brandName ? `${title} | ${brandName}` : title;
+  const pageReady = page?.status === "ready" && page.for_title === title ? page : null;
+  const pageTitle = pageReady?.meta_title ?? (brandName ? `${title} | ${brandName}` : title);
   const fits = pageTitle.length <= SEARCH_TITLE_CHARS;
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const cited = new Map<string, string>([...(rec.primary_keyword ? [[rec.primary_keyword, "Main phrase"] as const] : []), ...rec.supporting_keywords.map((k) => [k, "Also used"] as const)]);
@@ -164,6 +179,7 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
             <div className="crumb" style={{ marginTop: 10 }}>{(brandName ?? "your store").toLowerCase()} › {slug}</div>
             <div className="line">{fits ? pageTitle : `${pageTitle.slice(0, SEARCH_TITLE_CHARS - 1)}…`}</div>
             <div className={`meter${fits ? "" : " over"}`}><i style={{ width: `${Math.min(100, (pageTitle.length / SEARCH_TITLE_CHARS) * 100)}%` }} /></div>
+            {pageReady?.meta_description && <p className="snippet">{pageReady.meta_description}</p>}
             <span className="muted" style={{ fontSize: 12.5 }}>{pageTitle.length} of about {SEARCH_TITLE_CHARS} characters shown {fits ? "· fits without being cut off" : "· would be cut off"}</span>
           </div>
 
@@ -176,6 +192,8 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
       </div>
 
       {rec.alternatives.length > 0 && (<>
+        <ProductPage genId={gen.id} title={title} page={page} onChange={setPage} />
+
         <div className="section-title"><h3>Alternatives</h3><span>Each one trades something for something</span></div>
         <div className="alts">
           {rec.alternatives.map((a) => (
@@ -250,5 +268,47 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
         </div>
       )}
     </article>
+  );
+}
+
+/** Meta title, meta description and description, each with its limit and a copy button. */
+function ProductPage({ genId, title, page, onChange }: { genId: string; title: string; page: Page | null; onChange: (p: Page) => void }) {
+  const [copied, setCopied] = useState("");
+  const [err, setErr] = useState("");
+  async function write() {
+    setErr("");
+    const res = await fetch(`/api/generations/${genId}/content`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title }) });
+    if (res.ok) onChange({ status: "writing", for_title: title });
+    else setErr((await res.json().catch(() => ({}))).error ?? "That didn't work. Please try again.");
+  }
+  async function copy(label: string, text: string) {
+    try { await navigator.clipboard.writeText(text); setCopied(label); setTimeout(() => setCopied(""), 1500); } catch { /* clipboard blocked */ }
+  }
+  const field = (label: string, hint: string, text: string, long = false) => (
+    <div className={`page-field${long ? " long" : ""}`}>
+      <div className="page-field-head"><span className="eyebrow">{label}</span><span className="muted">{hint}</span><button className="ghost" onClick={() => copy(label, text)}>{copied === label ? "Copied" : "Copy"}</button></div>
+      {long ? <div className="page-description">{text.split(/\n\s*\n/).map((p, i) => <p key={i}>{p}</p>)}</div> : <p className="page-text">{text}</p>}
+    </div>
+  );
+  return (
+    <section className="product-page" aria-live="polite">
+      <div className="section-title"><h3>Product page</h3><span>The meta title, meta description and description for this piece</span></div>
+      {page?.status === "writing" && <p className="page-writing">Writing the product page for “{page.for_title}”…</p>}
+      {page?.status === "failed" && (
+        <div className="page-empty"><p>We couldn&apos;t write the product page without guessing details we weren&apos;t given. Try again, or add more detail to the piece.</p><button onClick={write}>Try again</button></div>
+      )}
+      {!page && <div className="page-empty"><p>No product page yet for this name.</p><button onClick={write}>Write the product page</button></div>}
+      {page?.status === "ready" && (
+        <>
+          {page.for_title !== title && (
+            <div className="page-empty"><p>This page was written for “{page.for_title}”.</p><button onClick={write}>Rewrite it for this name</button></div>
+          )}
+          {field("Meta title", `${page.meta_title!.length} of 60 characters`, page.meta_title!)}
+          {field("Meta description", `${page.meta_description!.length} of 160 characters`, page.meta_description!)}
+          {field("Description", `${page.words} words`, page.description!, true)}
+        </>
+      )}
+      {err && <p className="err">{err}</p>}
+    </section>
   );
 }

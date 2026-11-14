@@ -24,7 +24,7 @@ type ItemWithGen = BatchItem & { generation: Pick<Generation, "id" | "status" | 
 
 /** What the range screen shows. No photos (served separately), no usage, nothing technical. */
 export function presentItem(i: ItemWithGen) {
-  const result = (i.generation?.result ?? null) as { recommendation?: { recommended_title: string; alternatives: { title: string; trade_off: string }[] }; message?: string; conflicts?: string[] } | null;
+  const result = (i.generation?.result ?? null) as { recommendation?: { recommended_title: string; alternatives: { title: string; trade_off: string }[] }; message?: string; conflicts?: string[]; content?: { status: string; meta_title?: string; meta_description?: string; description?: string; words?: number } | null } | null;
   return {
     id: i.id, position: i.position, filename: i.filename, status: i.status as ItemStatus,
     details: asDetails(i.details), focus: asBox(i.focus),
@@ -33,6 +33,7 @@ export function presentItem(i: ItemWithGen) {
     alternatives: result?.recommendation?.alternatives?.map((a) => a.title) ?? [],
     confidence: i.generation?.confidence ?? null,
     question: i.status === "needs_input" ? (result?.message ?? result?.conflicts?.join(" ") ?? null) : null,
+    page: result?.content ? { status: result.content.status, metaTitle: result.content.meta_title ?? null, metaDescription: result.content.meta_description ?? null, description: result.content.description ?? null, words: result.content.words ?? null } : null,
   };
 }
 export type PresentedItem = ReturnType<typeof presentItem>;
@@ -58,9 +59,12 @@ const cell = (v: string) => {
 
 /** The download: one row per photo, in upload order. */
 export function rangeCsv(items: PresentedItem[]): string {
-  const rows = [["Photo", "Name", "Other options", "Confidence", "Status", "Product type", "Description"]];
+  const rows = [["Photo", "Name", "Other options", "Confidence", "Status", "Meta title", "Meta description", "Description", "Description words", "Product type", "What the buyer described"]];
   const status: Record<string, string> = { named: "Named", needs_input: "Needs a detail", failed: "Didn't work", review: "Not named yet", not_product: "No fashion piece found", read_failed: "Couldn't read the photo" };
   const level = (c: string | null) => (c ? c[0].toUpperCase() + c.slice(1) : "");
-  for (const i of items) rows.push([i.filename, i.name ?? "", i.alternatives.join(" | "), level(i.confidence), status[i.status] ?? "In progress", i.details?.fields.productType ?? "", i.details?.fields.freeText ?? ""]);
+  for (const i of items) {
+    const page = i.page?.status === "ready" ? i.page : null;
+    rows.push([i.filename, i.name ?? "", i.alternatives.join(" | "), level(i.confidence), status[i.status] ?? "In progress", page?.metaTitle ?? "", page?.metaDescription ?? "", page?.description ?? "", page?.words ? String(page.words) : "", i.details?.fields.productType ?? "", i.details?.fields.freeText ?? ""]);
+  }
   return "﻿" + rows.map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n"; // BOM so Excel reads the accents right
 }

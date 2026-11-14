@@ -425,3 +425,19 @@ details[open].more summary::before, details[open].why summary::before { content:
   .range-actions > * { flex: 1 1 auto; }
   .pieces { grid-template-columns: 1fr; }
 }
+
+/* Product page: meta title, meta description, description */
+.product-page { margin-top: 8px; }
+.page-field { background: var(--card); border: 1px solid var(--line); padding: 18px 20px; margin-bottom: 14px; }
+.page-field-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.page-field-head .muted { font-size: 12.5px; flex: 1; }
+.page-field-head button { padding: 9px 14px; font-size: 11px; }
+.page-text { margin: 10px 0 0; font: 400 17px/1.5 var(--display); }
+.page-description { margin-top: 10px; max-height: 420px; overflow-y: auto; padding-right: 8px; }
+.page-description p { margin: 0 0 12px; font-size: 15px; line-height: 1.7; color: var(--ink-soft); }
+.page-writing { margin: 0 0 14px; padding: 18px 20px; background: linear-gradient(100deg, var(--card) 30%, var(--paper-deep) 50%, var(--card) 70%) 0 0 / 250% 100%; animation: sheen 1.6s linear infinite; border: 1px solid var(--line); font: italic 400 18px/1.4 var(--display); }
+.page-empty { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 16px 20px; margin-bottom: 14px; border: 1px dashed var(--line-strong); }
+.page-empty p { margin: 0; flex: 1; min-width: 220px; font-size: 14.5px; color: var(--ink-soft); }
+.preview-search .snippet { margin: 6px 0 8px; font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); }
+.piece-page p { margin: 8px 0 0; font-size: 13.5px; line-height: 1.5; }
+.piece-page b { display: block; font: 500 10px/1.4 var(--text); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }

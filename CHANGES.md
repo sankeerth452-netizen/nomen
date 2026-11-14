@@ -181,7 +181,7 @@ A new **Ranges** section names many pieces together. The buyer starts a range, d
 - **Data:** new `Batch` and `BatchItem` tables, and `GenerationPhoto.focus` (where the piece sits, so results and History frame range photos on the piece). Migration `20261114154235_ranges`.
 - **Tested like a buyer** (live Claude and Google, local): a 7-photo range (red dress, lace blouse, pink bag, leather jacket, outfit skirt, cream knit, girls' tennis dress) was read in about 15 seconds and named in about 30, three at a time, e.g. "Rust Red Ribbed Knit A-Line Midi Skirt" after the buyer added the length, and "Girls' Burgundy Sleeveless Half-Zip Tennis Dress". Download, Copy all, Remove, History and the phone layout checked. Testing caught and fixed: the 3-at-once limit counted per copy of the code instead of per server, photos uploaded together could share a place and change order, the naming message didn't update when done, and the phone nav no longer fit. 119 tests pass (11 new).
 
-## Cheaper names: the right model for each step (15 Nov 2026)
+## Cheaper names: the right model for each step (14 Nov 2026)
 
 Goal from Nitin: deliver everything as cheaply as possible. Each step can now run on its own Claude model (`ANTHROPIC_MODEL_READ` for the buyer's typed details, `ANTHROPIC_MODEL_WRITE` for the name, `ANTHROPIC_MODEL_PHOTO` for photos; each defaults to `ANTHROPIC_MODEL`), the fixed instructions are cached (back-to-back names read them at 5% of the price on Opus 5.5, 10% on Sonnet and Haiku), and usage is now recorded per model, cached reads included.
 
@@ -195,3 +195,23 @@ Measured on the 46-case quality test (first try each, Claude cost per name):
 | Haiku reads and writes | 39 | 97% | 0.13¢ ("Lemon Polyester Knit Tee" for a 57% polyester tee) |
 
 Photo reading stays on Opus: on the same 7 photos Haiku cost 0.03¢ against 1.05¢ a photo but missed "saddle" on a saddle bag, added "Women's" to a top and said "kids'" where Opus said "girls'". With this switch a typed name costs about 3.5¢ instead of 5.3¢ and a photo name about 4.5¢ instead of 6.7¢ (Google included). The tests cost about US$2.35. The quality-test runner can now test two-model setups (`EVAL_EXPECT_MODELS`) and prices each step exactly.
+
+## Product page: meta title, meta description and description (14 Nov 2026)
+
+From Nitin's list: alongside the product name, Nomen now writes the rest of the product page.
+
+- **Meta title**, at most 60 characters: the name, then " | Sportsgirl" when it fits.
+- **Meta description**, at most 160 characters: one or two sentences for Google's results.
+- **Description**, 600 to 800 words in plain paragraphs (no headings, lists or emoji), Australian spelling.
+
+The name still comes first and never waits: the page is written straight after it (about 25 seconds) and appears under the name with character and word counts and a Copy button for each part. The Google preview on the result uses the real meta title and description once they're ready. Choosing one of the other names offers "Rewrite it for this name". Ranges show the page on each named card ("Product page", with Copy description) and the download adds Meta title, Meta description, Description and Description words columns. A range piece is marked named once its page is written too.
+
+**Accuracy is checked in code, the same way as names.** The page may only state what the buyer gave (their description, details, facts and the name). A colour, fabric, length or audience word that isn't in those, a care, lining or sustainability claim ("machine washable", "lined", "organic"), or a measurement or percentage is an error, including in styling tips ("your favourite sneakers", never "white canvas sneakers"). So are the length limits, markdown and the brand's banned words. Anything wrong gets one repair with the problems listed; limits are then trimmed at a sentence or word if needed. A page that still states details nobody gave is not shown at all ("couldn't be written without guessing", with Try again) and the name stands on its own. Ordinary phrases are not flagged ("long weekend", "short walk", "full look").
+
+**Tested like a buyer** (live Claude and Google, local, Opus 5.5):
+- Typed "black dress with ruching, midi length, mesh sleeves": "Black Mesh Sleeve Ruched Midi Dress", meta title 48/60, meta description 133/160, description 772 words, read in full: only black, ruching, mesh sleeves and midi; styling names items without colours or fabrics. The first draft said "canvas" and "cropped" in its styling tips; the check caught it and the repair removed them (the styling rule in the instructions was then made stricter).
+- A red dress photo, no typing: "Red One-Shoulder Ruffle Bodycon Dress", 50/60, 128/160, 717 words. "Rewrite it for this name" for "Red One-Shoulder Bodycon Dress" gave 43/60, 142/160, 741 words; its first draft said "mini" (not given) and the repair fixed it.
+- A range piece: "Black Geometric Lace Sheer Yoke Top", 710 words, right first time, shown on the range card.
+
+Cost on Opus 5.5: about 3 to 4¢ a page, about 7¢ when the first draft needs its repair (2 of the 4 pages above did). `ANTHROPIC_MODEL_CONTENT` can move pages to a cheaper model and `PAGE_CONTENT=off` turns them off; the quality-test runner skips them so it keeps measuring names only. 131 tests pass (9 new).
+

@@ -232,6 +232,7 @@ function Piece({ item, rangeId, onUpdate, onRemove, onName }: { item: PresentedI
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
+  const [copiedPage, setCopiedPage] = useState(false);
   const focused = useRef(false);
   const working = WORKING.includes(item.status);
   const fromPhoto = new Set(item.details?.fromPhoto ?? []);
@@ -300,6 +301,14 @@ function Piece({ item, rangeId, onUpdate, onRemove, onName }: { item: PresentedI
             {item.alternatives.length > 0 && (
               <details className="piece-alts"><summary>Other options</summary><ul>{item.alternatives.map((a) => <li key={a}>{a}</li>)}</ul></details>
             )}
+            {item.page?.status === "ready" && (
+              <details className="piece-alts piece-page"><summary>Product page</summary>
+                <p><b>Meta title</b> {item.page.metaTitle}</p>
+                <p><b>Meta description</b> {item.page.metaDescription}</p>
+                <p><b>Description</b> {item.page.words} words. <button className="link" onClick={async () => { try { await navigator.clipboard.writeText(item.page!.description!); setCopiedPage(true); setTimeout(() => setCopiedPage(false), 1500); } catch { /* blocked */ } }}>{copiedPage ? "Copied" : "Copy description"}</button></p>
+              </details>
+            )}
+            {item.page?.status === "failed" && <p className="piece-hint">The product page couldn&apos;t be written without guessing. Open Evidence to try again.</p>}
             <div className="piece-btns">
               <button onClick={async () => { try { await navigator.clipboard.writeText(item.name!); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* blocked */ } }}>{copied ? "Copied" : "Copy"}</button>
               {item.generationId && <Link className="btn ghost" href={`/history/${item.generationId}`}>Evidence</Link>}

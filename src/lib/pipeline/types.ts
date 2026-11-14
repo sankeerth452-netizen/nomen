@@ -62,6 +62,14 @@ export const PhotoDetails = z.object({
 });
 export type PhotoDetails = z.infer<typeof PhotoDetails>;
 
+/** The product page around the name (also the Claude structured-output schema). */
+export const PageContent = z.object({
+  meta_title: z.string(),
+  meta_description: z.string(),
+  description: z.string(),
+});
+export type PageContent = z.infer<typeof PageContent>;
+
 export type KeywordEvidenceItem = {
   id: string; // K1..
   keyword: string;

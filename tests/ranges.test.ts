@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { MockFactExtractor, MockPhotoReader, MockRecommender, MockSerpProvider } from "@/lib/providers/mock";
+import { MockContentWriter, MockFactExtractor, MockPhotoReader, MockRecommender, MockSerpProvider } from "@/lib/providers/mock";
 import type { Providers } from "@/lib/providers";
 import type { PhotoReader } from "@/lib/providers/types";
 import { cleanFields, fillEmpty, isReady, loadRangeFor, rangeCsv, rangeItems, withEdits, type ItemDetails } from "@/lib/batch/ranges";
@@ -8,7 +8,7 @@ import { MAX_AT_ONCE, drain, kick, recoverStale } from "@/lib/batch/worker";
 import { resetDb, seedBrand } from "./helpers";
 
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60)]);
-const providers = (photo: PhotoReader = new MockPhotoReader()): Providers => ({ extractor: new MockFactExtractor(), recommender: new MockRecommender(), serp: new MockSerpProvider(), photo, modelName: "mock" });
+const providers = (photo: PhotoReader = new MockPhotoReader()): Providers => ({ extractor: new MockFactExtractor(), recommender: new MockRecommender(), serp: new MockSerpProvider(), photo, content: new MockContentWriter(), modelName: "mock" });
 const su = (u: { id: string; username: string; displayName: string; role: string; brandId: string | null }) => ({ id: u.id, username: u.username, displayName: u.displayName, role: u.role as "buyer", brandId: u.brandId, brandName: null });
 
 async function range(n: number, extra: Record<string, unknown> = {}) {
@@ -124,9 +124,10 @@ describe("range rules", () => {
   });
 
   it("downloads a spreadsheet whose cells can't run as formulas", () => {
-    const csv = rangeCsv([{ id: "1", position: 1, filename: "=HYPERLINK(\"x\")", status: "named", details: ready, focus: null, generationId: "g", name: "Black Midi Dress, Ruched", alternatives: ["A", "B"], confidence: "low", question: null }]);
-    expect(csv.startsWith("﻿Photo,Name")).toBe(true);
+    const page = { status: "ready", metaTitle: "Black Ruched Midi Dress | T", metaDescription: "Shop it.", description: "A dress.\n\nWear it.", words: 4 };
+    const csv = rangeCsv([{ id: "1", position: 1, filename: "=HYPERLINK(\"x\")", status: "named", details: ready, focus: null, generationId: "g", name: "Black Midi Dress, Ruched", alternatives: ["A", "B"], confidence: "low", question: null, page }]);
+    expect(csv.startsWith("\uFEFFPhoto,Name,Other options,Confidence,Status,Meta title,Meta description,Description,Description words")).toBe(true);
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
-    expect(csv).toContain(`"Black Midi Dress, Ruched",A | B,Low,Named`);
+    expect(csv).toContain(`"Black Midi Dress, Ruched",A | B,Low,Named,Black Ruched Midi Dress | T,Shop it.,"A dress.\n\nWear it.",4`);
   });
 });

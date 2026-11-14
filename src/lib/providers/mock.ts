@@ -1,8 +1,8 @@
 import { deterministicFacts } from "../pipeline/facts";
 import type { GenerationInput } from "../pipeline/types";
-import { Recommendation, type PhotoDetails } from "../pipeline/types";
+import { Recommendation, type PageContent, type PhotoDetails } from "../pipeline/types";
 import { classify } from "../vocab/fashion";
-import type { FactExtractor, PhotoReader, Recommender, SerpProvider, SerpResponse } from "./types";
+import type { ContentWriter, FactExtractor, PhotoReader, Recommender, SerpProvider, SerpResponse } from "./types";
 import { classifyPage } from "../serp/reduce";
 import { titleCase } from "../serp/patterns";
 
@@ -79,5 +79,27 @@ export class MockPhotoReader implements PhotoReader {
       description: `black ${type} with a square neckline`, unsure: ["fabric"], focus: null,
     };
     return { details, usage: NO_USAGE };
+  }
+}
+
+/** A product page built only from the name and the buyer's words. MOCK, not AI: lets the whole flow run without paid keys. */
+export class MockContentWriter implements ContentWriter {
+  calls = 0;
+  async write(payload: Record<string, unknown>) {
+    this.calls++;
+    const p = payload as { product_name: string; brand_name?: string | null; product_type?: string | null };
+    const name = p.product_name, type = (p.product_type ?? "piece").toLowerCase();
+    const brand = p.brand_name ? ` | ${p.brand_name}` : "";
+    const opening = `Meet the ${name}, a ${type} made to be worn and worn again.`;
+    const styling = `Wear it with your favourite sneakers for an easy day look, or dress it up with heels and a statement earring when the plans change. It sits just as well under a jacket on cooler mornings as it does on its own when the sun comes out.`;
+    const care = `Every detail of the ${name} has been chosen to keep it simple to style, so it earns its place in your wardrobe season after season.`;
+    const paragraphs: string[] = [opening];
+    while (paragraphs.join(" ").split(/\s+/).length < 640) paragraphs.push(styling, care);
+    const content: PageContent = {
+      meta_title: `${name}${brand}`.length <= 60 ? `${name}${brand}` : name.slice(0, 60),
+      meta_description: `Shop the ${name}. An easy ${type} to style for every plan.`.slice(0, 160),
+      description: paragraphs.join("\n\n"),
+    };
+    return { content, usage: NO_USAGE };
   }
 }
