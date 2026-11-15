@@ -2,10 +2,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaContentBlockParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { z } from "zod";
-import { CONTENT_SYSTEM, EXTRACTION_SYSTEM, PHOTO_SYSTEM, RECOMMEND_SYSTEM } from "../prompts";
-import { ExtractedFacts, PageContent, PhotoDetails, Recommendation } from "../pipeline/types";
+import { CONTENT_SYSTEM, EXTRACTION_SYSTEM, PHOTO_SYSTEM, RECOMMEND_SYSTEM, sheetSystem } from "../prompts";
+import { ExtractedFacts, PageContent, PhotoDetails, Recommendation, SheetDraft } from "../pipeline/types";
+import { GOOGLE_CATEGORIES } from "../sheet/catalog";
+import { OCCASIONS } from "../sheet/idealFor";
 import { imageSize, type Photo } from "../photo";
-import { AiError, type AiUsage, type ContentWriter, type FactExtractor, type PhotoReader, type ProductFacts, type Recommender } from "./types";
+import { AiError, type AiUsage, type ContentWriter, type FactExtractor, type PhotoReader, type ProductFacts, type Recommender, type SheetWriter } from "./types";
 
 /** Models that accept server-side refusal fallbacks in the "default" form on the Claude API. */
 const FALLBACK_DEFAULT = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"]);
@@ -97,3 +99,14 @@ export class ClaudeContentWriter implements ContentWriter {
     return { content: data, usage };
   }
 }
+
+export class ClaudeSheetWriter implements SheetWriter {
+  private system = sheetSystem(OCCASIONS, GOOGLE_CATEGORIES);
+  constructor(private c: ClaudeClient) {}
+  async write(payload: Record<string, unknown>, repair?: { errors: string[]; previous: unknown }) {
+    const user = JSON.stringify(repair ? { ...payload, repair: { your_previous_answer: repair.previous, problems: repair.errors, instruction: "Fix every problem listed. Keep everything else." } } : payload);
+    const { data, usage } = await this.c.json(this.system, user, SheetDraft, "low"); // structured writing from settled facts
+    return { sheet: data, usage };
+  }
+}
+

@@ -443,3 +443,26 @@ details[open].more summary::before, details[open].why summary::before { content:
 .preview-search .snippet { margin: 6px 0 8px; font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); }
 .piece-page p { margin: 8px 0 0; font-size: 13.5px; line-height: 1.5; }
 .piece-page b { display: block; font: 500 10px/1.4 var(--text); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+/* ── product data ── */
+.product-data { margin-top: 8px; }
+.data-checks { border-left: 2px solid var(--ochre); background: var(--ochre-soft); color: #5e4210; padding: 12px 16px; margin-bottom: 14px; }
+.data-checks ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.55; }
+.data-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px 22px; margin: 14px 0 0; }
+.data-grid > div { min-width: 0; }
+.data-grid dt { font: 500 10.5px/1.4 var(--text); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.data-grid dd { margin: 4px 0 2px; font: 400 17px/1.35 var(--display); overflow-wrap: anywhere; }
+.data-grid dd.empty { color: var(--muted); font: italic 400 15px/1.35 var(--display); }
+.data-grid .muted { font-size: 12.5px; display: block; }
+.data-grid button { margin-top: 6px; padding: 7px 12px; font-size: 10.5px; }
+.data-copy-all { margin: 18px 0 0; }
+.data-copy-all button { padding: 9px 14px; font-size: 11px; }
+.data-list { margin: 10px 0 0; padding-left: 18px; font-size: 15px; line-height: 1.65; color: var(--ink-soft); }
+.data-list.review li { color: #5e4210; }
+.data-table { margin-top: 8px; width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.data-table th { text-align: left; font-weight: 500; width: 34%; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line); }
+.data-table td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line); }
+.data-table td.muted { font-size: 12.5px; text-align: right; }
+.data-text { margin: 10px 0 0; font-size: 15px; line-height: 1.7; color: var(--ink-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip { font: 500 11px/1 var(--text); letter-spacing: .12em; text-transform: uppercase; padding: 9px 12px; background: var(--ink); color: var(--paper); }
+@media (max-width: 640px) { .data-grid { grid-template-columns: 1fr 1fr; gap: 14px 16px; } .data-table th { width: 40%; } }

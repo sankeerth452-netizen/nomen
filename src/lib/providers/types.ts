@@ -61,3 +61,7 @@ export interface PhotoReader {
 export interface ContentWriter {
   write(payload: Record<string, unknown>, repair?: { errors: string[]; previous: unknown }): Promise<{ content: import("../pipeline/types").PageContent; usage: AiUsage }>;
 }
+
+export interface SheetWriter {
+  write(payload: Record<string, unknown>, repair?: { errors: string[]; previous: unknown }): Promise<{ sheet: import("../pipeline/types").SheetDraft; usage: AiUsage }>;
+}

@@ -64,12 +64,12 @@ describe("Claude client (mocked SDK)", () => {
 });
 
 describe("which model each step uses", () => {
-  const base = { ANTHROPIC_MODEL: "claude-opus-5-5", ANTHROPIC_MODEL_READ: undefined, ANTHROPIC_MODEL_WRITE: undefined, ANTHROPIC_MODEL_PHOTO: undefined, ANTHROPIC_MODEL_CONTENT: undefined };
+  const base = { ANTHROPIC_MODEL: "claude-opus-5-5", ANTHROPIC_MODEL_READ: undefined, ANTHROPIC_MODEL_WRITE: undefined, ANTHROPIC_MODEL_PHOTO: undefined, ANTHROPIC_MODEL_CONTENT: undefined, ANTHROPIC_MODEL_SHEET: undefined };
   it("runs every step on the main model unless told otherwise", () => {
-    expect(stepModels(base)).toEqual({ read: "claude-opus-5-5", write: "claude-opus-5-5", photo: "claude-opus-5-5", content: "claude-opus-5-5" });
+    expect(stepModels(base)).toEqual({ read: "claude-opus-5-5", write: "claude-opus-5-5", photo: "claude-opus-5-5", content: "claude-opus-5-5", sheet: "claude-opus-5-5" });
   });
   it("setup A: typed details on the small model; names and photos stay on the main one", () => {
-    expect(stepModels({ ...base, ANTHROPIC_MODEL_READ: "claude-haiku-5-5" })).toEqual({ read: "claude-haiku-5-5", write: "claude-opus-5-5", photo: "claude-opus-5-5", content: "claude-opus-5-5" });
+    expect(stepModels({ ...base, ANTHROPIC_MODEL_READ: "claude-haiku-5-5" })).toEqual({ read: "claude-haiku-5-5", write: "claude-opus-5-5", photo: "claude-opus-5-5", content: "claude-opus-5-5", sheet: "claude-opus-5-5" });
     const p = providersFor({ PROVIDER_MODE: "live", ANTHROPIC_API_KEY: "k", DATAFORSEO_LOGIN: "l", DATAFORSEO_PASSWORD: "p", ...base, ANTHROPIC_MODEL_READ: "claude-haiku-5-5" } as never);
     expect(p.modelName).toBe("claude-haiku-5-5 + claude-opus-5-5");
   });

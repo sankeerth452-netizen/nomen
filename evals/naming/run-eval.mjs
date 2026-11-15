@@ -155,8 +155,10 @@ let app = null; // db, pipeline, prompts, brand + user ids - loaded once
 async function loadCases() {
   if (!EVAL_DB.test(process.env.DATABASE_URL ?? ''))
     throw new Error('DATABASE_URL must point at the pno_eval database (keeps test runs out of the real history)');
-  // This test scores names. Product pages would add their cost (and time) to every case: PAGE_CONTENT=on to include them.
+  // This test scores names. Product pages and product data would add their cost (and time) to every case: set
+  // PAGE_CONTENT=on / PRODUCT_SHEET=on to include them.
   process.env.PAGE_CONTENT ??= 'off';
+  process.env.PRODUCT_SHEET ??= 'off';
   const all = JSON.parse(readFileSync('evals/naming/cases.json', 'utf8'));
   const only = (process.env.EVAL_CASES ?? '').split(',').map(s => s.trim()).filter(Boolean);
   const cases = only.length ? all.filter(c => only.includes(c.id)) : all;
@@ -168,7 +170,7 @@ async function loadCases() {
   const brand = await db.brand.findUniqueOrThrow({ where: { slug: 'sportsgirl' } });
   const user = await db.user.findFirstOrThrow({ where: { username: 'eval-runner' } });
   app = { db, createGeneration, runPipeline, buildPayload, prompts, brand, settings: parseBrandSettings(brand.settings), user };
-  eprint(`mode ${process.env.PROVIDER_MODE ?? '?'} · judge ${process.env.EVAL_JUDGE_MODEL || 'off'} · product pages ${process.env.PAGE_CONTENT} · keyword list ${brand.activeKeywordDatasetId ? 'on' : 'none'} · ${cases.length} cases`);
+  eprint(`mode ${process.env.PROVIDER_MODE ?? '?'} · judge ${process.env.EVAL_JUDGE_MODEL || 'off'} · product pages ${process.env.PAGE_CONTENT} · product data ${process.env.PRODUCT_SHEET} · keyword list ${brand.activeKeywordDatasetId ? 'on' : 'none'} · ${cases.length} cases`);
   return cases;
 }
 

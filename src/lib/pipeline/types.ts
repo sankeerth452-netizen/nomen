@@ -119,3 +119,20 @@ export type EvidenceBundle = {
   patterns: SerpPatterns | null;
   order: OrderGuidance;
 };
+
+/**
+ * What Claude writes for the product data sheet (also the Claude structured-output schema). Everything a rule can
+ * decide (Google category, colour, pattern, material, gender, sizes) is worked out in code instead.
+ */
+export const SheetDraft = z.object({
+  highlights: z.array(z.string()),
+  details: z.array(z.object({ name: z.string(), value: z.string() })),
+  short_description: z.string(),
+  /** Only used when no rule covers the product type: Claude's pick from the Google categories it was given. */
+  google_category_id: z.number().int().nullable(),
+  ideal_for: z.array(z.object({ tag: z.string(), confidence: z.enum(["high", "low"]), reason: z.string() })),
+  season: z.object({ value: z.enum(["summer", "winter", "trans-seasonal"]), confidence: z.enum(["high", "low"]), reason: z.string() }).nullable(),
+  care: z.string().nullable(),
+  image_alt: z.string(),
+});
+export type SheetDraft = z.infer<typeof SheetDraft>;

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COPY } from "@/lib/copy";
 import { objectPosition } from "@/lib/frame";
 import { render } from "@/lib/shrink";
-import { MAX_RANGE_PHOTOS, WORKING, isReady, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
+import { MAX_RANGE_PHOTOS, WORKING, duplicateNames, isReady, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
 import type { PresentedItem } from "@/lib/batch/ranges";
 
 /** Biggest file we'll try to open. The browser shrinks it before anything is sent. */
@@ -78,6 +78,7 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName 
   }, [busy, notice, items, named.length]);
 
   const update = (next: PresentedItem) => setItems((list) => list.map((i) => (i.id === next.id ? next : i)));
+  const dupes = useMemo(() => duplicateNames(items), [items]);
 
   async function addFiles(list: FileList | File[]) {
     setError(""); setNotice("");
@@ -215,7 +216,7 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName 
           </div>
           <div className="pieces">
             {shown.map((i) => (
-              <Piece key={i.id} item={i} rangeId={id} onUpdate={update} onRemove={(gone) => setItems((list) => list.filter((x) => x.id !== gone))} onName={(one) => nameThese([one])} />
+              <Piece key={i.id} item={i} sameAs={dupes.get(i.id)} rangeId={id} onUpdate={update} onRemove={(gone) => setItems((list) => list.filter((x) => x.id !== gone))} onName={(one) => nameThese([one])} />
             ))}
             {shown.length === 0 && <p className="muted">Nothing here right now.</p>}
           </div>
@@ -226,7 +227,7 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName 
 }
 
 /** One photo in the range: its stage, its details to check, and its name once it has one. */
-function Piece({ item, rangeId, onUpdate, onRemove, onName }: { item: PresentedItem; rangeId: string; onUpdate: (i: PresentedItem) => void; onRemove: (id: string) => void; onName: (id: string) => void }) {
+function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: PresentedItem; sameAs?: string[]; rangeId: string; onUpdate: (i: PresentedItem) => void; onRemove: (id: string) => void; onName: (id: string) => void }) {
   const [draft, setDraft] = useState<Fields>(item.details?.fields ?? {});
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -309,6 +310,16 @@ function Piece({ item, rangeId, onUpdate, onRemove, onName }: { item: PresentedI
               </details>
             )}
             {item.page?.status === "failed" && <p className="piece-hint">The product page couldn&apos;t be written without guessing. Open Evidence to try again.</p>}
+            {item.sheet?.status === "ready" && (
+              <details className="piece-alts piece-page"><summary>Product data{item.sheet.checks.length ? ` · ${item.sheet.checks.length} to check` : ""}</summary>
+                <p><b>Google category</b> {item.sheet.google.category?.path.split(" > ").pop() ?? "Not set"}</p>
+                <p><b>Colour</b> {item.sheet.google.colour ?? "Not given"}</p>
+                <p><b>Ideal for</b> {item.sheet.idealFor.live.map((v) => v.label).join(", ") || "Nothing certain"}{item.sheet.idealFor.review.length ? ` (to check: ${item.sheet.idealFor.review.map((v) => v.label).join(", ")})` : ""}</p>
+                {item.sheet.highlights.length > 0 && <ul>{item.sheet.highlights.map((h) => <li key={h}>{h}</li>)}</ul>}
+                {item.sheet.checks.length > 0 && <p className="piece-hint">{item.sheet.checks.join(" ")}</p>}
+              </details>
+            )}
+            {sameAs && <p className="piece-hint">Same name as {sameAs.join(", ")}. Google treats matching names as one product, so change one of them.</p>}
             <div className="piece-btns">
               <button onClick={async () => { try { await navigator.clipboard.writeText(item.name!); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* blocked */ } }}>{copied ? "Copied" : "Copy"}</button>
               {item.generationId && <Link className="btn ghost" href={`/history/${item.generationId}`}>Evidence</Link>}

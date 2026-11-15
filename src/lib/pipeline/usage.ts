@@ -1,12 +1,14 @@
-import type { Prisma } from "@prisma/client";
-import { db } from "../db";
 import type { AiUsage } from "../providers/types";
-
-const json = (v: unknown) => v as Prisma.InputJsonValue;
+import { updateGeneration } from "./store";
 
 /** Usage and technical notes for engineers. Stored with the generation, never shown on screen. */
 export async function addUsage(id: string, add: { ai?: AiUsage; serpCalls?: number; serpCached?: number; serpCostUsd?: number; errorMessage?: string; notes?: string[] }) {
-  const g = await db.generation.findUniqueOrThrow({ where: { id }, select: { usage: true } });
+  // Under the row lock: the product page and product data add usage at the same time.
+  await updateGeneration(id, (g) => ({ usage: tally(g.usage, add) }));
+}
+
+function tally(usage: unknown, add: Parameters<typeof addUsage>[1]) {
+  const g = { usage };
   type Tally = { input: number; output: number; cacheRead?: number; cacheWrite?: number };
   const u = (g.usage ?? {}) as { ai?: Tally & { calls: number; models?: string[]; byModel?: Record<string, Tally> }; serp?: { calls: number; cached: number; costUsd: number }; errorMessage?: string; notes?: string[] };
   const models = [...new Set([...(u.ai?.models ?? []), ...(add.ai?.model ? [add.ai.model] : [])])];
@@ -24,5 +26,5 @@ export async function addUsage(id: string, add: { ai?: AiUsage; serpCalls?: numb
   u.serp = { calls: (u.serp?.calls ?? 0) + (add.serpCalls ?? 0), cached: (u.serp?.cached ?? 0) + (add.serpCached ?? 0), costUsd: +((u.serp?.costUsd ?? 0) + (add.serpCostUsd ?? 0)).toFixed(5) };
   if (add.errorMessage) u.errorMessage = add.errorMessage;
   if (add.notes?.length) u.notes = [...(u.notes ?? []), ...add.notes];
-  await db.generation.update({ where: { id }, data: { usage: json(u) } });
+  return u;
 }

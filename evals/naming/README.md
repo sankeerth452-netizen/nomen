@@ -15,8 +15,8 @@ Scores Nomen's names on real products. Results and history: `CHANGES.md`.
    ```
    To test a setup that reads and writes on different models, set `ANTHROPIC_MODEL_READ` / `ANTHROPIC_MODEL_WRITE` and
    pass `EVAL_EXPECT_MODELS="read-model,write-model"` instead of `--model`; cost is then priced per model.
-   The runner skips product pages (meta title, meta description, description) so it measures and prices names only;
-   set `PAGE_CONTENT=on` to include them.
+   The runner skips product pages and product data so it measures and prices names only; set `PAGE_CONTENT=on` /
+   `PRODUCT_SHEET=on` to include them.
    The runner refuses to start after its own code, `grade.mjs` or the cases change until a person re-approves with `--approve-harness`. `EVAL_CASES=id1,id2` runs a few cases; re-running resumes where it stopped.
 6. Read the results: `node evals/naming/summarise.mjs .claude/hillclimb/naming --fails` (every score, cost, and before/after per case). `regrade.mjs` re-applies the free checks to saved answers after a fix to them.
 

@@ -5,7 +5,8 @@ import { db } from "../db";
 import { HttpError, hasRole } from "../auth/guards";
 import type { SessionUser } from "../auth/session";
 import type { Box } from "../frame";
-import type { ItemDetails, ItemStatus } from "./shared";
+import { duplicateNames, slugFor, type ItemDetails, type ItemStatus } from "./shared";
+import type { StoredSheet } from "../pipeline/sheet";
 
 export * from "./shared";
 
@@ -24,7 +25,7 @@ type ItemWithGen = BatchItem & { generation: Pick<Generation, "id" | "status" | 
 
 /** What the range screen shows. No photos (served separately), no usage, nothing technical. */
 export function presentItem(i: ItemWithGen) {
-  const result = (i.generation?.result ?? null) as { recommendation?: { recommended_title: string; alternatives: { title: string; trade_off: string }[] }; message?: string; conflicts?: string[]; content?: { status: string; meta_title?: string; meta_description?: string; description?: string; words?: number } | null } | null;
+  const result = (i.generation?.result ?? null) as { recommendation?: { recommended_title: string; alternatives: { title: string; trade_off: string }[] }; message?: string; conflicts?: string[]; content?: { status: string; meta_title?: string; meta_description?: string; description?: string; words?: number } | null; sheet?: StoredSheet | null } | null;
   return {
     id: i.id, position: i.position, filename: i.filename, status: i.status as ItemStatus,
     details: asDetails(i.details), focus: asBox(i.focus),
@@ -34,6 +35,7 @@ export function presentItem(i: ItemWithGen) {
     confidence: i.generation?.confidence ?? null,
     question: i.status === "needs_input" ? (result?.message ?? result?.conflicts?.join(" ") ?? null) : null,
     page: result?.content ? { status: result.content.status, metaTitle: result.content.meta_title ?? null, metaDescription: result.content.meta_description ?? null, description: result.content.description ?? null, words: result.content.words ?? null } : null,
+    sheet: result?.sheet ?? null,
   };
 }
 export type PresentedItem = ReturnType<typeof presentItem>;
@@ -59,12 +61,31 @@ const cell = (v: string) => {
 
 /** The download: one row per photo, in upload order. */
 export function rangeCsv(items: PresentedItem[]): string {
-  const rows = [["Photo", "Name", "Other options", "Confidence", "Status", "Meta title", "Meta description", "Description", "Description words", "Product type", "What the buyer described"]];
+  const rows = [[
+    "Photo", "Name", "Other options", "Confidence", "Status", "Checks", "Meta title", "Meta description", "Description", "Description words",
+    "Short description", "Highlights", "Product details", "Ideal for", "Ideal for (check first)", "Google category", "Google category ID", "Product type (breadcrumb)",
+    "Colour", "Pattern", "Material", "Gender", "Age group", "Size type", "Size system", "Custom label 0", "Custom label 1", "Season", "Care", "Image alt text", "URL slug", "Search queries",
+    "Piece", "What the buyer described",
+  ]];
   const status: Record<string, string> = { named: "Named", needs_input: "Needs a detail", failed: "Didn't work", review: "Not named yet", not_product: "No fashion piece found", read_failed: "Couldn't read the photo" };
   const level = (c: string | null) => (c ? c[0].toUpperCase() + c.slice(1) : "");
+  const dupes = duplicateNames(items);
   for (const i of items) {
     const page = i.page?.status === "ready" ? i.page : null;
-    rows.push([i.filename, i.name ?? "", i.alternatives.join(" | "), level(i.confidence), status[i.status] ?? "In progress", page?.metaTitle ?? "", page?.metaDescription ?? "", page?.description ?? "", page?.words ? String(page.words) : "", i.details?.fields.productType ?? "", i.details?.fields.freeText ?? ""]);
+    const sh = i.sheet?.status === "ready" ? i.sheet : null;
+    const g = sh?.google;
+    const checks = [...(i.name && dupes.get(i.id) ? [`Same name as ${dupes.get(i.id)!.join(", ")}`] : []), ...(i.name && i.name.length > 70 ? [`Name is ${i.name.length} characters (Google Shopping shows about 70)`] : []), ...(sh?.checks ?? [])];
+    rows.push([
+      i.filename, i.name ?? "", i.alternatives.join(" | "), level(i.confidence), status[i.status] ?? "In progress", checks.join(" | "),
+      page?.metaTitle ?? "", page?.metaDescription ?? "", page?.description ?? "", page?.words ? String(page.words) : "",
+      sh?.shortDescription ?? "", sh?.highlights.join(" | ") ?? "", sh?.details.map((d) => `${d.name}: ${d.value}`).join(" | ") ?? "",
+      sh?.idealFor.live.map((v) => v.label).join(" | ") ?? "", sh?.idealFor.review.map((v) => `${v.label} (${v.reason})`).join(" | ") ?? "",
+      g?.category?.path ?? "", g?.category ? String(g.category.id) : "", g?.productType ?? "", g?.colour ?? "", g?.pattern ?? "", g?.material ?? "",
+      g?.gender ?? "", g?.ageGroup ?? "", g?.sizeType ?? "", g?.sizeSystem ?? "", g?.customLabels[0] ?? "", g?.customLabels[1] ?? "",
+      sh?.season ? `${sh.season.value}${sh.season.confidence === "low" ? " (check)" : ""}` : "", sh?.care ?? "", sh?.imageAlt ?? "", i.name ? slugFor(i.name) : "",
+      sh?.searchQueries.map((q) => (q.volume ? `${q.phrase} (${q.volume})` : q.phrase)).join(" | ") ?? "",
+      i.details?.fields.productType ?? "", i.details?.fields.freeText ?? "",
+    ]);
   }
   return "﻿" + rows.map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n"; // BOM so Excel reads the accents right
 }

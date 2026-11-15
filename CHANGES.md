@@ -215,3 +215,35 @@ The name still comes first and never waits: the page is written straight after i
 
 Cost on Opus 5.5: about 3 to 4¢ a page, about 7¢ when the first draft needs its repair (2 of the 4 pages above did). `ANTHROPIC_MODEL_CONTENT` can move pages to a cheaper model and `PAGE_CONTENT=off` turns them off; the quality-test runner skips them so it keeps measuring names only. 131 tests pass (9 new).
 
+## Product data, stage 1: everything Google Shopping needs beyond the name (15 Nov 2026)
+
+From Nitin's field list (the Trustana-style data sheet). Alongside the product page, every name now gets its product data, written at the same time so neither waits for the other (about 25 seconds after the name).
+
+**Worked out by rules, never guessed by Claude:**
+- **Google category** from Google's own taxonomy, sent as its ID (Dresses 2271, Trousers & Jeans 204, Handbags 3032, Earrings 194, Backpacks 100 and so on; IDs checked against Google's en-AU taxonomy file). Baby and toddler pieces go to Google's baby categories; bridal and bridesmaid dresses to theirs. A piece no rule covers gets Claude's pick from the same list, flagged to check.
+- **Your own breadcrumb**: department from who it's for, then category, then style ("Women > Dresses > Maxi Dresses", "Girls > Dresses > Maxi Dresses", "Women > Jeans & Denim > Baggy Jeans").
+- **Plain colour**, as Google asks: "cocoa" becomes Brown, "light dusty pink" Pink, denim washes Blue; up to three, main colour first, joined with "/". A shade it can't place is sent as written and flagged.
+- **Pattern**, and **material only when stated**, fibre over weave ("100% cotton denim" is Cotton, "55% linen 45% viscose" is Linen/Viscose).
+- **Gender and age group** (women's adult by default, as agreed; girls' pieces are Female/Kids), **size type** (Regular unless the buyer said petite, plus, tall or maternity) and **size system** AU.
+- **Search queries to target**: the 3 to 5 phrases the name is built for, with monthly searches from the keyword list.
+- **URL slug**, and **custom labels** 0 (occasion) and 1 (season). Labels 2 to 4 (price band, margin, new or sale) will come from the brand's own data.
+
+**Written by Claude, checked in code like the name:** 2 to 6 highlights, product details as name and value from a list for each kind of piece ("Neckline: Cowl", "Rise: High rise"), a 500 to 1,000 character short description for Google Shopping, image alt text, season, and care (only when the buyer gave it; never general advice). A colour, fabric, length, audience, claim or measurement nobody gave gets one repair; whatever still invents after that is left out, never shown. Slimming, shaping and health claims are never written, here or on the product page.
+
+**Ideal for**, as Nitin specified: up to four occasions from his list (wedding guest, cocktail, formal and black tie, races, graduation, work, date night, going out, brunch, holiday, beach, everyday, gym, lounge, travel, maternity, church and funeral, Christmas). Claude suggests them with a reason and a confidence; code then checks each against the piece's own details (a cotton t-shirt dress is never wedding guest; formal and black tie needs full length; gym needs activewear; church and funeral only for plainly sober pieces: dark plain colours, nothing short, sheer or sparkly) and against searches in the brand's current keyword list (100 a month or more). Only tags that pass both at high confidence go live, into the "Ideal for ..." sentence at the end of the short description and custom label 0; the rest are listed under "Check before using" with the reason.
+
+**On screen:** a Product data section under the product page with "Check before it goes live" (name length against Google's ~70 shown and 150 maximum, missing or unmatched colour, material left blank, occasions and season to check), the Google Shopping fields, highlights, details, short description, ideal for, search queries, season, care, slug and alt text, each with Copy, plus "Copy all for a spreadsheet" (Google's own column names). Ranges show it on each named card and the download gains 24 columns, with names that appear twice in a range flagged (Google treats them as one product). The product page section now also shows for a name with no alternatives (it was hidden).
+
+**Product page:** the meta description is now 150 to 160 characters with one benefit and a soft call to action (`content-v2`); anything under 140 is sent back once.
+
+**How it runs:** `writeSheet` (`src/lib/pipeline/sheet.ts`, prompt `sheet-v1`) runs beside `writeContent`; both now save under a row lock (`src/lib/pipeline/store.ts`) so one never overwrites the other's result, usage or prompt version. Rules live in `src/lib/sheet/catalog.ts` and `src/lib/sheet/idealFor.ts`. `ANTHROPIC_MODEL_SHEET` picks the model, `PRODUCT_SHEET=off` turns it off, and the quality-test runner skips it. POST `/api/generations/[id]/sheet` fills it in again (Try again, or for names made before this).
+
+**Tested like a buyer** (live Claude and Google, local, Nitin's 237,928-keyword list):
+- "black satin slip midi dress with a cowl neckline and thin adjustable straps": "Black Satin Cowl Neck Midi Slip Dress", Dresses 2271, Women > Dresses > Midi Dresses, Black, Satin, five highlights, ideal for cocktail (28,000 searches a month), date night (700) and going out (9,000); wedding guest to check (Claude unsure); meta description 158 of 160. Both first drafts said "knit" (never given); both were caught and repaired.
+- A red dress photo, no typing: Dresses 2271, Red, material left blank, cocktail, date night and going out live; Christmas to check.
+- "light wash baggy jeans, high rise, 100% cotton denim, machine wash cold": Trousers & Jeans 204, Women > Jeans & Denim > Baggy Jeans, care kept as given, only everyday casual live.
+- A lace top from a range: date night and going out live, cocktail to check, shown on its range card.
+- Testing caught and fixed: a doubled full stop in reasons, straps filed under sleeves, "light wash" and "Cotton/Denim" (now Blue and Cotton), and occasion demand read from the list in use when the name was made rather than the brand's current one.
+
+Claude cost: about 2 to 4 cents a piece on Opus 5.5 for the product data, more when its one repair runs. 148 tests pass (17 new). Not in this stage: the brand's product file in and a Google feed out (stage 2), DataForSEO (stage 3), and quality-test cases for these fields (stage 4).
+

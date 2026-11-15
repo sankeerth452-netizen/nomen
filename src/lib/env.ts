@@ -15,8 +15,10 @@ const schema = z.object({
   ANTHROPIC_MODEL_WRITE: z.string().optional(),
   ANTHROPIC_MODEL_PHOTO: z.string().optional(),
   ANTHROPIC_MODEL_CONTENT: z.string().optional(), // writing the product page (meta title, meta description, description)
+  ANTHROPIC_MODEL_SHEET: z.string().optional(), // writing the product data (highlights, details, short description, ideal for)
   // "off" names pieces without writing their product page (the naming quality test sets this to keep its cost down).
   PAGE_CONTENT: z.enum(["on", "off"]).default("on"),
+  PRODUCT_SHEET: z.enum(["on", "off"]).default("on"),
   DATAFORSEO_LOGIN: z.string().optional(),
   DATAFORSEO_PASSWORD: z.string().optional(),
   SERP_CACHE_TTL_DAYS: z.coerce.number().int().min(0).default(7),

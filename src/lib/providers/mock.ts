@@ -1,12 +1,20 @@
 import { deterministicFacts } from "../pipeline/facts";
 import type { GenerationInput } from "../pipeline/types";
-import { Recommendation, type PageContent, type PhotoDetails } from "../pipeline/types";
+import { Recommendation, type PageContent, type PhotoDetails, type SheetDraft } from "../pipeline/types";
 import { classify } from "../vocab/fashion";
-import type { ContentWriter, FactExtractor, PhotoReader, Recommender, SerpProvider, SerpResponse } from "./types";
+import type { ContentWriter, FactExtractor, PhotoReader, Recommender, SerpProvider, SerpResponse, SheetWriter } from "./types";
 import { classifyPage } from "../serp/reduce";
 import { titleCase } from "../serp/patterns";
 
 const NO_USAGE = { inputTokens: 0, outputTokens: 0 };
+
+/** A 140-160 character meta description with a soft call to action, from the name alone. */
+function mockMeta(name: string, type: string) {
+  const tail = " Shop yours now.";
+  let meta = `The ${name} is an easy ${type} to style`;
+  for (const add of [" for work, weekends", " and every plan in between", ", made to be worn again and again"]) if ((meta + add + "." + tail).length <= 160) meta += add;
+  return `${meta}.${tail}`.slice(0, 160);
+}
 
 /** Deterministic stand-in for Claude extraction: structured fields + vocabulary scan. MOCK, not AI. */
 export class MockFactExtractor implements FactExtractor {
@@ -97,9 +105,32 @@ export class MockContentWriter implements ContentWriter {
     while (paragraphs.join(" ").split(/\s+/).length < 640) paragraphs.push(styling, care);
     const content: PageContent = {
       meta_title: `${name}${brand}`.length <= 60 ? `${name}${brand}` : name.slice(0, 60),
-      meta_description: `Shop the ${name}. An easy ${type} to style for every plan.`.slice(0, 160),
+      meta_description: mockMeta(name, type),
       description: paragraphs.join("\n\n"),
     };
     return { content, usage: NO_USAGE };
   }
 }
+
+/** Writes a data sheet from the facts alone (no invented details), so the whole flow runs without Claude. */
+export class MockSheetWriter implements SheetWriter {
+  calls = 0;
+  async write(payload: Record<string, unknown>) {
+    this.calls++;
+    const p = payload as { product_name: string; product_type?: string | null; product_facts?: { colour?: string[]; length?: string[]; features?: string[]; material?: string[] } };
+    const f = p.product_facts ?? {};
+    const type = (p.product_type ?? "piece").toLowerCase();
+    const bits = [...(f.colour ?? []), ...(f.length ?? []), ...(f.features ?? [])];
+    const highlights = [`${p.product_name}`, ...bits.slice(0, 4).map((b) => `${b[0].toUpperCase()}${b.slice(1)} ${type}`)].slice(0, 6);
+    if (highlights.length < 2) highlights.push(`An easy ${type} to style`);
+    let short = `The ${p.product_name} is a ${bits.join(", ") || "versatile"} ${type}.`;
+    while (short.length < 480) short += ` It is easy to style and simple to wear, from one plan to the next.`;
+    const sheet: SheetDraft = {
+      highlights, details: (f.length ?? []).slice(0, 1).map((l) => ({ name: "Length", value: l })), short_description: short.slice(0, 880),
+      google_category_id: null, ideal_for: [{ tag: "everyday", confidence: "high", reason: "An easy, versatile piece." }], season: null, care: null,
+      image_alt: `${p.product_name}`.slice(0, 120),
+    };
+    return { sheet, usage: NO_USAGE };
+  }
+}
+

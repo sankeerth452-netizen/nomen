@@ -9,6 +9,7 @@ import { COPY } from "../copy";
 import { AiError, type ProductFacts } from "../providers/types";
 import { addUsage } from "./usage";
 import { writeContent } from "./content";
+import { writeSheet } from "./sheet";
 import { getProviders, type Providers } from "../providers";
 import type { Photo } from "../photo";
 import type { Box } from "../frame";
@@ -174,8 +175,11 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
 
     const result = { recommendation: { ...rec, confidence, warnings: [...new Set(warnings)] }, meta: { serpStatus: bundle.serpStatus, limitedKeywordEvidence: bundle.limitedKeywordEvidence, datasetId: bundle.datasetId, orderFinal: bundle.order.final } };
     await setStage(id, "completed", { result: json(result), confidence, durationMs: Date.now() - t0 });
-    // The product page follows the name; the name is already on screen and never waits for it, or fails with it.
-    if (env().PAGE_CONTENT !== "off") await writeContent(id, { providers }).catch((e) => console.error("product page crashed", id, e instanceof Error ? e.message : e));
+    // The product page and product data follow the name, side by side; the name is already on screen and never waits for them, or fails with them.
+    const after: Promise<void>[] = [];
+    if (env().PAGE_CONTENT !== "off") after.push(writeContent(id, { providers }).catch((e) => console.error("product page crashed", id, e instanceof Error ? e.message : e)));
+    if (env().PRODUCT_SHEET !== "off") after.push(writeSheet(id, { providers }).catch((e) => console.error("product data crashed", id, e instanceof Error ? e.message : e)));
+    await Promise.all(after);
   } catch (e) {
     const code = e instanceof AiError ? e.code : e instanceof ConfigError ? "config_error" : "internal_error";
     const message = e instanceof Error ? e.message : String(e);

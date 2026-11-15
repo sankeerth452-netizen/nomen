@@ -58,3 +58,15 @@ export function fillEmpty(d: ItemDetails, shared: Fields): ItemDetails {
 
 /** Can this piece be named as it stands? (The pipeline needs a product type and a description.) */
 export const isReady = (d: ItemDetails | null) => !!d && (d.fields.productType?.trim().length ?? 0) >= 2 && (d.fields.freeText?.trim().length ?? 0) >= 2;
+
+export const slugFor = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+/** Pieces in a range that ended up with the same name (Google treats duplicate titles as one product): id -> the other photos. */
+export function duplicateNames(items: { id: string; name: string | null; filename: string }[]): Map<string, string[]> {
+  const byName = new Map<string, { id: string; filename: string }[]>();
+  for (const i of items) if (i.name) { const k = i.name.toLowerCase().trim(); byName.set(k, [...(byName.get(k) ?? []), i]); }
+  const out = new Map<string, string[]>();
+  for (const group of byName.values()) if (group.length > 1) for (const i of group) out.set(i.id, group.filter((x) => x.id !== i.id).map((x) => x.filename));
+  return out;
+}
+

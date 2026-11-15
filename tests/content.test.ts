@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { parseBrandSettings } from "@/lib/brand";
 import { allowedFrom, checkContent, fitContent, writeContent } from "@/lib/pipeline/content";
 import { createGeneration, runPipeline } from "@/lib/pipeline/run";
-import { MockContentWriter, MockFactExtractor, MockPhotoReader, MockRecommender, MockSerpProvider } from "@/lib/providers/mock";
+import { MockContentWriter, MockFactExtractor, MockPhotoReader, MockRecommender, MockSerpProvider, MockSheetWriter } from "@/lib/providers/mock";
 import type { Providers } from "@/lib/providers";
 import type { ContentWriter } from "@/lib/providers/types";
 import type { PageContent } from "@/lib/pipeline/types";
@@ -13,7 +13,7 @@ const brand = parseBrandSettings({});
 const source = "black midi dress with ruching · dress · black · midi · ruched · Fabric: 100% cotton";
 const allowed = allowedFrom([source]);
 const words = (n: number, w = "lovely") => Array(n).fill(w).join(" ");
-const page = (description: string, extra: Partial<PageContent> = {}): PageContent => ({ meta_title: "Black Ruched Midi Dress | Sportsgirl", meta_description: "An easy black midi dress with ruching.", description, ...extra });
+const page = (description: string, extra: Partial<PageContent> = {}): PageContent => ({ meta_title: "Black Ruched Midi Dress | Sportsgirl", meta_description: "An easy black midi dress with ruching, cut to a flattering midi length that works from desk to dinner. Shop the black ruched midi dress at Sportsgirl now.", description, ...extra });
 const check = (c: PageContent) => checkContent(c, allowed, source, brand);
 
 describe("checking a product page", () => {
@@ -50,7 +50,7 @@ describe("checking a product page", () => {
 describe("writing the page after the name", () => {
   beforeEach(resetDb);
   afterAll(() => db.$disconnect());
-  const providers = (content: ContentWriter = new MockContentWriter()): Providers => ({ extractor: new MockFactExtractor(), recommender: new MockRecommender(), serp: new MockSerpProvider(), photo: new MockPhotoReader(), content, modelName: "mock" });
+  const providers = (content: ContentWriter = new MockContentWriter()): Providers => ({ extractor: new MockFactExtractor(), recommender: new MockRecommender(), serp: new MockSerpProvider(), photo: new MockPhotoReader(), content, sheet: new MockSheetWriter(), modelName: "mock" });
   const dress = { freeText: "black midi dress with ruching", productType: "dress", colour: "black", length: "midi", feature: "ruched" };
 
   it("writes a checked page for the name, within every limit, and records the prompt version", async () => {

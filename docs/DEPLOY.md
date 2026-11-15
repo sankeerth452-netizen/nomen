@@ -40,6 +40,8 @@ Do this when you have the keys, ideally after one test run on your computer with
    photos stay on `ANTHROPIC_MODEL`. `ANTHROPIC_MODEL_WRITE` and `ANTHROPIC_MODEL_PHOTO` can override those two steps.
    Each name also gets its product page (meta title, meta description, 600-800 word description), written on
    `ANTHROPIC_MODEL` unless `ANTHROPIC_MODEL_CONTENT` is set. `PAGE_CONTENT=off` turns product pages off entirely.
+   It also gets its product data (Google Shopping fields, highlights, details, short description, ideal for), on
+   `ANTHROPIC_MODEL` unless `ANTHROPIC_MODEL_SHEET` is set. `PRODUCT_SHEET=off` turns product data off.
    Re-run the quality test (`evals/naming/README.md`) before changing any of them.
 2. In `render.yaml`, change `PROVIDER_MODE` from `mock` to `live`, commit and push. Render redeploys, and the
    "Preview version" strip disappears.

@@ -14,11 +14,21 @@ type Rec = {
 };
 /** The product page around the name, or where its writing stands. */
 type Page = { status: "writing" | "failed" | "ready"; for_title: string; meta_title?: string; meta_description?: string; description?: string; words?: number };
+type Verdict = { key: string; label: string; outcome: "live" | "review" | "dropped"; reason: string; demand: number | null };
+/** The product data sheet (Google Shopping fields, highlights, details, ideal for), or where its writing stands. */
+type Sheet = { status: "writing" | "failed" } | {
+  status: "ready";
+  google: { category: { id: number; path: string } | null; productType: string | null; colour: string | null; pattern: string | null; material: string | null; gender: string; ageGroup: string; sizeType: string; sizeSystem: string; customLabels: string[] };
+  highlights: string[]; details: { section: string; name: string; value: string }[]; shortDescription: string | null;
+  idealFor: { live: Verdict[]; review: Verdict[]; sentence: string | null };
+  season: { value: string; confidence: "high" | "low"; reason: string } | null; care: string | null; imageAlt: string | null;
+  searchQueries: { phrase: string; volume: number | null }[]; checks: string[];
+};
 
 export type Gen = {
   id: string; status: string; errorCode?: string | null; hasPhoto?: boolean; photoPosition?: string | null;
   input?: { productType?: string; freeText?: string };
-  result: { recommendation?: Rec; meta?: { serpStatus: string; orderFinal: string[] }; needs?: string; conflicts?: string[]; message?: string; content?: Page | null } | null;
+  result: { recommendation?: Rec; meta?: { serpStatus: string; orderFinal: string[] }; needs?: string; conflicts?: string[]; message?: string; content?: Page | null; sheet?: Sheet | null } | null;
   evidence: { datasetId?: string | null; limitedKeywordEvidence?: boolean; keywords: Kw[]; serp: Serp[]; queries: { query: string; reason: string }[]; serpStatus: string; patterns: { intent: string; resultsAnalysed: number; productNouns: { term: string; count: number }[]; attributeWording: { term: string; count: number }[]; serpOrder: string[] | null } | null; order: { keywordOrder: string[]; serpOrder: string[] | null; final: string[] } } | null;
 };
 
@@ -63,16 +73,21 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
   const [copied, setCopied] = useState(false);
   const [err, setErr] = useState("");
   const [page, setPage] = useState<Page | null>(gen.result?.content ?? null);
+  const [sheet, setSheet] = useState<Sheet | null>(gen.result?.sheet ?? null);
 
-  // The page is written just after the name: keep checking until it's there (also after "Rewrite").
+  // The page and the product data are written just after the name: keep checking until both are there (also after "Rewrite").
+  const waiting = page?.status === "writing" || sheet?.status === "writing";
   useEffect(() => {
-    if (page?.status !== "writing") return;
+    if (!waiting) return;
     const t = setInterval(async () => {
       const res = await fetch(`/api/generations/${gen.id}`, { cache: "no-store" });
-      if (res.ok) { const g = await res.json(); if (g.result?.content?.status !== "writing") setPage(g.result?.content ?? null); }
+      if (!res.ok) return;
+      const g = await res.json();
+      if (g.result?.content?.status !== "writing") setPage(g.result?.content ?? null);
+      if (g.result?.sheet?.status !== "writing") setSheet(g.result?.sheet ?? null);
     }, 2500);
     return () => clearInterval(t);
-  }, [page?.status, gen.id]);
+  }, [waiting, gen.id]);
   const top = useRef<HTMLElement>(null);
   const productType = gen.input?.productType ?? "";
   const photo = photoForType(productType);
@@ -191,8 +206,10 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
         </div>
       </div>
 
+      <ProductPage genId={gen.id} title={title} page={page} onChange={setPage} />
+      <ProductData genId={gen.id} title={title} slug={slug} sheet={sheet} onChange={setSheet} />
+
       {rec.alternatives.length > 0 && (<>
-        <ProductPage genId={gen.id} title={title} page={page} onChange={setPage} />
 
         <div className="section-title"><h3>Alternatives</h3><span>Each one trades something for something</span></div>
         <div className="alts">
@@ -312,3 +329,126 @@ function ProductPage({ genId, title, page, onChange }: { genId: string; title: s
     </section>
   );
 }
+
+const TITLE_SHOWN = 70; // roughly what Google Shopping shows of a product title
+const TITLE_MAX = 150; // Google's limit
+
+/** Everything Google Shopping and the product page need beyond the name, with what to check before it goes live. */
+function ProductData({ genId, title, slug, sheet, onChange }: { genId: string; title: string; slug: string; sheet: Sheet | null; onChange: (s: Sheet) => void }) {
+  const [copied, setCopied] = useState("");
+  const [err, setErr] = useState("");
+  async function write() {
+    setErr("");
+    const res = await fetch(`/api/generations/${genId}/sheet`, { method: "POST" });
+    if (res.ok) onChange({ status: "writing" });
+    else setErr((await res.json().catch(() => ({}))).error ?? "That didn't work. Please try again.");
+  }
+  async function copy(label: string, text: string) {
+    try { await navigator.clipboard.writeText(text); setCopied(label); setTimeout(() => setCopied(""), 1500); } catch { /* clipboard blocked */ }
+  }
+  const copyButton = (label: string, text: string) => <button className="ghost" onClick={() => copy(label, text)}>{copied === label ? "Copied" : "Copy"}</button>;
+  const head = (label: string, hint: string, text?: string) => (
+    <div className="page-field-head"><span className="eyebrow">{label}</span><span className="muted">{hint}</span>{text !== undefined && copyButton(label, text)}</div>
+  );
+
+  if (!sheet || sheet.status !== "ready") {
+    return (
+      <section className="product-data" aria-live="polite">
+        <div className="section-title"><h3>Product data</h3><span>For Google Shopping and your product page</span></div>
+        {sheet?.status === "writing" && <p className="page-writing">Filling in the product data…</p>}
+        {sheet?.status === "failed" && <div className="page-empty"><p>We couldn&apos;t fill in the product data just now. Your name is safe.</p><button onClick={write}>Try again</button></div>}
+        {!sheet && <div className="page-empty"><p>No product data yet for this piece.</p><button onClick={write}>Fill in the product data</button></div>}
+        {err && <p className="err">{err}</p>}
+      </section>
+    );
+  }
+
+  const g = sheet.google;
+  const checks = [
+    ...(title.length > TITLE_MAX ? [`The name is ${title.length} characters: Google's limit is ${TITLE_MAX}.`] : title.length > TITLE_SHOWN ? [`The name is ${title.length} characters: Google Shopping shows about ${TITLE_SHOWN}, so the end may be cut off.`] : []),
+    ...sheet.checks,
+  ];
+  const grid: [string, string | null, string?][] = [
+    ["Google category", g.category?.path.replace(/^Clothing & Accessories > /, "") ?? null, g.category ? `ID ${g.category.id}` : undefined],
+    ["Product type", g.productType, "Your own breadcrumb"],
+    ["Colour", g.colour], ["Pattern", g.pattern], ["Material", g.material, g.material ? undefined : "Only when stated"],
+    ["Gender", g.gender], ["Age group", g.ageGroup], ["Size type", g.sizeType], ["Size system", g.sizeSystem],
+    ["Custom label 0 · occasion", g.customLabels[0] || null], ["Custom label 1 · season", g.customLabels[1] || null],
+  ];
+  // Header and values as two tab-separated lines: paste straight into a spreadsheet.
+  const row: [string, string][] = [
+    ["title", title], ["google_product_category", g.category ? String(g.category.id) : ""], ["product_type", g.productType ?? ""], ["color", g.colour ?? ""], ["pattern", g.pattern ?? ""],
+    ["material", g.material ?? ""], ["gender", g.gender.toLowerCase()], ["age_group", g.ageGroup.toLowerCase()], ["size_type", g.sizeType.toLowerCase()], ["size_system", g.sizeSystem],
+    ["description", sheet.shortDescription ?? ""], ["product_highlight", sheet.highlights.join(" | ")], ["product_detail", sheet.details.map((d) => `${d.section}:${d.name}:${d.value}`).join(" | ")],
+    ["custom_label_0", g.customLabels[0] ?? ""], ["custom_label_1", g.customLabels[1] ?? ""], ["image_alt", sheet.imageAlt ?? ""], ["url_slug", slug],
+  ];
+  const tsv = [row.map(([k]) => k).join("\t"), row.map(([, v]) => v.replace(/[\t\n]+/g, " ")).join("\t")].join("\n");
+
+  return (
+    <section className="product-data" aria-live="polite">
+      <div className="section-title"><h3>Product data</h3><span>For Google Shopping and your product page</span></div>
+      {checks.length > 0 && (
+        <div className="data-checks"><span className="eyebrow">Check before it goes live</span><ul>{checks.map((c) => <li key={c}>{c}</li>)}</ul></div>
+      )}
+
+      <div className="page-field">
+        {head("Google Shopping", "Worked out from your details, never guessed")}
+        <dl className="data-grid">
+          {grid.map(([label, value, hint]) => (
+            <div key={label}><dt>{label}</dt><dd className={value ? "" : "empty"}>{value ?? "Not given"}</dd>{hint && <span className="muted">{hint}</span>}</div>
+          ))}
+        </dl>
+        <p className="data-copy-all"><button className="ghost" onClick={() => copy("all", tsv)}>{copied === "all" ? "Copied" : "Copy all for a spreadsheet"}</button></p>
+      </div>
+
+      {sheet.highlights.length > 0 && (
+        <div className="page-field">
+          {head("Highlights", `${sheet.highlights.length} bullet${sheet.highlights.length === 1 ? "" : "s"} for Google Shopping`, sheet.highlights.join("\n"))}
+          <ul className="data-list">{sheet.highlights.map((h) => <li key={h}>{h}</li>)}</ul>
+        </div>
+      )}
+
+      {sheet.details.length > 0 && (
+        <div className="page-field">
+          {head("Product details", "Only the details you gave", sheet.details.map((d) => `${d.name}: ${d.value}`).join("\n"))}
+          <table className="data-table"><tbody>{sheet.details.map((d) => <tr key={d.name}><th>{d.name}</th><td>{d.value}</td><td className="muted">{d.section}</td></tr>)}</tbody></table>
+        </div>
+      )}
+
+      {sheet.shortDescription && (
+        <div className="page-field">
+          {head("Short description", `${sheet.shortDescription.length.toLocaleString("en-AU")} of 1,000 characters · for Google Shopping`, sheet.shortDescription)}
+          <p className="data-text">{sheet.shortDescription}</p>
+        </div>
+      )}
+
+      <div className="page-field">
+        {head("Ideal for", sheet.idealFor.live.length ? "Checked against your details and what shoppers search" : "Nothing we're sure enough to use", sheet.idealFor.sentence ?? undefined)}
+        {sheet.idealFor.live.length > 0 && <div className="chips">{sheet.idealFor.live.map((v) => <span className="chip" key={v.key} title={v.reason}>{v.label}{v.demand ? ` · ${v.demand.toLocaleString("en-AU")} searches a month` : ""}</span>)}</div>}
+        {sheet.idealFor.sentence && <p className="data-text">{sheet.idealFor.sentence}</p>}
+        {sheet.idealFor.review.length > 0 && (<>
+          <p className="eyebrow" style={{ marginTop: 14 }}>Check before using</p>
+          <ul className="data-list review">{sheet.idealFor.review.map((v) => <li key={v.key}><b>{v.label}</b>: {v.reason}</li>)}</ul>
+        </>)}
+      </div>
+
+      {sheet.searchQueries.length > 0 && (
+        <div className="page-field">
+          {head("Search queries to target", "What the name is built to be found for", sheet.searchQueries.map((q) => q.phrase).join("\n"))}
+          <ul className="data-list">{sheet.searchQueries.map((q) => <li key={q.phrase}>{q.phrase}<span className="muted"> · {vol(q.volume)}</span></li>)}</ul>
+        </div>
+      )}
+
+      <div className="page-field">
+        <dl className="data-grid">
+          <div><dt>Season</dt><dd className={sheet.season ? "" : "empty"}>{sheet.season ? sheet.season.value[0].toUpperCase() + sheet.season.value.slice(1) : "Not clear from the details"}</dd>{sheet.season && <span className="muted">{sheet.season.confidence === "high" ? sheet.season.reason : `To check: ${sheet.season.reason}`}</span>}</div>
+          <div><dt>Care</dt><dd className={sheet.care ? "" : "empty"}>{sheet.care ?? "Not given"}</dd>{!sheet.care && <span className="muted">Never made up</span>}</div>
+          <div><dt>URL slug</dt><dd>{slug}</dd>{copyButton("slug", slug)}</div>
+          <div><dt>Image alt text</dt><dd className={sheet.imageAlt ? "" : "empty"}>{sheet.imageAlt ?? "Not written"}</dd>{sheet.imageAlt && copyButton("alt", sheet.imageAlt)}</div>
+        </dl>
+      </div>
+      {err && <p className="err">{err}</p>}
+    </section>
+  );
+}
+
