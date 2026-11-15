@@ -424,7 +424,7 @@ function ProductData({ genId, title, slug, sheet, onChange }: { genId: string; t
 
       <div className="page-field">
         {head("Ideal for", sheet.idealFor.live.length ? "Checked against your details and what shoppers search" : "Nothing we're sure enough to use", sheet.idealFor.sentence ?? undefined)}
-        {sheet.idealFor.live.length > 0 && <div className="chips">{sheet.idealFor.live.map((v) => <span className="chip" key={v.key} title={v.reason}>{v.label}{v.demand ? ` · ${v.demand.toLocaleString("en-AU")} searches a month` : ""}</span>)}</div>}
+        {sheet.idealFor.live.length > 0 && <div className="data-tags">{sheet.idealFor.live.map((v) => <span className="data-tag" key={v.key} title={v.reason}>{v.label}{v.demand ? ` · ${v.demand.toLocaleString("en-AU")} searches a month` : ""}</span>)}</div>}
         {sheet.idealFor.sentence && <p className="data-text">{sheet.idealFor.sentence}</p>}
         {sheet.idealFor.review.length > 0 && (<>
           <p className="eyebrow" style={{ marginTop: 14 }}>Check before using</p>

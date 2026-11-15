@@ -463,6 +463,6 @@ details[open].more summary::before, details[open].why summary::before { content:
 .data-table td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line); }
 .data-table td.muted { font-size: 12.5px; text-align: right; }
 .data-text { margin: 10px 0 0; font-size: 15px; line-height: 1.7; color: var(--ink-soft); }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.chip { font: 500 11px/1 var(--text); letter-spacing: .12em; text-transform: uppercase; padding: 9px 12px; background: var(--ink); color: var(--paper); }
+.data-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.data-tag { font: 500 11px/1 var(--text); letter-spacing: .12em; text-transform: uppercase; padding: 9px 12px; background: var(--ink); color: var(--paper); }
 @media (max-width: 640px) { .data-grid { grid-template-columns: 1fr 1fr; gap: 14px 16px; } .data-table th { width: 40%; } }
