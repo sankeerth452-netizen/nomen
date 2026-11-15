@@ -62,6 +62,16 @@ export interface ContentWriter {
   write(payload: Record<string, unknown>, repair?: { errors: string[]; previous: unknown }): Promise<{ content: import("../pipeline/types").PageContent; usage: AiUsage }>;
 }
 
+/** Live Google search figures (DataForSEO Labs, Australia): monthly searches for phrases, and phrases shoppers use around a seed. */
+export interface KeywordDataProvider {
+  /** Keeps cached figures from different sources apart: example (mock) figures must never be served as real ones. */
+  readonly cacheNamespace: string;
+  /** Monthly searches for each phrase; null when Google has no figure for it. */
+  volumes(phrases: string[]): Promise<{ volumes: Record<string, number | null>; costUsd: number }>;
+  /** Searched phrases containing the seed, most searched first. */
+  suggestions(seed: string, limit: number): Promise<{ items: { keyword: string; volume: number }[]; costUsd: number }>;
+}
+
 export interface SheetWriter {
   write(payload: Record<string, unknown>, repair?: { errors: string[]; previous: unknown }): Promise<{ sheet: import("../pipeline/types").SheetDraft; usage: AiUsage }>;
 }

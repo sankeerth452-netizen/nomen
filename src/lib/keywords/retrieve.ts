@@ -9,7 +9,7 @@ export type RawCandidate = {
   searchVolume: number | null;
   category: string | null;
   subcategory: string | null;
-  source: "exact" | "fts_all" | "fts_single" | "trigram";
+  source: "exact" | "fts_all" | "fts_single" | "trigram" | "google";
 };
 
 const tokens = (s: string) => s.toLowerCase().split(/[^a-z0-9']+/).filter(Boolean);

@@ -3,7 +3,7 @@
 // details, short description, alt text) and suggests occasions and season, and every word is checked like the name is.
 import { db } from "../db";
 import { getProviders, type Providers } from "../providers";
-import type { ProductFacts } from "../providers/types";
+import type { KeywordDataProvider, ProductFacts } from "../providers/types";
 import { SHEET_PROMPT_VERSION } from "../prompts";
 import { normalizeKeyword } from "../keywords/normalize";
 import { breadcrumbFor, categoryFor, detailNamesFor, detailSection, genderAge, googleCategory, googleColour, googleMaterial, googlePattern, sizeType, type GoogleCategory } from "../sheet/catalog";
@@ -12,6 +12,8 @@ import { allowedFrom, inventedInText } from "./content";
 import { setPromptVersion, setResultKey } from "./store";
 import type { EvidenceBundle, SheetDraft } from "./types";
 import { addUsage } from "./usage";
+import { env } from "../env";
+import { liveVolumes, newTally, type LiveTally } from "../keywords/live";
 
 export const HIGHLIGHTS = [2, 6] as const;
 export const HIGHLIGHT_MAX = 150; // Google's limit per highlight
@@ -32,7 +34,7 @@ export type ProductSheet = {
   season: Season | null;
   care: string | null;
   imageAlt: string | null;
-  searchQueries: { phrase: string; volume: number | null }[];
+  searchQueries: { phrase: string; volume: number | null; fromGoogle?: boolean }[];
   /** Things a person should look at before this goes live, in plain words. */
   checks: string[];
 };
@@ -130,8 +132,9 @@ export function assembleSheet(d: SheetDraft, check: ReturnType<typeof checkSheet
   const searchQueries: ProductSheet["searchQueries"] = [];
   if (ctx.bundle && !ctx.bundle.limitedKeywordEvidence) {
     const vol = new Map(ctx.bundle.keywords.map((k) => [k.keyword, k.searchVolume]));
+    const google = new Set(ctx.bundle.keywords.filter((k) => k.source === "google").map((k) => k.keyword));
     const clean = ctx.bundle.keywords.filter((k) => !k.flags.some((f) => /informational|promo|unsupported|missing_product_type/.test(f))).sort((a, b) => b.score - a.score).map((k) => k.keyword);
-    for (const p of [...ctx.cited, ...clean]) if (p && !searchQueries.some((q) => q.phrase === p) && searchQueries.length < 5) searchQueries.push({ phrase: p, volume: vol.get(p) ?? null });
+    for (const p of [...ctx.cited, ...clean]) if (p && !searchQueries.some((q) => q.phrase === p) && searchQueries.length < 5) searchQueries.push({ phrase: p, volume: vol.get(p) ?? null, ...(google.has(p) ? { fromGoogle: true } : {}) });
   }
 
   return {
@@ -148,14 +151,27 @@ export function assembleSheet(d: SheetDraft, check: ReturnType<typeof checkSheet
   };
 }
 
-/** Monthly searches for each occasion's demand phrases in the keyword list the name used; null when there is none. */
-async function occasionVolumes(datasetId: string | null, tags: string[], productType: string | null): Promise<Map<string, number> | null> {
-  if (!datasetId) return null;
+/**
+ * Monthly searches for each occasion's demand phrases: the keyword list first, then live Google figures for phrases
+ * the list doesn't have. null when there is neither (no list, live figures off).
+ */
+async function occasionVolumes(datasetId: string | null, tags: string[], productType: string | null, kd: KeywordDataProvider | undefined, tally: LiveTally): Promise<Map<string, number> | null> {
+  if (!datasetId && !kd) return null;
   const phrases = [...new Set(tags.flatMap((t) => { const o = occasion(t); return o ? demandPhrases(o, productType).map(normalizeKeyword) : []; }))];
   const m = new Map<string, number>();
   if (!phrases.length) return m;
-  const rows = await db.keyword.findMany({ where: { datasetId, normalizedKeyword: { in: phrases } }, select: { normalizedKeyword: true, searchVolume: true } });
-  for (const r of rows) m.set(r.normalizedKeyword, Math.max(m.get(r.normalizedKeyword) ?? 0, r.searchVolume ?? 0));
+  if (datasetId) {
+    const rows = await db.keyword.findMany({ where: { datasetId, normalizedKeyword: { in: phrases } }, select: { normalizedKeyword: true, searchVolume: true } });
+    for (const r of rows) m.set(r.normalizedKeyword, Math.max(m.get(r.normalizedKeyword) ?? 0, r.searchVolume ?? 0));
+  }
+  const missing = phrases.filter((p) => !m.has(p));
+  if (kd && missing.length) {
+    try {
+      for (const [p, v] of await liveVolumes(kd, missing, tally)) if (v) m.set(p, v);
+    } catch (e) {
+      console.error("live occasion figures failed", e instanceof Error ? e.message : e); // the list's figures still decide
+    }
+  }
   return m;
 }
 
@@ -195,7 +211,10 @@ export async function writeSheet(id: string, opts: { providers?: Providers } = {
       if (check.problems.length) await addUsage(id, { notes: [`Product data after one repair, cleaned in code: ${check.problems.join("; ")}`] });
     }
     // Demand for occasions comes from the brand's current keyword list, so filling it in again after a new upload uses the new numbers.
-    const volumes = await occasionVolumes(g.brand.activeKeywordDatasetId ?? g.datasetId, r.sheet.ideal_for.map((t) => t.tag), facts.product_type);
+    const tally = newTally();
+    const kd = env().LIVE_KEYWORDS !== "off" ? providers.keywords : undefined;
+    const volumes = await occasionVolumes(g.brand.activeKeywordDatasetId ?? g.datasetId, r.sheet.ideal_for.map((t) => t.tag), facts.product_type, kd, tally);
+    if (tally.calls) await addUsage(id, { serpCalls: tally.calls, serpCostUsd: tally.costUsd, notes: [`Product data: live occasion figures (DataForSEO Labs), ${tally.calls} request`] });
     const sheet = assembleSheet(r.sheet, check, {
       ...ctx, volumes, bundle: g.candidateEvidence as EvidenceBundle | null, inputText,
       cited: [result.recommendation.primary_keyword ?? "", ...result.recommendation.supporting_keywords].filter(Boolean),

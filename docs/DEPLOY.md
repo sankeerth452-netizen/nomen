@@ -42,6 +42,8 @@ Do this when you have the keys, ideally after one test run on your computer with
    `ANTHROPIC_MODEL` unless `ANTHROPIC_MODEL_CONTENT` is set. `PAGE_CONTENT=off` turns product pages off entirely.
    It also gets its product data (Google Shopping fields, highlights, details, short description, ideal for), on
    `ANTHROPIC_MODEL` unless `ANTHROPIC_MODEL_SHEET` is set. `PRODUCT_SHEET=off` turns product data off.
+   Names also use live Google search figures (DataForSEO Labs, the same login) for phrases the keyword list lacks;
+   `LIVE_KEYWORDS=off` turns that off.
    Ranges started from a product file fetch each product's photo from its image link: the web service needs outbound
    internet access (Render allows it by default). Private and local addresses are always refused.
    Re-run the quality test (`evals/naming/README.md`) before changing any of them.

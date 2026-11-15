@@ -2,7 +2,7 @@ import { deterministicFacts } from "../pipeline/facts";
 import type { GenerationInput } from "../pipeline/types";
 import { Recommendation, type PageContent, type PhotoDetails, type SheetDraft } from "../pipeline/types";
 import { classify } from "../vocab/fashion";
-import type { ContentWriter, FactExtractor, PhotoReader, Recommender, SerpProvider, SerpResponse, SheetWriter } from "./types";
+import type { ContentWriter, FactExtractor, KeywordDataProvider, PhotoReader, Recommender, SerpProvider, SerpResponse, SheetWriter } from "./types";
 import { classifyPage } from "../serp/reduce";
 import { titleCase } from "../serp/patterns";
 
@@ -131,6 +131,24 @@ export class MockSheetWriter implements SheetWriter {
       image_alt: `${p.product_name}`.slice(0, 120),
     };
     return { sheet, usage: NO_USAGE };
+  }
+}
+
+/** Example search figures (never real ones: their own cache namespace), so the live-keyword step runs without DataForSEO. */
+export class MockKeywordData implements KeywordDataProvider {
+  readonly cacheNamespace = "mock";
+  calls = 0;
+  constructor(private table: Record<string, number> = { "girls maxi dress": 590, "girls dress": 2400, "girls cream dress": 90, "girls party dress": 880, "black slip dress": 1900, "black satin slip dress": 260 }) {}
+  async volumes(phrases: string[]) {
+    this.calls++;
+    return { volumes: Object.fromEntries(phrases.map((p) => [p.toLowerCase(), this.table[p.toLowerCase()] ?? null])), costUsd: 0 };
+  }
+  async suggestions(seed: string, limit: number) {
+    this.calls++;
+    // Like Google's: phrases with every word of the seed, in any order.
+    const words = seed.toLowerCase().split(/\s+/);
+    const has = (k: string) => { const ks = k.split(/\s+/); return words.every((w) => ks.includes(w)); };
+    return { items: Object.entries(this.table).filter(([k]) => has(k) && k !== seed.toLowerCase()).map(([keyword, volume]) => ({ keyword, volume })).slice(0, limit), costUsd: 0 };
   }
 }
 

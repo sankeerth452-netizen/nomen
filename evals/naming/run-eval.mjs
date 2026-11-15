@@ -159,6 +159,8 @@ async function loadCases() {
   // PAGE_CONTENT=on / PRODUCT_SHEET=on to include them.
   process.env.PAGE_CONTENT ??= 'off';
   process.env.PRODUCT_SHEET ??= 'off';
+  // Live Google figures change the evidence: off by default so runs compare with earlier ones; LIVE_KEYWORDS=on to measure them.
+  process.env.LIVE_KEYWORDS ??= 'off';
   const all = JSON.parse(readFileSync('evals/naming/cases.json', 'utf8'));
   const only = (process.env.EVAL_CASES ?? '').split(',').map(s => s.trim()).filter(Boolean);
   const cases = only.length ? all.filter(c => only.includes(c.id)) : all;
@@ -170,7 +172,7 @@ async function loadCases() {
   const brand = await db.brand.findUniqueOrThrow({ where: { slug: 'sportsgirl' } });
   const user = await db.user.findFirstOrThrow({ where: { username: 'eval-runner' } });
   app = { db, createGeneration, runPipeline, buildPayload, prompts, brand, settings: parseBrandSettings(brand.settings), user };
-  eprint(`mode ${process.env.PROVIDER_MODE ?? '?'} · judge ${process.env.EVAL_JUDGE_MODEL || 'off'} · product pages ${process.env.PAGE_CONTENT} · product data ${process.env.PRODUCT_SHEET} · keyword list ${brand.activeKeywordDatasetId ? 'on' : 'none'} · ${cases.length} cases`);
+  eprint(`mode ${process.env.PROVIDER_MODE ?? '?'} · judge ${process.env.EVAL_JUDGE_MODEL || 'off'} · product pages ${process.env.PAGE_CONTENT} · product data ${process.env.PRODUCT_SHEET} · live keywords ${process.env.LIVE_KEYWORDS} · keyword list ${brand.activeKeywordDatasetId ? 'on' : 'none'} · ${cases.length} cases`);
   return cases;
 }
 

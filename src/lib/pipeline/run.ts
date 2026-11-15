@@ -3,6 +3,8 @@ import { db } from "../db";
 import { env } from "../env";
 import { parseBrandSettings } from "../brand";
 import { keywordEvidenceFor } from "../keywords/evidence";
+import { liveCandidates, newTally } from "../keywords/live";
+import type { RawCandidate } from "../keywords/retrieve";
 import { attributeTerms } from "../keywords/retrieve";
 import { FILLER_WORDS, categoryForType } from "../vocab/fashion";
 import { COPY } from "../copy";
@@ -91,7 +93,16 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
 
       // ── Stage 3: local keyword evidence ──
       await setStage(id, "matching");
-      const ev = await keywordEvidenceFor(g.brandId, facts, { keep: 30 });
+      // Live Google figures fill the list's gaps (e.g. girls' wear); a failed lookup never stops the name.
+      const tally = newTally();
+      const kd = env().LIVE_KEYWORDS !== "off" ? providers.keywords : undefined;
+      let liveError = "";
+      const known = facts; // settled above (a closure doesn't keep the narrowing)
+      const ev = await keywordEvidenceFor(g.brandId, known, {
+        keep: 30,
+        ...(kd ? { live: (found: RawCandidate[]) => liveCandidates(known, found, kd, tally).catch((e) => { liveError = e instanceof Error ? e.message : String(e); return []; }) } : {}),
+      });
+      if (kd) await addUsage(id, { serpCalls: tally.calls, serpCached: tally.cached, serpCostUsd: tally.costUsd, notes: [liveError ? `Live keyword figures failed (named from the list alone): ${liveError.slice(0, 200)}` : `Live keyword figures (DataForSEO Labs): ${tally.calls} request${tally.calls === 1 ? "" : "s"}, ${tally.cached} from cache, ${ev.liveCount} phrase${ev.liveCount === 1 ? "" : "s"} added`] });
       if (categoryForType(facts.product_type) === null && ev.rawCount === 0 && ev.datasetId) {
         await setStage(id, "needs_input", { result: json({ needs: "product_type", message: COPY.unknownType(facts.product_type ?? "") }), durationMs: Date.now() - t0 });
         return; // before any paid call
@@ -100,7 +111,7 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
         await setStage(id, "needs_input", { result: json({ needs: "details", message: COPY.tooFewDetails(facts.product_type ?? "piece") }), durationMs: Date.now() - t0 });
         return; // before any paid call
       }
-      const keywords: KeywordEvidenceItem[] = ev.top.map((k, i) => ({ id: `K${i + 1}`, keyword: k.normalizedKeyword, searchVolume: k.searchVolume, category: k.category, score: +k.score.toFixed(3), flags: k.flags }));
+      const keywords: KeywordEvidenceItem[] = ev.top.map((k, i) => ({ id: `K${i + 1}`, keyword: k.normalizedKeyword, searchVolume: k.searchVolume, category: k.category, score: +k.score.toFixed(3), flags: k.flags, ...(k.source === "google" ? { source: "google" as const } : {}) }));
       const attrs = attributeTerms(facts);
       const category = categoryForType(facts.product_type);
       let order = blendOrder(ev.orderModel, category, facts, attrs, [], null);

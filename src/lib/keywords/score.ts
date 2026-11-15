@@ -42,7 +42,9 @@ export function scoreCandidate(c: RawCandidate, facts: ProductFacts, rules: Bran
 
   // Matched by word form, so the buyer's "ruching" supports a "ruched midi dress" keyword.
   const attrTokens = [...new Set(attributeTerms(facts).map(wordStem))];
-  const factSet = new Set([...attrTokens, wordStem(typeTok)]);
+  // The piece's own audience ("girls") supports a keyword that names it ("girls maxi dress").
+  const audienceTokens = (facts.audience ?? "").toLowerCase().match(/[a-z]+/g)?.filter((t) => !["women", "womens", "ladies", "s"].includes(t)).map(wordStem) ?? [];
+  const factSet = new Set([...attrTokens, wordStem(typeTok), ...audienceTokens]);
   const content = kt.filter((t) => !STOP_WORDS.has(t));
   const supported = content.filter((t) => factSet.has(wordStem(t)));
   const unsupportedAttrs = content.filter((t) => !factSet.has(wordStem(t)) && ATTRIBUTE_VOCAB.has(singular(t)));

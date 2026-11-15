@@ -6,7 +6,7 @@ import { photoForType } from "@/lib/photos";
 import { AUDIENCE_TERMS, STOP_WORDS, classify, isGarmentPart, wordStem } from "@/lib/vocab/fashion";
 import { plain, plainList } from "@/lib/copy";
 
-type Kw = { id: string; keyword: string; searchVolume: number | null; category: string | null };
+type Kw = { id: string; keyword: string; searchVolume: number | null; category: string | null; source?: "google" };
 type Serp = { id: string; query: string; rank: number; title: string; domain: string; pageClass: string; checkedAt: string; cached: boolean };
 type Rec = {
   recommended_title: string; confidence: "high" | "medium" | "low"; primary_keyword: string | null; supporting_keywords: string[];
@@ -22,7 +22,7 @@ type Sheet = { status: "writing" | "failed" } | {
   highlights: string[]; details: { section: string; name: string; value: string }[]; shortDescription: string | null;
   idealFor: { live: Verdict[]; review: Verdict[]; sentence: string | null };
   season: { value: string; confidence: "high" | "low"; reason: string } | null; care: string | null; imageAlt: string | null;
-  searchQueries: { phrase: string; volume: number | null }[]; checks: string[];
+  searchQueries: { phrase: string; volume: number | null; fromGoogle?: boolean }[]; checks: string[];
 };
 
 export type Gen = {
@@ -228,10 +228,10 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
           <div>
             <h4>What shoppers search</h4>
             {keywords.length ? (<>
-              <p className="muted">How often Australians search each phrase in a month. Longer bars mean more searches.</p>
+              <p className="muted">How often Australians search each phrase in a month. Longer bars mean more searches.{keywords.some((k) => k.source === "google") && " Phrases marked Google are Google's own figures, for ones your keyword list doesn't have."}</p>
               {lead.slice(0, 6).map((k) => (
                 <div className="kw" key={k.id}>
-                  <span className="name">{k.keyword}{cited.has(k.keyword) && <small>{cited.get(k.keyword)}</small>}</span>
+                  <span className="name">{k.keyword}{cited.has(k.keyword) && <small>{cited.get(k.keyword)}</small>}{k.source === "google" && <small className="from-google">Google</small>}</span>
                   <span className="vol">{vol(k.searchVolume)}</span>
                   <span className="bar"><i style={{ width: `${(Math.log10(1 + (k.searchVolume ?? 0)) / maxLog) * 100}%` }} /></span>
                 </div>
@@ -239,7 +239,7 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
               {lead.length > 6 && (
                 <details className="more">
                   <summary>See all {lead.length} phrases</summary>
-                  {lead.slice(6).map((k) => <div className="kw" key={k.id}><span className="name">{k.keyword}</span><span className="vol">{vol(k.searchVolume)}</span></div>)}
+                  {lead.slice(6).map((k) => <div className="kw" key={k.id}><span className="name">{k.keyword}{k.source === "google" && <small className="from-google">Google</small>}</span><span className="vol">{vol(k.searchVolume)}</span></div>)}
                 </details>
               )}
             </>) : <p className="muted">We couldn&apos;t find search figures that match these details yet, so we don&apos;t claim how often shoppers search for them.</p>}
@@ -435,7 +435,7 @@ function ProductData({ genId, title, slug, sheet, onChange }: { genId: string; t
       {sheet.searchQueries.length > 0 && (
         <div className="page-field">
           {head("Search queries to target", "What the name is built to be found for", sheet.searchQueries.map((q) => q.phrase).join("\n"))}
-          <ul className="data-list">{sheet.searchQueries.map((q) => <li key={q.phrase}>{q.phrase}<span className="muted"> · {vol(q.volume)}</span></li>)}</ul>
+          <ul className="data-list">{sheet.searchQueries.map((q) => <li key={q.phrase}>{q.phrase}<span className="muted"> · {vol(q.volume)}{q.fromGoogle ? " · from Google" : ""}</span></li>)}</ul>
         </div>
       )}
 

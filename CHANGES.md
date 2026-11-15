@@ -263,3 +263,25 @@ Nitin asked for my recommendations on the open questions, so: the short descript
 
 Not yet: DataForSEO (stage 3) and quality-test cases for the product data (stage 4).
 
+## Product data, stage 3: live Google search figures from DataForSEO (16 Nov 2026)
+
+Nitin's list covers women's fashion well but has gaps: only 7 of its 237,928 keywords mention girls or kids, and some occasion phrases are missing. Nomen now asks Google (DataForSEO Labs, Australia) for what the list doesn't have, and the same scoring rules decide what counts.
+
+- **Phrase figures:** for each piece, its own phrases the list lacks ("girls maxi dress", "girls cream dress"...) get Google's monthly searches in one request.
+- **Suggestions:** when the list barely covers the piece (fewer than three solid matches) or it's for a girl, boy, child or man, Google's searched phrases around it ("girls dress": "girls party dress", ...) are added too. Word-order twins ("slip dress black" and "black slip dress" share one figure in Google's data) are kept once.
+- **Same rules:** these live phrases are scored beside the list's own, so one naming a colour or detail the buyer never gave is still excluded. A piece's audience now counts as supported ("girls maxi dress" for a girls' dress).
+- **Occasions:** "Ideal for" demand checks ask Google for occasion phrases the list doesn't have.
+- **Marked on screen:** the evidence marks Google's figures "Google", and "Search queries to target" says "from Google".
+- **Cost and caching:** figures are cached for 30 days. About 1.3 cents a request (one or two per name, only when needed) and recorded with the generation. A failed lookup never stops a name: it's named from the list alone, with a note.
+- **Switches:** `LIVE_KEYWORDS=off` turns it off. The quality-test runner keeps it off by default so scores compare with earlier runs; `LIVE_KEYWORDS=on` to measure it.
+
+**Checked live first** (15 Nov): Labs works for Australia (location 2036): "wedding guest dress" 27,100 a month (Nitin's list: 26,000), "black satin slip dress" 260, "girls maxi dress" no figure. Suggestions for "black slip dress" returned 15 searched phrasings. Account balance US$21.45 at the time.
+
+**Google Shopping, tried and left out:** a priority Shopping search (0.2 cents) for "black satin slip dress" in Australia returned 45 results, mostly Amazon under-slips, dress-hire listings and ASOS, with no product attributes (colour, material) on any. Not useful for naming or product data, so it isn't built in. It could later benchmark prices for the price-band label.
+
+**Tested like a buyer** (live, local, Nitin's list):
+- "girls cream embroidered maxi dress with a wrap neckline and gold trim" named "Girls' Cream Embroidered Maxi Dress". The reason now cites "girls dress" at 9,900 searches a month from Google, and the piece is no longer marked as having limited keyword evidence. Nine Google phrases were considered. DataForSEO cost 4.4 cents (three Google searches, two figure lookups, one occasion check).
+- "black satin slip midi dress with a cowl neckline" (well covered by the list): one figure lookup, no suggestions, "Black Satin Cowl Neck Midi Slip Dress" at high confidence, 1.4 cents.
+
+166 tests pass (7 new). Not in this stage: quality-test cases for the product data (stage 4).
+

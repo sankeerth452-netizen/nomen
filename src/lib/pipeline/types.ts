@@ -77,6 +77,8 @@ export type KeywordEvidenceItem = {
   category: string | null;
   score: number;
   flags: string[];
+  /** "google": a live figure from Google (DataForSEO) for a phrase the keyword list doesn't have. */
+  source?: "google";
 };
 
 export type SerpEvidenceItem = {

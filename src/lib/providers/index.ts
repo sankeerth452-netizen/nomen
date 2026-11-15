@@ -1,10 +1,12 @@
 import { env, type Env } from "../env";
 import { ClaudeClient, ClaudeContentWriter, ClaudeFactExtractor, ClaudePhotoReader, ClaudeRecommender, ClaudeSheetWriter } from "./anthropic";
 import { DataForSeoProvider } from "./dataforseo";
-import { MockContentWriter, MockFactExtractor, MockPhotoReader, MockRecommender, MockSerpProvider, MockSheetWriter } from "./mock";
-import type { ContentWriter, FactExtractor, PhotoReader, Recommender, SerpProvider, SheetWriter } from "./types";
+import { DataForSeoLabs } from "./dataforseoLabs";
+import { MockContentWriter, MockFactExtractor, MockKeywordData, MockPhotoReader, MockRecommender, MockSerpProvider, MockSheetWriter } from "./mock";
+import type { ContentWriter, FactExtractor, KeywordDataProvider, PhotoReader, Recommender, SerpProvider, SheetWriter } from "./types";
 
-export type Providers = { extractor: FactExtractor; recommender: Recommender; serp: SerpProvider; photo: PhotoReader; content: ContentWriter; sheet: SheetWriter; modelName: string };
+/** `keywords` (live Google figures) is optional: without it, names use the keyword list alone. */
+export type Providers = { extractor: FactExtractor; recommender: Recommender; serp: SerpProvider; photo: PhotoReader; content: ContentWriter; sheet: SheetWriter; keywords?: KeywordDataProvider; modelName: string };
 
 let cached: Providers | undefined;
 export function getProviders(): Providers {
@@ -19,7 +21,7 @@ export function stepModels(e: Pick<Env, "ANTHROPIC_MODEL" | "ANTHROPIC_MODEL_REA
 
 export function providersFor(e: Env): Providers {
   if (e.PROVIDER_MODE === "mock") {
-    return { extractor: new MockFactExtractor(), recommender: new MockRecommender(), serp: new MockSerpProvider(), photo: new MockPhotoReader(), content: new MockContentWriter(), sheet: new MockSheetWriter(), modelName: "mock" };
+    return { extractor: new MockFactExtractor(), recommender: new MockRecommender(), serp: new MockSerpProvider(), photo: new MockPhotoReader(), content: new MockContentWriter(), sheet: new MockSheetWriter(), keywords: new MockKeywordData(), modelName: "mock" };
   }
   const m = stepModels(e);
   const clients = new Map<string, ClaudeClient>(); // one client per distinct model
@@ -27,7 +29,7 @@ export function providersFor(e: Env): Providers {
   return {
     extractor: new ClaudeFactExtractor(client(m.read)), recommender: new ClaudeRecommender(client(m.write)), photo: new ClaudePhotoReader(client(m.photo)),
     content: new ClaudeContentWriter(client(m.content)), sheet: new ClaudeSheetWriter(client(m.sheet)),
-    serp: new DataForSeoProvider(e.DATAFORSEO_LOGIN!, e.DATAFORSEO_PASSWORD!),
+    serp: new DataForSeoProvider(e.DATAFORSEO_LOGIN!, e.DATAFORSEO_PASSWORD!), keywords: new DataForSeoLabs(e.DATAFORSEO_LOGIN!, e.DATAFORSEO_PASSWORD!),
     modelName: m.read === m.write ? m.write : `${m.read} + ${m.write}`, // what named it: details reader + name writer
   };
 }
