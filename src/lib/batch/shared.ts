@@ -24,6 +24,13 @@ export function detailsFromPhoto(d: PhotoDetails): ItemDetails {
   return { fields, fromPhoto: Object.keys(fields) as Field[], unsure: d.unsure.map((u) => u.trim().toLowerCase()).filter(Boolean).slice(0, 3) };
 }
 
+/** A product-file piece: the brand's file says what it says, and the photo only fills what the file left blank. */
+export function mergePhotoDetails(file: ItemDetails, photo: ItemDetails): ItemDetails {
+  const fields: Fields = { ...photo.fields, ...file.fields };
+  const fromPhoto = photo.fromPhoto.filter((k) => !file.fields[k]?.trim());
+  return { fields, fromPhoto, unsure: photo.unsure.filter((u) => !Object.keys(file.fields).some((k) => u.includes(k.toLowerCase()))) };
+}
+
 /** Clean the buyer's edits: known fields only, trimmed, length-capped like the single-piece form. */
 export function cleanFields(raw: unknown): Fields {
   const out: Fields = {};

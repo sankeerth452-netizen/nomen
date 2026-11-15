@@ -466,3 +466,19 @@ details[open].more summary::before, details[open].why summary::before { content:
 .data-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .data-tag { font: 500 11px/1 var(--text); letter-spacing: .12em; text-transform: uppercase; padding: 9px 12px; background: var(--ink); color: var(--paper); }
 @media (max-width: 640px) { .data-grid { grid-template-columns: 1fr 1fr; gap: 14px 16px; } .data-table th { width: 40%; } }
+
+/* ── ranges from a product file ── */
+.product-file { margin-top: 18px; }
+.product-file .muted { font-size: 14px; }
+.product-file input[type="file"] { margin: 6px 0 4px; }
+.file-map { width: 100%; margin-top: 10px; font-size: 14px; border-collapse: collapse; }
+.file-map td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.file-map td:first-child { width: 46%; overflow-wrap: anywhere; }
+.file-map select { width: 100%; }
+.file-checks { margin: 0 0 18px; padding: 14px 18px; }
+.file-checks summary { cursor: pointer; font-size: 14.5px; }
+.file-checks ul { margin: 6px 0 12px; padding-left: 18px; font-size: 14px; line-height: 1.6; }
+.file-checks .eyebrow { margin: 14px 0 0; }
+.piece-nophoto { position: absolute; inset: 0; display: grid; place-items: center; padding: 14px; text-align: center; font: italic 400 15px/1.4 var(--display); color: var(--muted); background: var(--paper-deep); }
+.piece-skus { margin: 2px 0 6px; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.piece-issues summary { color: #5e4210; }

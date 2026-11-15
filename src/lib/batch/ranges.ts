@@ -7,6 +7,7 @@ import type { SessionUser } from "../auth/session";
 import type { Box } from "../frame";
 import { duplicateNames, slugFor, type ItemDetails, type ItemStatus } from "./shared";
 import type { StoredSheet } from "../pipeline/sheet";
+import type { PieceFeed } from "../feed/shared";
 
 export * from "./shared";
 
@@ -36,9 +37,18 @@ export function presentItem(i: ItemWithGen) {
     question: i.status === "needs_input" ? (result?.message ?? result?.conflicts?.join(" ") ?? null) : null,
     page: result?.content ? { status: result.content.status, metaTitle: result.content.meta_title ?? null, metaDescription: result.content.meta_description ?? null, description: result.content.description ?? null, words: result.content.words ?? null } : null,
     sheet: result?.sheet ?? null,
+    hasPhoto: !!i.photo,
+    // A product-file piece: a summary of its rows for the card (the full rows stay on the server, for the Google feed).
+    file: i.feed ? fileSummary(i.feed as unknown as PieceFeed) : null,
   };
 }
 export type PresentedItem = ReturnType<typeof presentItem>;
+
+function fileSummary(f: PieceFeed) {
+  const ids = f.rows.map((r) => r.attrs.id).filter((x): x is string => !!x);
+  const sizes = f.rows.map((r) => r.attrs.size).filter((x): x is string => !!x);
+  return { skus: ids, sizes, price: f.rows[0]?.attrs.price ?? null, salePrice: f.rows[0]?.attrs.sale_price ?? null, issues: f.issues, imageError: f.imageError ?? null };
+}
 
 export async function rangeItems(batchId: string) {
   const items = await db.batchItem.findMany({
@@ -65,7 +75,7 @@ export function rangeCsv(items: PresentedItem[]): string {
     "Photo", "Name", "Other options", "Confidence", "Status", "Checks", "Meta title", "Meta description", "Description", "Description words",
     "Short description", "Highlights", "Product details", "Ideal for", "Ideal for (check first)", "Google category", "Google category ID", "Product type (breadcrumb)",
     "Colour", "Pattern", "Material", "Gender", "Age group", "Size type", "Size system", "Custom label 0", "Custom label 1", "Season", "Care", "Image alt text", "URL slug", "Search queries",
-    "Piece", "What the buyer described",
+    "Piece", "What the buyer described", "SKUs", "Product file checks",
   ]];
   const status: Record<string, string> = { named: "Named", needs_input: "Needs a detail", failed: "Didn't work", review: "Not named yet", not_product: "No fashion piece found", read_failed: "Couldn't read the photo" };
   const level = (c: string | null) => (c ? c[0].toUpperCase() + c.slice(1) : "");
@@ -85,6 +95,7 @@ export function rangeCsv(items: PresentedItem[]): string {
       sh?.season ? `${sh.season.value}${sh.season.confidence === "low" ? " (check)" : ""}` : "", sh?.care ?? "", sh?.imageAlt ?? "", i.name ? slugFor(i.name) : "",
       sh?.searchQueries.map((q) => (q.volume ? `${q.phrase} (${q.volume})` : q.phrase)).join(" | ") ?? "",
       i.details?.fields.productType ?? "", i.details?.fields.freeText ?? "",
+      i.file?.skus.join(" | ") ?? "", [...(i.file?.issues ?? []), ...(i.file?.imageError ? [i.file.imageError] : [])].join(" | "),
     ]);
   }
   return "﻿" + rows.map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n"; // BOM so Excel reads the accents right

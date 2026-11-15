@@ -226,6 +226,11 @@ model Batch {
   brandId   String
   userId    String
   title     String
+  /// "photos" (dropped photos) or "file" (started from the brand's product file)
+  source    String   @default("photos")
+  fileName  String?
+  /// Checks on the brand's product file: required fields, stock and price values, variants ({ rows, products, issues })
+  fileCheck Json?
   createdAt DateTime @default(now())
 
   brand Brand       @relation(fields: [brandId], references: [id])
@@ -244,8 +249,12 @@ model BatchItem {
   position     Int
   filename     String
   status       String    @default("queued")
-  photo        Bytes // the copy kept for screens (900px)
-  photoType    String
+  photo        Bytes? // the copy kept for screens (900px); for a product-file piece, filled once its image link is read
+  photoType    String?
+  /// A product-file piece's image_link, read like a dropped photo
+  imageUrl     String?
+  /// A product-file piece's rows from the brand's file (one per size or SKU), passed through untouched
+  feed         Json?
   readImage    Bytes? // the larger copy Claude reads (1568px); cleared once read
   readType     String?
   details      Json? // the form fields the photo filled in, as the buyer has checked them

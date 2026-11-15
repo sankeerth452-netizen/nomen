@@ -131,11 +131,11 @@ describe("range rules", () => {
       idealFor: { live: [{ key: "cocktail", label: "Cocktail", outcome: "live" as const, reason: "Ruched midi.", demand: 9900 }], review: [], sentence: "Ideal for cocktail evenings." },
       season: null, care: null, imageAlt: "Black ruched midi dress", searchQueries: [{ phrase: "black midi dress", volume: 4200 }], checks: ["Material left blank: it wasn't given, and it's never guessed."],
     };
-    const base = { position: 1, status: "named" as const, details: ready, focus: null, generationId: "g", alternatives: ["A", "B"], confidence: "low", question: null, page, sheet };
+    const base = { position: 1, status: "named" as const, details: ready, focus: null, generationId: "g", alternatives: ["A", "B"], confidence: "low", question: null, page, sheet, hasPhoto: true, file: null };
     const csv = rangeCsv([{ ...base, id: "1", filename: "=HYPERLINK(\"x\")", name: "Black Midi Dress, Ruched" }, { ...base, id: "2", filename: "b.jpg", name: "Black Midi Dress, Ruched", sheet: null }]);
     expect(csv.startsWith("\uFEFFPhoto,Name,Other options,Confidence,Status,Checks,Meta title,Meta description,Description,Description words,Short description,Highlights")).toBe(true);
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
     expect(csv).toContain(`"Black Midi Dress, Ruched",A | B,Low,Named,"Same name as b.jpg | Material left blank: it wasn't given, and it's never guessed.",Black Ruched Midi Dress | T,Shop it.,"A dress.\n\nWear it.",4,A black ruched midi dress.,Ruched body | Midi length,Length: Midi,Cocktail,,Clothing & Accessories > Clothing > Dresses,2271,Women > Dresses > Midi Dresses,Black`);
-    expect(csv).toContain("black-midi-dress-ruched,black midi dress (4200),dress,black midi dress with ruching");
+    expect(csv).toContain("black-midi-dress-ruched,black midi dress (4200),dress,black midi dress with ruching,,");
   });
 });

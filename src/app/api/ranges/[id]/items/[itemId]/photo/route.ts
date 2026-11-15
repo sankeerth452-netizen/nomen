@@ -9,7 +9,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const { id, itemId } = await params;
     const b = await loadRangeFor(user, id);
     const item = await db.batchItem.findFirst({ where: { id: itemId, batchId: b.id }, select: { photo: true, photoType: true } });
-    if (!item) throw new HttpError(404, "We couldn't find that photo.");
+    if (!item?.photo || !item.photoType) throw new HttpError(404, "We couldn't find that photo.");
     return new Response(new Uint8Array(item.photo), { headers: { "content-type": item.photoType, "cache-control": "private, max-age=86400", "x-content-type-options": "nosniff" } });
   } catch (e) {
     return errorResponse(e);

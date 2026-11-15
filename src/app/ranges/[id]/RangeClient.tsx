@@ -7,6 +7,8 @@ import { objectPosition } from "@/lib/frame";
 import { render } from "@/lib/shrink";
 import { MAX_RANGE_PHOTOS, WORKING, duplicateNames, isReady, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
 import type { PresentedItem } from "@/lib/batch/ranges";
+import type { FileCheck } from "@/lib/feed/shared";
+import ProductFile from "./ProductFile";
 
 /** Biggest file we'll try to open. The browser shrinks it before anything is sent. */
 const MAX_FILE_BYTES = 25_000_000;
@@ -27,7 +29,7 @@ type Filter = "all" | "check" | "named" | "attention";
 
 const needsAttention = (i: PresentedItem) => ["needs_input", "failed", "not_product", "read_failed"].includes(i.status) || (i.status === "review" && !isReady(i.details));
 
-export default function RangeClient({ id, initialTitle, initialItems, brandName }: { id: string; initialTitle: string; initialItems: PresentedItem[]; brandName: string | null }) {
+export default function RangeClient({ id, initialTitle, initialItems, brandName, source = "photos", fileName = null, fileCheck = null }: { id: string; initialTitle: string; initialItems: PresentedItem[]; brandName: string | null; source?: "photos" | "file"; fileName?: string | null; fileCheck?: FileCheck | null }) {
   const [items, setItems] = useState(initialItems);
   const [title, setTitle] = useState(initialTitle);
   const [uploads, setUploads] = useState<Upload[]>([]);
@@ -82,6 +84,7 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName 
 
   async function addFiles(list: FileList | File[]) {
     setError(""); setNotice("");
+    if (source === "file") { setError("This range comes from your product file, so its photos come from the file's image links. Start a new range to add photos."); return; }
     const files = [...list].filter((f) => f.type.startsWith("image/"));
     if (!files.length) { setError(COPY.photo.notAPhoto); return; }
     const room = MAX_RANGE_PHOTOS - items.length - uploads.filter((u) => u.state !== "error").length;
@@ -166,15 +169,19 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName 
           <label htmlFor="rangeTitle" className="sr-only">Range name</label>
           <input id="rangeTitle" className="range-title" value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} onBlur={saveTitle} />
           <p className="muted range-count">
-            {counts.all} {counts.all === 1 ? "photo" : "photos"} · {counts.named} named{counts.check ? ` · ${counts.check} to check` : ""}{brandName ? ` · ${brandName}` : ""}
+            {source === "file"
+              ? <>{counts.all} {counts.all === 1 ? "product" : "products"} · {items.reduce((n, i) => n + (i.file?.skus.length ?? 0), 0)} SKUs from {fileName ?? "your file"}</>
+              : <>{counts.all} {counts.all === 1 ? "photo" : "photos"}</>}
+            {" "}· {counts.named} named{counts.check ? ` · ${counts.check} to check` : ""}{brandName ? ` · ${brandName}` : ""}
           </p>
         </div>
         <div className="range-actions">
-          <button className="ghost" onClick={() => picker.current?.click()} disabled={items.length >= MAX_RANGE_PHOTOS}>Add photos</button>
+          {source === "photos" && <button className="ghost" onClick={() => picker.current?.click()} disabled={items.length >= MAX_RANGE_PHOTOS}>Add photos</button>}
           {items.length > 0 && <button className="ghost" onClick={() => setShowShared((s) => !s)} aria-expanded={showShared}>Apply to every piece</button>}
           {ready.length > 0 && <button onClick={() => nameThese()} disabled={naming}>{naming ? "Starting…" : `Name ${ready.length} ${ready.length === 1 ? "piece" : "pieces"}`}</button>}
           {named.length > 0 && <button className="ghost" onClick={copyAll}>{copied ? "Copied" : "Copy all names"}</button>}
-          {named.length > 0 && <a className="btn ghost" href={`/api/ranges/${id}/download`}>Download names</a>}
+          {named.length > 0 && <a className="btn ghost" href={`/api/ranges/${id}/download`}>{source === "file" ? "Download the review sheet" : "Download names"}</a>}
+          {source === "file" && named.length > 0 && <a className="btn" href={`/api/ranges/${id}/feed`}>Download for Google</a>}
         </div>
       </div>
       <input ref={picker} type="file" accept="image/*" multiple className="sr-only" aria-label="Choose photos" onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ""; }} />
@@ -193,6 +200,8 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName 
 
       {(notice || error) && <p className={error ? "err range-msg" : "range-msg"} aria-live="polite">{error || notice}</p>}
 
+      {fileCheck && <FileChecks check={fileCheck} />}
+
       {items.length === 0 && !sending ? (
         <button className="range-drop" onClick={() => picker.current?.click()}>
           <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="11" width="34" height="26" fill="none" stroke="currentColor" strokeWidth="1.2" /><circle cx="24" cy="24" r="7" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M17 11l3-4h8l3 4" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
@@ -200,7 +209,9 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName 
           <span className="muted">Up to {MAX_RANGE_PHOTOS} at once. Each is read and filled in for you to check before anything is named.</span>
           <span className="btn ghost">Choose photos</span>
         </button>
-      ) : (
+      ) : null}
+      {items.length === 0 && !sending && <ProductFile rangeId={id} />}
+      {items.length === 0 && !sending ? null : (
         <>
           {uploads.length > 0 && (
             <div className="range-uploads" aria-live="polite">
@@ -288,12 +299,21 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: Pr
   return (
     <article className={`piece s-${item.status}`} aria-label={item.filename}>
       <div className="piece-photo">
-        <Image src={`/api/ranges/${rangeId}/items/${item.id}/photo`} alt="" fill unoptimized style={{ objectPosition: objectPosition(item.focus) }} />
+        {item.hasPhoto
+          ? <Image src={`/api/ranges/${rangeId}/items/${item.id}/photo`} alt="" fill unoptimized style={{ objectPosition: objectPosition(item.focus) }} />
+          : <span className="piece-nophoto">{working ? "Loading the photo from your file" : "No photo"}</span>}
         {working && <span className="photo-reading" aria-hidden="true" />}
         <span className="piece-stage">{STAGE[item.status]}{working ? "…" : ""}</span>
       </div>
       <div className="piece-body">
         <span className="piece-file" title={item.filename}>{item.filename}</span>
+        {item.file && (
+          <p className="piece-skus">{item.file.skus.length === 1 ? `SKU ${item.file.skus[0]}` : `${item.file.skus.length} SKUs`}{item.file.sizes.length ? ` · sizes ${item.file.sizes.join(", ")}` : ""}{item.file.price ? ` · ${item.file.salePrice ? `${item.file.salePrice} (was ${item.file.price})` : item.file.price}` : ""}</p>
+        )}
+        {item.file?.imageError && <p className="piece-hint">{item.file.imageError} We&apos;ll name it from your file&apos;s details.</p>}
+        {item.file && item.file.issues.length > 0 && (
+          <details className="piece-alts piece-issues"><summary>{item.file.issues.length} {item.file.issues.length === 1 ? "thing" : "things"} Google will flag in your file</summary><ul>{item.file.issues.map((m) => <li key={m}>{m}</li>)}</ul></details>
+        )}
 
         {item.status === "named" && item.name && (
           <>
@@ -351,3 +371,24 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: Pr
     </article>
   );
 }
+
+/** What Google will make of the brand's file: errors it rejects products for, then recommendations. Nothing is changed for them. */
+function FileChecks({ check }: { check: FileCheck }) {
+  const errors = check.issues.filter((i) => i.level === "error"), warnings = check.issues.filter((i) => i.level === "warning"), info = check.issues.filter((i) => i.level === "info");
+  const rows = (r: number[]) => (r.length ? ` (row${r.length === 1 ? "" : "s"} ${r.slice(0, 8).join(", ")}${r.length > 8 ? ` and ${r.length - 8} more` : ""})` : "");
+  return (
+    <details className="file-checks card" open={errors.length > 0}>
+      <summary>
+        Your file: {check.rows.toLocaleString("en-AU")} SKUs in {check.products.toLocaleString("en-AU")} products ({check.format})
+        {" · "}{errors.length ? (() => { const n = errors.reduce((t, i) => t + i.rows.length, 0); return `${n} ${n === 1 ? "thing" : "things"} Google will reject`; })() : "nothing Google will reject"}
+        {warnings.length ? ` · ${warnings.length} ${warnings.length === 1 ? "recommendation" : "recommendations"}` : ""}
+      </summary>
+      {check.leftOut > 0 && <p className="warn">Only the first {check.products - check.leftOut} products were added. Start another range with the rest of the file.</p>}
+      {errors.length > 0 && <><p className="eyebrow">To fix in your file</p><ul>{errors.map((i) => <li key={i.kind}>{i.message}{rows(i.rows)}</li>)}</ul></>}
+      {warnings.length > 0 && <><p className="eyebrow">Recommended</p><ul>{warnings.map((i) => <li key={i.kind}>{i.message}{rows(i.rows)}</li>)}</ul></>}
+      {info.length > 0 && <ul className="muted">{info.map((i) => <li key={i.kind}>{i.message}</li>)}</ul>}
+      <p className="muted">Nomen never changes these: they come from your own feed. Fix them where your feed is made.</p>
+    </details>
+  );
+}
+

@@ -7,6 +7,9 @@ import { getProviders, type Providers } from "../providers";
 import { focusFractions, imageSize, type PhotoType } from "../photo";
 import { createGeneration, runPipeline } from "../pipeline/run";
 import { asBox, asDetails, detailsFromPhoto, isReady } from "./ranges";
+import { mergePhotoDetails } from "./shared";
+import { fetchProductImage, ImageFetchError, type ImageFetcher } from "../feed/image";
+import type { PieceFeed } from "../feed/shared";
 
 /** At most this many pieces are read or named at once, across all ranges, so a big range can't swamp Claude or Google. */
 export const MAX_AT_ONCE = 3;
@@ -30,23 +33,50 @@ async function claim(kind: "read" | "name"): Promise<BatchItem | null> {
   return rows[0] ? db.batchItem.findUnique({ where: { id: rows[0].id } }) : null;
 }
 
-/** Read one photo into details for the buyer to check. Failures go back in the queue, up to three tries. */
-export async function readItem(item: BatchItem, providers: Providers): Promise<void> {
-  if (!item.readImage || !item.readType) {
-    await db.batchItem.update({ where: { id: item.id }, data: { status: "read_failed", claimedAt: null } });
-    return;
-  }
-  const image = { mediaType: item.readType as PhotoType, data: Buffer.from(item.readImage) };
-  try {
-    const { details, usage } = await providers.photo.read({ image });
-    console.info("range photo read", { item: item.id, model: usage.model, input: usage.inputTokens, output: usage.outputTokens });
-    if (details.not_a_product) {
-      await db.batchItem.update({ where: { id: item.id }, data: { status: "not_product", details: json({ fields: {}, fromPhoto: [], unsure: [] }), readImage: null, readType: null, claimedAt: null } });
+/**
+ * Read one photo into details for the buyer to check. Failures go back in the queue, up to three tries.
+ * A product-file piece's photo is fetched from its image link first; its details from the file always win.
+ */
+export async function readItem(item: BatchItem, providers: Providers, fetchImage: ImageFetcher = fetchProductImage): Promise<void> {
+  const fromFile = asDetails(item.details);
+  let image: { mediaType: PhotoType; data: Buffer };
+  let keep: { mediaType: PhotoType; data: Buffer } | null = null;
+  if (item.readImage && item.readType) image = { mediaType: item.readType as PhotoType, data: Buffer.from(item.readImage) };
+  else if (item.imageUrl) {
+    try {
+      const got = await fetchImage(item.imageUrl);
+      image = got.read; keep = got.keep;
+    } catch (e) {
+      const message = e instanceof ImageFetchError ? e.message : "The image link couldn't be loaded.";
+      console.error("range image fetch failed", item.id, e instanceof Error ? e.message : e);
+      if (item.attempts < MAX_READ_ATTEMPTS && !(e instanceof ImageFetchError && /private|isn't a web address|isn't a photo/.test(e.message))) {
+        await db.batchItem.update({ where: { id: item.id }, data: { status: "queued", claimedAt: null } });
+        return;
+      }
+      // No photo, but the file's own details may be enough to name it from.
+      const feed = { ...((item.feed as PieceFeed | null) ?? { rows: [], issues: [] }), imageError: message };
+      await db.batchItem.update({ where: { id: item.id }, data: { status: isReady(fromFile) ? "review" : "read_failed", feed: json(feed), claimedAt: null } });
       return;
     }
+  } else {
+    await db.batchItem.update({ where: { id: item.id }, data: { status: fromFile && isReady(fromFile) ? "review" : "read_failed", claimedAt: null } });
+    return;
+  }
+  try {
+    // A file piece's product type is known: say so, or a photo of jeans worn with a jumper gets read as the jumper.
+    const { details, usage } = await providers.photo.read({ image, ...(fromFile?.fields.productType ? { productType: fromFile.fields.productType } : {}) });
+    console.info("range photo read", { item: item.id, model: usage.model, input: usage.inputTokens, output: usage.outputTokens });
+    const kept = keep ? { photo: new Uint8Array(keep.data), photoType: keep.mediaType } : {};
+    if (details.not_a_product) {
+      // A file piece keeps its file details: the brand knows what it sells even when the photo doesn't show it plainly.
+      const stay = fromFile && isReady(fromFile);
+      await db.batchItem.update({ where: { id: item.id }, data: { status: stay ? "review" : "not_product", details: json(stay ? fromFile : { fields: {}, fromPhoto: [], unsure: [] }), readImage: null, readType: null, claimedAt: null, ...kept } });
+      return;
+    }
+    const seen = detailsFromPhoto(details);
     await db.batchItem.update({
       where: { id: item.id },
-      data: { status: "review", details: json(detailsFromPhoto(details)), focus: json(focusFractions(details.focus, imageSize(image))), readImage: null, readType: null, claimedAt: null },
+      data: { status: "review", details: json(fromFile ? mergePhotoDetails(fromFile, seen) : seen), focus: json(focusFractions(details.focus, imageSize(image))), readImage: null, readType: null, claimedAt: null, ...kept },
     });
   } catch (e) {
     console.error("range photo read failed", item.id, e instanceof Error ? e.message : e);
@@ -63,9 +93,11 @@ export async function nameItem(item: BatchItem, providers?: Providers): Promise<
   }
   try {
     const batch = await db.batch.findUniqueOrThrow({ where: { id: item.batchId }, include: { user: { select: { id: true, brandId: true } } } });
+    const skus = ((item.feed as PieceFeed | null)?.rows ?? []).map((r) => r.attrs.id).filter(Boolean);
     const genId = await createGeneration(batch.user, batch.brandId, { ...details.fields }, {
-      photo: { mediaType: item.photoType as PhotoType, data: Buffer.from(item.photo) },
-      focus: asBox(item.focus), fromPhoto: details.fromPhoto, note: `Named as part of the range "${batch.title}"`,
+      ...(item.photo && item.photoType ? { photo: { mediaType: item.photoType as PhotoType, data: Buffer.from(item.photo) } } : {}),
+      focus: asBox(item.focus), fromPhoto: details.fromPhoto,
+      note: batch.source === "file" ? `Named from the product file "${batch.fileName ?? batch.title}" (SKUs ${skus.slice(0, 12).join(", ")}${skus.length > 12 ? "…" : ""})` : `Named as part of the range "${batch.title}"`,
     });
     await db.batchItem.update({ where: { id: item.id }, data: { generationId: genId } });
     await runPipeline(genId, providers);
@@ -122,10 +154,10 @@ export function kick(injected?: Providers): void {
 }
 
 /** Tests and scripts: do all waiting work, one piece at a time, then return. */
-export async function drain(providers: Providers): Promise<void> {
+export async function drain(providers: Providers, fetchImage?: ImageFetcher): Promise<void> {
   for (;;) {
     const r = await claim("read");
-    if (r) { await readItem(r, providers); continue; }
+    if (r) { await readItem(r, providers, fetchImage); continue; }
     const n = await claim("name");
     if (n) { await nameItem(n, providers); continue; }
     return;
