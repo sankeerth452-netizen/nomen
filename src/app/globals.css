@@ -305,12 +305,14 @@ details[open].more summary::before, details[open].why summary::before { content:
 
 /* ── admin ── */
 .admin-grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 44px; align-items: start; }
-@media (max-width: 900px) { .admin-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .admin-grid { grid-template-columns: minmax(0, 1fr); } }
 .admin-grid h2, .admin-section h2 { font-size: 28px; margin: 0 0 12px; }
 .status { font: 500 9.5px/1 var(--text); letter-spacing: .18em; text-transform: uppercase; padding: 6px 8px; border: 1px solid var(--line-strong); white-space: nowrap; }
 .status.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .status.off { color: var(--rouge); border-color: var(--rouge-soft); }
 .table-wrap { overflow-x: auto; }
+.ds-act-inline { display: none; }
+@media (max-width: 640px) { .ds-act-col { display: none; } .ds-act-inline { display: block; margin-top: 8px; white-space: nowrap; } }
 
 /* ── credits ── */
 .credits { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 30px 20px; }

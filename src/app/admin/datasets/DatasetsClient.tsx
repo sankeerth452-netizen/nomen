@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Brand = { id: string; name: string };
 type DS = { id: string; name: string; status: string; active: boolean; brandId: string; accepted: number; rejected: number; duplicate: number; created: string };
@@ -20,6 +21,7 @@ const WARNING: Record<string, string> = {
 const STATUS: Record<string, string> = { uploading: "Uploading", validating: "Checking", ready: "Ready to use", archived: "Earlier version", failed: "Couldn't be read" };
 
 export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; datasets: DS[] }) {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [brandId, setBrandId] = useState(brands[0]?.id ?? "");
   const [name, setName] = useState("");
@@ -48,7 +50,8 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
   }
   async function runImport() {
     const d = await send({ mapping: JSON.stringify(mapping), volumeRule: rule });
-    if (d) setSummary(d);
+    // Show the new version in "Your keyword lists" straight away (the list comes from the server).
+    if (d) { setSummary(d); router.refresh(); }
   }
   async function activate(id: string) {
     const res = await fetch(`/api/admin/datasets/${id}/activate`, { method: "POST" });
@@ -96,7 +99,8 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
           <strong>Saved</strong>
           <p>{summary.accepted.toLocaleString()} keywords added from {summary.rowsRead.toLocaleString()} rows. {summary.rejected + summary.duplicates > 0 && `${(summary.rejected + summary.duplicates).toLocaleString()} left out (${summary.duplicates.toLocaleString()} repeats, ${summary.rejected.toLocaleString()} we couldn't use).`}</p>
           {Object.entries(summary.warnings).map(([k, v]) => <p key={k} className="muted">{v.count.toLocaleString()} {WARNING[k] ?? "rows to check"}</p>)}
-          <p className="muted">It isn&apos;t in use yet. Switch to it in the list when you&apos;re happy.</p>
+          <p className="muted">It isn&apos;t in use yet: names keep using your current list until you switch.</p>
+          <p><button disabled={busy} onClick={() => activate(summary.datasetId)}>Use this list now</button></p>
         </div>
       )}
       {error && <p className="err">{error}</p>}
@@ -105,15 +109,18 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
       <div className="admin-section">
       <h2>Your keyword lists</h2>
       <div className="table-wrap"><table>
-        <thead><tr><th>Version</th><th>Status</th><th>Keywords</th><th>Uploaded</th><th /></tr></thead>
-        <tbody>{datasets.map((d) => (
+        <thead><tr><th>Version</th><th>Status</th><th>Keywords</th><th>Uploaded</th><th className="ds-act-col" /></tr></thead>
+        <tbody>{datasets.map((d) => {
+          const switchTo = !d.active && ["ready", "archived"].includes(d.status) && <button className="link" onClick={() => activate(d.id)}>{d.status === "archived" ? "Go back to this one" : "Use this list"}</button>;
+          return (
           <tr key={d.id}>
-            <td>{d.name}</td><td><span className={`status${d.active ? " on" : d.status === "failed" ? " off" : ""}`}>{d.active ? "In use" : STATUS[d.status] ?? d.status}</span></td>
+            <td>{d.name}{switchTo && <span className="ds-act-inline">{switchTo}</span>}</td><td><span className={`status${d.active ? " on" : d.status === "failed" ? " off" : ""}`}>{d.active ? "In use" : STATUS[d.status] ?? d.status}</span></td>
             <td>{d.accepted.toLocaleString()}{d.rejected + d.duplicate > 0 && <> · <a href={`/api/admin/datasets/${d.id}/rejections`}>{(d.rejected + d.duplicate).toLocaleString()} left out (download)</a></>}</td>
             <td>{d.created}</td>
-            <td>{!d.active && ["ready", "archived"].includes(d.status) && <button className="link" onClick={() => activate(d.id)}>{d.status === "archived" ? "Go back to this one" : "Use this list"}</button>}</td>
+            <td className="ds-act-col">{switchTo}</td>
           </tr>
-        ))}</tbody>
+          );
+        })}</tbody>
       </table></div>
       {datasets.length === 0 && <p className="muted" style={{ marginTop: 16 }}>Nothing uploaded yet. Add your first keyword list on the left.</p>}
       </div>
