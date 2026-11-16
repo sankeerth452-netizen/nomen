@@ -8,7 +8,7 @@ Scores Nomen's names on real products. Results and history: `CHANGES.md`.
    `node evals/naming/build-cases.mjs <out-dir>/products.json`
 3. Set up the test database once: create `pno_eval`, run `prisma migrate deploy` and `db:seed` against it, and add a login named `eval-runner` (`npm run user:create`).
 4. Check the scorer: `npx tsx --env-file=.env evals/naming/check-grader.mjs` (free); add `--judge 3` with `EVAL_JUDGE_MODEL` set to test the judge (a few cents).
-5. Run (live costs about US$2.60 for all 46 cases; `PROVIDER_MODE=mock` and no judge is free):
+5. Run (live costs about US$2.80 for all 49 cases; `PROVIDER_MODE=mock` and no judge is free):
    ```
    DATABASE_URL=postgresql://…/pno_eval PROVIDER_MODE=live EVAL_JUDGE_MODEL=claude-sonnet-5-5 \
      npx tsx --env-file=.env evals/naming/run-eval.mjs --flow .claude/hillclimb/naming --variant v2 --model claude-opus-5-5
@@ -22,3 +22,20 @@ Scores Nomen's names on real products. Results and history: `CHANGES.md`.
 6. Read the results: `node evals/naming/summarise.mjs .claude/hillclimb/naming --fails` (every score, cost, and before/after per case). `regrade.mjs` re-applies the free checks to saved answers after a fix to them.
 
 Scoring is in `grade.mjs`.
+
+## Product data
+
+The same cases also score the product data (Google category, colour, material, pattern, gender and age group,
+Google's limits, banned or unstated claims, and the "Ideal for" occasions). The right answers were labelled by hand,
+from what each product's page states, in `data-labels.mjs` (facts only, no Sportsgirl copy, so it is committed).
+Three children's pieces (`edge-girls-dress`, `edge-boys-shorts`, `edge-toddler-dress`) also check that the name says
+who it's for. Run it as the live site runs, with Nitin's keyword list and live Google figures (about US$4.70 for all 49):
+
+```
+DATABASE_URL=postgresql://…/pno_eval PROVIDER_MODE=live EVAL_JUDGE_MODEL=claude-sonnet-5-5 PRODUCT_SHEET=on LIVE_KEYWORDS=on \
+  EVAL_KEYWORD_LIST="Nitin keywords Nov 2026" npx tsx --env-file=.env evals/naming/run-eval.mjs --flow .claude/hillclimb/data --variant baseline --model claude-opus-5-5
+```
+
+`EVAL_KEYWORD_LIST` picks the brand's keyword list for the run by its name in `pno_eval` (load one with
+`npm run dataset:import` against `pno_eval`, without `--activate`); it defaults to `none`, which is how the naming flow
+has always run. Add `PAGE_CONTENT=on` to check the product page's wording too (about US$1.60 more).

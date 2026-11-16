@@ -6,7 +6,7 @@ import { parseBrandSettings, type BrandSettings } from "../brand";
 import { getProviders, type Providers } from "../providers";
 import type { ProductFacts } from "../providers/types";
 import { CONTENT_PROMPT_VERSION } from "../prompts";
-import { COLOURS, LENGTHS, MATERIALS, classify, singular, wordStem } from "../vocab/fashion";
+import { COLOURS, LENGTHS, MATERIALS, classify, singular, withFabricNames, wordStem } from "../vocab/fashion";
 import type { PageContent } from "./types";
 import { addUsage } from "./usage";
 import { setPromptVersion, setResultKey } from "./store";
@@ -111,7 +111,7 @@ export async function writeContent(id: string, opts: { title?: string; providers
     const facts = g.extractedFacts as ProductFacts;
     const input = (g.originalInput ?? {}) as Record<string, string | undefined>;
     const brand = parseBrandSettings(g.brand.settings);
-    const sourceText = [...Object.values(input).filter((v): v is string => typeof v === "string"), title, ...Object.values(facts).flat().filter((v): v is string => typeof v === "string")].join(" \n ");
+    const sourceText = withFabricNames([...Object.values(input).filter((v): v is string => typeof v === "string"), title, ...Object.values(facts).flat().filter((v): v is string => typeof v === "string")].join(" \n "));
     const allowed = allowedFrom([sourceText]);
     const payload = {
       task: "Write the product page for this product.",

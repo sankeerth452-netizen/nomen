@@ -42,10 +42,10 @@ const words = (f: ProductFacts) => tokens([f.product_type ?? "", ...f.colour, ..
 const TYPE_CATEGORY: Record<string, number> = {
   dress: 2271, gown: 2271, sundress: 2271, kaftan: 2271,
   top: 212, tee: 212, "t-shirt": 212, tshirt: 212, shirt: 212, blouse: 212, singlet: 212, tank: 212, cami: 212, camisole: 212, corset: 212, bustier: 212, crop: 212,
-  jumper: 212, sweater: 212, cardigan: 212, knit: 212, hoodie: 212, sweatshirt: 212, polo: 212, tunic: 212, vest: 1831, gilet: 1831,
+  jumper: 212, sweater: 212, cardigan: 212, knit: 212, hoodie: 212, sweatshirt: 212, polo: 212, tunic: 212, vest: 212, gilet: 1831,
   bodysuit: 5490, leotard: 5490, jumpsuit: 5250, playsuit: 5250, romper: 5250, overall: 7132, dungaree: 7132, set: 7313, "co-ord": 7313,
   jacket: 5598, coat: 5598, blazer: 5598, puffer: 5598, trench: 5598, parka: 5598, shacket: 5598, bomber: 5598,
-  pant: 204, pants: 204, trouser: 204, jean: 204, jogger: 204, trackpant: 204, cargo: 204, chino: 204, legging: 204,
+  pant: 204, pants: 204, trouser: 204, jean: 204, jogger: 204, trackpant: 204, cargo: 204, chino: 204, legging: 204, culotte: 204, jegging: 204, sweatpant: 204, trackie: 204, capri: 204, palazzo: 204,
   short: 207, shorts: 207, skirt: 1581, skort: 5344, suit: 1594,
   bikini: 211, swimsuit: 211, "one-piece": 211, swimwear: 211, boardshort: 211, rashie: 211,
   pyjama: 2580, pajama: 2580, pj: 2580, robe: 2302, nightie: 5513, nightdress: 5513, loungewear: 5713,
@@ -70,6 +70,8 @@ export function categoryFor(f: ProductFacts): GoogleCategory | null {
   let id: number | undefined;
   for (let i = ws.length - 1; i >= 0 && id === undefined; i--) id = TYPE_CATEGORY[ws[i]] ?? TYPE_CATEGORY[singular(ws[i])];
   if (id === undefined) return null;
+  // A vest is a top (a knit or crochet sweater vest) unless it's padded or quilted outerwear: then it's a gilet.
+  if (ws.includes("vest") && all.some((w) => ["puffer", "padded", "quilted", "down", "gilet", "fleece", "utility", "sherpa"].includes(w))) id = 1831;
   if (id === 204 && ws.some((w) => singular(w) === "legging") && all.some((w) => ["active", "activewear", "gym", "yoga", "sport", "sports", "workout", "running", "training"].includes(w))) id = 5322;
   if (["baby", "toddler", "infant", "newborn"].includes((f.audience ?? "").toLowerCase()) && BABY[id]) id = BABY[id];
   return googleCategory(id);
@@ -118,29 +120,64 @@ const COLOUR_FAMILY: Record<string, string> = {
   burgundy: "Burgundy", maroon: "Burgundy", wine: "Burgundy", merlot: "Burgundy", oxblood: "Burgundy", plum: "Purple",
   pink: "Pink", blush: "Pink", rose: "Pink", fuchsia: "Pink", magenta: "Pink", bubblegum: "Pink", flamingo: "Pink", salmon: "Pink",
   purple: "Purple", lilac: "Purple", lavender: "Purple", mauve: "Purple", violet: "Purple", grape: "Purple", orchid: "Purple",
-  multi: "Multicolour", multicolour: "Multicolour", multicolor: "Multicolour", multicoloured: "Multicolour", rainbow: "Multicolour", clear: "Clear",
+  matcha: "Green", chartreuse: "Green", periwinkle: "Blue", petrol: "Blue", ink: "Navy", cerise: "Pink", raspberry: "Pink", watermelon: "Pink", ochre: "Yellow",
+  brights: "Multicolour", multi: "Multicolour", multicolour: "Multicolour", multicolor: "Multicolour", multicoloured: "Multicolour", rainbow: "Multicolour", clear: "Clear",
 };
+
+/** A colour word's plain colour; plurals count ("blues", "greens"). */
+const family = (w: string): string | undefined => COLOUR_FAMILY[w] ?? (w.length > 4 && w.endsWith("s") ? COLOUR_FAMILY[w.slice(0, -1)] : undefined);
 
 /** The plain colour of one stated colour ("light dusty pink" -> Pink), or null when no word in it is a known shade. */
 export function plainColour(colour: string): string | null {
   const ws = tokens(colour.replace(/rose gold/gi, "rosegold").replace(/off white/gi, "off-white"));
-  for (let i = ws.length - 1; i >= 0; i--) if (COLOUR_FAMILY[ws[i]]) return COLOUR_FAMILY[ws[i]];
+  for (let i = ws.length - 1; i >= 0; i--) if (family(ws[i])) return family(ws[i])!;
   // Denim washes ("light wash", "mid wash", "stonewash") are blue unless a colour is named ("black wash" -> Black, above).
   if (ws.some((w) => /^(wash|washed|stonewash|stonewashed|acid-wash)$/.test(w))) return "Blue";
   return null;
 }
 
-/** Google's colour value: up to three plain colours, main colour first, joined with "/". `unmapped` are shades with no plain colour. */
+// The plain colours that are base hues of a more exact one: "navy blue" is Navy, "olive green" is Olive.
+const BASE_HUE: Record<string, string> = { Navy: "Blue", Olive: "Green", Khaki: "Green", Burgundy: "Red", Cream: "White" };
+const BASIC = new Set(["black", "white", "blue", "green", "red", "pink", "purple", "yellow", "orange", "brown", "grey", "gray", "gold", "silver"]);
+
+/**
+ * The plain colours in one stated colour. Colours joined by "and", "/" or "&" are separate; so is a name made only of
+ * colours that are each a colour in their own right ("pink red", "chocolate ecru"). A shade word before a basic colour
+ * describes it instead ("coral pink" is Pink, "navy blue" is Navy).
+ */
+export function plainColours(colour: string): string[] {
+  const out: string[] = [];
+  for (const part of colour.split(/\s*(?:\/|&|\+|,|\band\b|\bwith\b)\s*/i).filter(Boolean)) {
+    const ws = tokens(part.replace(/rose gold/gi, "rosegold").replace(/off white/gi, "off-white"));
+    const fams = ws.map(family);
+    let found: string[];
+    if (ws.length > 1 && fams.every(Boolean) && new Set(fams).size > 1) {
+      const last = ws.at(-1)!;
+      if (BASE_HUE[fams[0]!] === fams.at(-1)) found = [fams[0]!];
+      else if (BASIC.has(last) && !BASIC.has(ws[0])) found = [fams.at(-1)!];
+      else found = fams as string[];
+    } else {
+      const p = plainColour(part);
+      found = p ? [p] : [];
+    }
+    for (const f of found) if (!out.includes(f)) out.push(f);
+  }
+  return out;
+}
+
+/**
+ * Google's colour value: up to three plain colours, main colour first, joined with "/". `unmapped` are shades with no
+ * plain colour ("hibiscus", a print's name): they aren't sent, since Google wants colours shoppers recognise, and the
+ * product data asks a person to add one.
+ */
 export function googleColour(colours: string[]): { value: string | null; unmapped: string[] } {
   const out: string[] = [];
   const unmapped: string[] = [];
   for (const c of colours) {
-    const p = plainColour(c);
-    if (!p) { unmapped.push(c); continue; }
-    if (!out.includes(p)) out.push(p);
+    const ps = plainColours(c);
+    if (!ps.length) { unmapped.push(c); continue; }
+    for (const p of ps) if (!out.includes(p)) out.push(p);
   }
-  // A shade we can't place is still the buyer's colour: better sent as written than left out.
-  for (const u of unmapped) if (out.length < 3 && !out.includes(title(u.toLowerCase()))) out.push(title(u.toLowerCase()));
   return { value: out.length ? out.slice(0, 3).join("/") : null, unmapped };
 }
 
@@ -157,28 +194,40 @@ export function googlePattern(patterns: string[]): string | null {
   return patterns[0] ? title(patterns[0].toLowerCase()) : null;
 }
 
-const FIBRES = ["cotton", "linen", "silk", "satin", "wool", "cashmere", "viscose", "polyester", "nylon", "elastane", "spandex", "rayon", "modal", "lyocell", "tencel", "leather", "suede", "denim", "chiffon", "lace", "mesh", "velvet", "tulle", "organza", "jersey", "crepe", "acrylic", "bamboo", "hemp", "cupro", "acetate", "corduroy", "tweed", "fleece", "knit", "crochet", "sequin", "straw", "canvas", "rattan", "raffia", "metal", "sterling silver", "stainless steel", "gold plated", "silver plated", "pearl"];
+const FIBRES = ["polyurethane", "cotton", "linen", "silk", "satin", "wool", "cashmere", "viscose", "polyester", "nylon", "elastane", "spandex", "rayon", "modal", "lyocell", "tencel", "leather", "suede", "denim", "chiffon", "lace", "mesh", "velvet", "tulle", "organza", "jersey", "crepe", "acrylic", "bamboo", "hemp", "cupro", "acetate", "corduroy", "tweed", "fleece", "knit", "crochet", "sequin", "straw", "canvas", "rattan", "raffia", "metal", "sterling silver", "stainless steel", "gold plated", "silver plated", "pearl"];
+const NOT_MATERIAL = /^(woven|textured|ribbed|quilted|padded|pleated|structured|soft|lightweight|plated|finish)$/;
 const CONSTRUCTIONS = new Set(["denim", "knit", "crochet", "lace", "mesh", "jersey", "chiffon", "velvet", "satin", "crepe", "tweed", "corduroy", "fleece", "canvas", "sequin", "tulle", "organza"]);
 /** Google's material value from the stated material only ("55% linen 45% viscose" -> Linen/Viscose). Never guessed. */
 export function googleMaterial(materials: string[]): string | null {
   if (!materials.length) return null;
-  const text = materials.join(" ").toLowerCase();
-  let found = FIBRES.filter((f) => new RegExp(`\\b${f}\\b`).test(text)).sort((a, b) => text.indexOf(a) - text.indexOf(b));
+  // Brands abbreviate in their fabric lines: "50% recy poly 40% poly 10% vis", "PU".
+  const text = materials.join(" ").toLowerCase()
+    .replace(/\brecy(?:cled)?\.?\s+poly(?:ester)?\b/g, "recycled polyester").replace(/\bpoly\b|\bpet\b/g, "polyester")
+    .replace(/\bvis\b/g, "viscose").replace(/\bpu\b/g, "polyurethane");
+  // Each fibre's share where one is stated ("73% viscose"), so the main fibre comes first even when a blend is named
+  // after the smaller one ("linen blend": 73% viscose, 27% linen).
+  const share = (f: string) => Math.max(-1, ...[...text.matchAll(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*%\\s*(?:recycled\\s+|organic\\s+|traceable\\s+)?${f}\\b`, "g"))].map((m) => +m[1]));
+  let found = FIBRES.filter((f) => new RegExp(`\\b${f}\\b`).test(text)).sort((a, b) => share(b) - share(a) || text.indexOf(a) - text.indexOf(b));
   // "Cotton denim", "wool knit": the fibre is the material; the weave or knit only counts when no fibre is named.
   if (found.some((f) => !CONSTRUCTIONS.has(f))) found = found.filter((f) => !CONSTRUCTIONS.has(f));
-  const out = (found.length ? found : [materials[0].replace(/\d+\s*%/g, "").trim().toLowerCase()]).filter(Boolean).slice(0, 3).map(title);
+  // A material we don't know is still sent as stated ("raffia"), but a finish or weave on its own isn't a material.
+  const stated = materials[0].replace(/\d+\s*%/g, "").trim().toLowerCase();
+  const out = (found.length ? found : NOT_MATERIAL.test(stated) ? [] : [stated]).filter(Boolean).slice(0, 3).map(title);
   return out.length ? out.join("/") : null;
 }
 
 /** Google's gender and age group. Women's adult is the default for this retailer, as agreed with the brand. */
-export function genderAge(audience: string | null): { gender: "Female" | "Male" | "Unisex"; ageGroup: "Adult" | "Kids" | "Toddler" | "Infant" | "Newborn" } {
+export function genderAge(audience: string | null, productType: string | null = null): { gender: "Female" | "Male" | "Unisex"; ageGroup: "Adult" | "Kids" | "Toddler" | "Infant" | "Newborn" } {
   const a = (audience ?? "").toLowerCase();
-  if (/\bnewborn\b/.test(a)) return { gender: "Unisex", ageGroup: "Newborn" };
-  if (/\b(baby|infant)\b/.test(a)) return { gender: "Unisex", ageGroup: "Infant" };
-  if (/\btoddler\b/.test(a)) return { gender: "Unisex", ageGroup: "Toddler" };
+  // A baby's or child's dress or skirt is for girls even when the buyer only said "toddler" or "kids".
+  const girlish = /\b(dress|dresses|skirt|skirts|skort|gown|tutu|bikini)\b/i.test(productType ?? "");
+  const kid = (ageGroup: "Kids" | "Toddler" | "Infant" | "Newborn") => ({ gender: girlish ? "Female" as const : "Unisex" as const, ageGroup });
+  if (/\bnewborn\b/.test(a)) return kid("Newborn");
+  if (/\b(baby|infant)\b/.test(a)) return kid("Infant");
+  if (/\btoddler\b/.test(a)) return kid("Toddler");
   if (/\b(girl|girls)\b/.test(a)) return { gender: "Female", ageGroup: "Kids" };
   if (/\b(boy|boys)\b/.test(a)) return { gender: "Male", ageGroup: "Kids" };
-  if (/\b(kid|kids|child|children|teen|teens)\b/.test(a)) return { gender: "Unisex", ageGroup: "Kids" };
+  if (/\b(kid|kids|child|children|teen|teens)\b/.test(a)) return kid("Kids");
   if (/\b(men|mens|man)\b/.test(a)) return { gender: "Male", ageGroup: "Adult" };
   if (/\bunisex\b/.test(a)) return { gender: "Unisex", ageGroup: "Adult" };
   return { gender: "Female", ageGroup: "Adult" };

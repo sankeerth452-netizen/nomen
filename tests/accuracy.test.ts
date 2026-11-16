@@ -46,6 +46,12 @@ describe("grounding drops an AI fact that contradicts the buyer", () => {
     expect(JSON.stringify(g.facts)).not.toContain(word);
   });
 
+  it("reads a brand's fabric shorthand as the fibre (recy poly -> recycled polyester, vis -> viscose)", () => {
+    const g = groundFacts(facts({ product_type: "shacket", material: ["recycled polyester", "polyester", "viscose"] }), { ...input("shacket", "shacket"), extra: "Fabric: 50% recy poly 40% poly 10% vis." });
+    expect(g.facts.material).toEqual(["recycled polyester", "polyester", "viscose"]);
+    expect(g.dropped).toEqual([]);
+  });
+
   it("keeps the same word in another form (ruching -> ruched, pleats -> pleated)", () => {
     const g = groundFacts(facts({ product_type: "skirt", features: ["ruched", "pleated"] }), input("skirt with ruching and pleats", "skirt"));
     expect(g.facts.features).toEqual(["ruched", "pleated"]);

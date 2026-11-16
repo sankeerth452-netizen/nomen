@@ -77,6 +77,14 @@ export function classify(tok: string): AttrClass | null {
 /** Every word the vocabulary treats as a colour/material/length/style/occasion/audience attribute (singular). */
 export const ATTRIBUTE_VOCAB_TOKENS = new Set([...COLOURS, ...MATERIALS, ...LENGTHS, ...STYLES, ...OCCASIONS, ...AUDIENCE_TERMS].map(singular));
 
+// Shorthand brands use in fabric lines ("Fabric: 50% recy poly 40% poly 10% vis", "PU"), read as the fibre it stands for.
+const FABRIC_SHORTHAND: [RegExp, string][] = [[/\brecy\b\.?/gi, "recycled"], [/\bpoly\b/gi, "polyester"], [/\bvis\b/gi, "viscose"], [/\bpu\b/gi, "polyurethane"], [/\belast\b/gi, "elastane"]];
+/** The text with fabric shorthand also spelt out, so "recycled polyester" counts as what the buyer wrote. */
+export function withFabricNames(text: string): string {
+  const full = FABRIC_SHORTHAND.reduce((t, [re, word]) => t.replace(re, word), text);
+  return full === text ? text : `${text} \n ${full}`;
+}
+
 /**
  * Word-form key for matching the buyer's words against the AI's and a title's. Plurals and -ing/-ed/-e endings fold
  * together (ruching/ruched/ruche, pleats/pleated, sleeves/sleeved, knitted/knit), but a "-less" word never folds into

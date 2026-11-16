@@ -285,3 +285,40 @@ Nitin's list covers women's fashion well but has gaps: only 7 of its 237,928 key
 
 166 tests pass (7 new). Not in this stage: quality-test cases for the product data (stage 4).
 
+
+## Product data, stage 4: a quality test for the product data (16 Nov 2026)
+
+The naming quality test (`evals/naming/`) now scores the product data too, on the same Sportsgirl products plus three new children's pieces (a girls' dress, boys' shorts and a toddler's dress). The right Google category, colour, material, pattern, gender and age group for every product were written down by hand from what its page states, before any answer was seen (`evals/naming/data-labels.mjs`, facts only, no Sportsgirl copy). Each piece is checked for:
+
+- **Google attributes:** category, colour (main colour right, nothing unstated after it), material (main fibre first), pattern, gender and age group all match the labels.
+- **Google's limits:** 2 to 6 highlights of at most 150 characters, short description 500 to 1,000, alt text 125, custom labels 100.
+- **No bad claims:** no banned health or promotional wording (slimming, free shipping, best-seller…), and no fabric, care, lining, stretch, sun-protection, sustainability, percentage or measurement the input doesn't state. This uses the test's own word matcher, not Nomen's.
+- **Every statement true, and every "Ideal for" occasion right:** a judge (Claude Sonnet 5.5) checks both. Maternity, gym and lounge tags also fail outright unless the input says so.
+- **Children's names:** the name must say who the piece is for ("Girls'").
+
+It runs as the live site does, with Nitin's keyword list (loaded into the test database) and live Google figures. The runner's new `EVAL_KEYWORD_LIST` setting picks the list for each run; the name-only test keeps running without one, so its scores still compare with earlier runs.
+
+**Fixed before the paid run** (a free trial run showed them):
+
+| Before | Now |
+| --- | --- |
+| A "linen blend" that is 73% viscose was sent to Google as Linen/Viscose | The main fibre comes first by its stated share: Viscose/Linen |
+| Culottes got no Google category | Culottes (and jeggings, sweatpants, capris, palazzos) are Trousers & Jeans |
+| A knit or crochet vest was filed under outdoor gilets | A vest is a top unless it's padded, quilted or a puffer |
+| "Matcha ombre" and "Hibisicus/Frangipani" were sent as colours as written | A shade that isn't a colour shoppers recognise isn't sent. Another stated colour is used instead (pink and green), or a person is asked to add one |
+| Two-colour names took only the second colour ("chocolate ecru" → Cream) | Both: Brown/Cream. "Pink red" is Pink/Red, while "navy blue" stays Navy and "coral pink" is Pink |
+| PU, "recy poly" and "vis" weren't read as fabrics; "Woven" was sent as a material | Read as Polyurethane, Recycled Polyester, Viscose; a weave on its own isn't sent |
+| A toddler's dress was Unisex | A child's dress or skirt is Female, whatever age group the buyer gave |
+
+**Paid run (49 pieces, US$4.48: Nomen's Claude 3.25, the judges 0.21, Google figures 1.02):**
+
+- Product data was written for all 42 pieces that got a name and was right on 41. Category, colour, pattern, gender and age group were right on every piece. No banned or unstated claims, no untrue statements, and no wrong "Ideal for" occasions. 40 of the 42 had at least one occasion ready to publish.
+- The children's pieces were all named for who they're for ("Girls' Cream Cotton Embroidered Maxi Dress") and had the right age group (Kids, Toddler).
+- The one miss: the shacket's fabric line ("50% recy poly 40% poly 10% vis"). Nomen's own fact check didn't recognise the shorthand, so it threw the fabric away. Google's material was left blank, and a correct fabric highlight was removed. **Fixed:** the fact check, the product data and the product page all read fabric shorthand as the fibre it stands for. Re-run on the shacket, the PU bag and a recycled-polyester tee (US$0.24): all three now pass, and the shacket's material is Polyester/Viscose.
+- Names: 44 of 49 passed. Three pieces asked a question instead, each about an inconsistency in Sportsgirl's own page:
+  - the nylon bag, whose fabric is listed as polyester (it has asked in every run);
+  - a linen-blend dress, whose fabric is given two ways;
+  - a "neutral" bead necklace whose colour is gold.
+  The last two change between runs. Two names read awkwardly to the judge ("Silver Sequin Detailing Evening Bag", "Beachy Gold Statement Earrings Megapack").
+
+167 tests pass. Because the scorer changed, the next paid run of the name-only test needs a person to approve it again (`--approve-harness`).

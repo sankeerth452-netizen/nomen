@@ -3,7 +3,8 @@
 //   EVAL_JUDGE_MODEL=<model> npx tsx --env-file=.env evals/naming/check-grader.mjs --judge 3
 //       also asks the judge about 3 cases x 4 answers (the buyer's own words, empty, "I don't know", wrong product)
 import { readFileSync } from "node:fs";
-import { demandClaims, grade, inventedWords, stem } from "./grade.mjs";
+import { audienceNamed, demandClaims, grade, inventedWords, stem } from "./grade.mjs";
+import { LABELS } from "./data-labels.mjs";
 
 const cases = JSON.parse(readFileSync("evals/naming/cases.json", "utf8"));
 const judgeN = process.argv.includes("--judge") ? +process.argv[process.argv.indexOf("--judge") + 1] : 0;
@@ -47,6 +48,47 @@ for (const c of cases.filter((c) => c.expect === "ask")) {
   expect(`${c.id} naming fails`, (await grade(c, done("Dress"), "")).grade.passes, 0);
 }
 expect("over 70 characters fails", (await grade(named[0], done(titleCase(named[0].input.freeText).padEnd(71, "x")), "")).grade.fits, 0);
+
+// 3b. Children's pieces: the name must say who it's for.
+const girls = cases.find((c) => c.id === "edge-girls-dress");
+expect("girls' piece named for girls", audienceNamed(girls.input, "Girls' Cream Embroidered Maxi Dress"), 1);
+expect("girls' piece named as if women's", audienceNamed(girls.input, "Cream Embroidered Maxi Dress"), 0);
+expect("women's piece: not checked", audienceNamed(named[0].input, "Pink Denim Mini Dress"), null);
+
+// 3c. Product data (judge off): data built from the labels must pass every free check; each kind of mistake must fail.
+const sheetFrom = (c, o = {}) => {
+  const l = LABELS[c.id];
+  const goodText = "A piece for everyday wear. ".repeat(24).trim();
+  return { status: "ready", google: { category: { id: l.category[0], path: "x" }, colour: l.colour ? l.colour.first[0] : null, material: l.material ? l.material.first[0] : null, pattern: l.pattern?.[0] ?? null, gender: l.gender[0], ageGroup: l.ageGroup[0], customLabels: ["", "", "", "", ""], ...o.google },
+    highlights: ["Easy to wear", "Made for everyday"], details: [], shortDescription: goodText, idealFor: { live: [], review: [], sentence: null }, care: null, imageAlt: "Front view", ...o.rest };
+};
+const free = ["category_right", "colour_right", "material_right", "audience_right", "fits_google", "no_claims"];
+let dataOracle = 0;
+for (const c of named) {
+  const g = (await grade(c, done(titleCase(c.input.freeText), { sheet: sheetFrom(c) }), "")).grade;
+  if (free.every((m) => g[m] === 1) && g.pattern_right !== 0 && g.data_ready === 1) dataOracle++;
+  else console.log(`FAIL data oracle ${c.id}:`, free.filter((m) => g[m] !== 1));
+}
+expect(`data built from the labels passes on ${named.length} cases`, dataOracle, named.length);
+const pinkDress = named.find((c) => c.id === "dresses-086362"), mesh = named.find((c) => c.id === "edge-mesh-sleeves-trap");
+const dataGrade = async (c, o) => (await grade(c, done("Pink Denim Mini Dress", { sheet: sheetFrom(c, o) }), "")).grade;
+expect("wrong category (shoes) fails", (await dataGrade(pinkDress, { google: { category: { id: 187 } } })).category_right, 0);
+expect("wrong colour fails", (await dataGrade(pinkDress, { google: { colour: "Red" } })).colour_right, 0);
+expect("unstated second colour fails", (await dataGrade(pinkDress, { google: { colour: "Pink/White" } })).colour_right, 0);
+expect("colour sent when none was stated fails", (await dataGrade(named.find((c) => c.id === "tops-085921"), { google: { colour: "Blue" } })).colour_right, 0);
+expect("part-only mesh as the material fails", (await dataGrade(mesh, { google: { material: "Mesh" } })).material_right, 0);
+expect("gold finish sent as gold material fails", (await dataGrade(named.find((c) => c.id === "jewellery-085747"), { google: { material: "Gold" } })).material_right, 0);
+expect("women's piece tagged Kids fails", (await dataGrade(pinkDress, { google: { ageGroup: "Kids" } })).audience_right, 0);
+expect("one highlight fails", (await dataGrade(pinkDress, { rest: { highlights: ["Only one"] } })).fits_google, 0);
+expect("short description of 300 characters fails", (await dataGrade(pinkDress, { rest: { shortDescription: "x".repeat(300) } })).fits_google, 0);
+for (const bad of ["Slimming A-line shape.", "Free shipping on every order.", "Fully lined for comfort.", "Machine washable.", "Made from 100% silk.", "Made from recycled cotton.", "Measures 85cm long.", "UPF 50+ sun protection.", "Made from 80% cotton."])
+  expect(`claim caught: ${bad}`, (await dataGrade(pinkDress, { rest: { highlights: ["Easy to wear", bad] } })).no_claims, 0);
+for (const ok of ["Made from 100% cotton.", "Pink denim with scalloped detailing.", "A square neckline frames the sleeveless shape."])
+  expect(`not a claim: ${ok}`, (await dataGrade(pinkDress, { rest: { highlights: ["Easy to wear", ok] } })).no_claims, 1);
+expect("abbreviated fabric still backs the claim (recy poly)", (await dataGrade(named.find((c) => c.id === "jackets-083480"), { rest: { highlights: ["Easy to wear", "Made from 50% recycled polyester and viscose."] } })).no_claims, 1);
+expect("maternity tag with no maternity in the input fails", (await dataGrade(pinkDress, { rest: { idealFor: { live: [{ key: "maternity", label: "Maternity" }], review: [], sentence: null } } })).ideal_for_right, 0);
+expect("no product data when it should have been written fails", (await grade(pinkDress, done("Pink Denim Mini Dress", { sheet: null }), "")).grade.data_ready, 0);
+expect("product data off: not scored", (await grade(pinkDress, done("Pink Denim Mini Dress"), "")).grade.data_ready, null);
 
 // 4. Judge (paid, small): own words must pass faithful, the three junk answers must fail it.
 if (judgeN) {

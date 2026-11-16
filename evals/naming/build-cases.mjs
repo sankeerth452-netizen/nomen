@@ -65,6 +65,10 @@ edge("mini-and-maxi", "should-ask", "ask", { freeText: "black mini dress, maxi l
 edge("strapless-and-strappy", "should-ask", "ask", { freeText: "strapless strappy maxi dress", productType: "dress" });
 edge("strappy-trap", "trap", "name", { freeText: "white strappy satin slip dress, maxi", productType: "dress" });
 edge("mesh-sleeves-trap", "trap", "name", { freeText: "black dress with ruching, midi length, mesh sleeves", productType: "dress" });
+// Children's pieces (written for the test, not crawled): the name must say who it's for, and the product data's age group must follow.
+edge("girls-dress", "kids", "name", { freeText: "girls cream embroidered maxi dress", productType: "dress", colour: "cream", material: "100% cotton", audience: "girls" });
+edge("boys-shorts", "kids", "name", { freeText: "boys navy drawstring shorts", productType: "shorts", colour: "navy", material: "cotton", audience: "boys" });
+edge("toddler-dress", "kids", "name", { freeText: "toddler pink floral dress with frill sleeves", productType: "dress", colour: "pink", pattern: "floral", material: "cotton", audience: "toddler" });
 
 writeFileSync(new URL("./cases.json", import.meta.url), JSON.stringify(cases, null, 1) + "\n");
 

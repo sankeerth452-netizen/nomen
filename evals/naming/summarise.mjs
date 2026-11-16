@@ -29,7 +29,8 @@ for (const v of variants) {
   console.log(`\n== ${v}: ${rs.length} scored, ${errs.length} failed attempts · cost US$${(claude + judge + google).toFixed(2)} (Nomen's Claude ${claude.toFixed(2)}, judge ${judge.toFixed(2)}, Google ${google.toFixed(3)}) · prompts ${[...new Set(rs.map((r) => r.prompt_versions?.recommend))].join(",")}`);
   for (const m of metrics) console.log(`  ${m.padEnd(14)} ${pct(rs.map((r) => r.grade?.[m]))}`);
   const groups = [...new Set(rs.map((r) => r.tags?.[0]))];
-  console.log("  by group (passes):", groups.map((g) => `${g} ${pct(rs.filter((r) => r.tags?.[0] === g).map((r) => r.grade?.passes))}`).join(" · "));
+  for (const head of ["passes", "data_passes"].filter((m) => metrics.includes(m)))
+    console.log(`  by group (${head}):`, groups.map((g) => `${g} ${pct(rs.filter((r) => r.tags?.[0] === g).map((r) => r.grade?.[head]))}`).join(" · "));
   if (showFails) for (const r of rs) {
     const bad = metrics.filter((m) => r.grade?.[m] === 0 && m !== "passes");
     if (bad.length) console.log(`  - ${r.prompt_id} rep${r.rep} "${r.output?.title ?? r.output?.status}": ${bad.map((m) => `${m}: ${r.explanation?.[m] ?? ""}`).join(" | ")}`);

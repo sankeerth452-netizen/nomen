@@ -169,10 +169,17 @@ async function loadCases() {
   const { createGeneration, runPipeline, buildPayload } = await lib('pipeline/run.ts');
   const prompts = await lib('prompts.ts');
   const { parseBrandSettings } = await lib('brand.ts');
-  const brand = await db.brand.findUniqueOrThrow({ where: { slug: 'sportsgirl' } });
+  // Which keyword list the brand uses for this run, set every run so one flow's choice never leaks into another's:
+  // none (as the naming flow has always run) or a list's name in pno_eval, e.g. "Nitin keywords Nov 2026".
+  const listName = process.env.EVAL_KEYWORD_LIST || 'none';
+  let brand = await db.brand.findUniqueOrThrow({ where: { slug: 'sportsgirl' } });
+  const list = listName === 'none' ? null : await db.keywordDataset.findFirst({ where: { brandId: brand.id, name: listName } });
+  if (listName !== 'none' && !list) throw new Error(`EVAL_KEYWORD_LIST: pno_eval has no keyword list named "${listName}"`);
+  if (list) await db.keywordDataset.update({ where: { id: list.id }, data: { status: 'active' } });
+  brand = await db.brand.update({ where: { id: brand.id }, data: { activeKeywordDatasetId: list?.id ?? null } });
   const user = await db.user.findFirstOrThrow({ where: { username: 'eval-runner' } });
   app = { db, createGeneration, runPipeline, buildPayload, prompts, brand, settings: parseBrandSettings(brand.settings), user };
-  eprint(`mode ${process.env.PROVIDER_MODE ?? '?'} · judge ${process.env.EVAL_JUDGE_MODEL || 'off'} · product pages ${process.env.PAGE_CONTENT} · product data ${process.env.PRODUCT_SHEET} · live keywords ${process.env.LIVE_KEYWORDS} · keyword list ${brand.activeKeywordDatasetId ? 'on' : 'none'} · ${cases.length} cases`);
+  eprint(`mode ${process.env.PROVIDER_MODE ?? '?'} · judge ${process.env.EVAL_JUDGE_MODEL || 'off'} · product pages ${process.env.PAGE_CONTENT} · product data ${process.env.PRODUCT_SHEET} · live keywords ${process.env.LIVE_KEYWORDS} · keyword list ${list ? `"${list.name}" (${list.rowsAccepted.toLocaleString('en-AU')})` : 'none'} · ${cases.length} cases`);
   return cases;
 }
 
@@ -226,6 +233,9 @@ async function runCase(c, ctx) {
     needs: result.needs ?? null, message: result.message ?? null, conflicts: result.conflicts ?? [],
     limited: result.meta?.limitedKeywordEvidence ?? null, google: result.meta?.serpStatus ?? null, error: g.status === 'failed' ? g.errorCode : null,
   };
+  // Product data and the product page, only when this run writes them (null = it should have, and didn't).
+  if (process.env.PRODUCT_SHEET !== 'off') run.output.sheet = result.sheet ?? null;
+  if (process.env.PAGE_CONTENT !== 'off') run.output.content = result.content ?? null;
 
   // Trace: what each step saw and returned, rebuilt from what the pipeline stored (the repair round, if any, shows in the notes).
   const facts = g.extractedFacts, ev = g.candidateEvidence;
@@ -244,6 +254,7 @@ async function runCase(c, ctx) {
     t.push({ role: 'user', content: pretty(buildPayload(facts, settings, ev)) });
   }
   t.push({ role: 'assistant', content: pretty(rec ?? result) });
+  if (run.output.sheet) t.push({ role: 'assistant', content: 'Product data:\n\n```json\n' + pretty(run.output.sheet) + '\n```' });
   if (usage.notes?.length) t.push({ role: 'system', content: 'Engineer notes:\n' + usage.notes.map(n => `- ${n}`).join('\n') });
   run.transcript = t;
   return run;

@@ -1,4 +1,4 @@
-import { COLOURS, LENGTHS, MATERIALS, OCCASIONS, STYLES, isGarmentPart, singular, wordStem } from "../vocab/fashion";
+import { COLOURS, LENGTHS, MATERIALS, OCCASIONS, STYLES, isGarmentPart, singular, withFabricNames, wordStem } from "../vocab/fashion";
 import type { ProductFacts } from "../providers/types";
 import type { GenerationInput } from "./types";
 import { COPY } from "../copy";
@@ -80,7 +80,7 @@ export function groundFacts(facts: ProductFacts, input: GenerationInput): { fact
 
 /** The buyer's input as separate pieces of text: a field's value never runs on into the next field's words. */
 function inputSegments(input: GenerationInput): string[] {
-  return [input.freeText, input.productType, input.colour, input.material, input.pattern, input.fit, input.length, input.feature, input.occasion, input.audience, input.extra].filter((x): x is string => !!x);
+  return [input.freeText, input.productType, input.colour, input.material, input.pattern, input.fit, input.length, input.feature, input.occasion, input.audience, input.extra].filter((x): x is string => !!x).map(withFabricNames);
 }
 
 /**

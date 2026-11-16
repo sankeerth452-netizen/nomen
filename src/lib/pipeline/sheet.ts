@@ -9,6 +9,7 @@ import { normalizeKeyword } from "../keywords/normalize";
 import { breadcrumbFor, categoryFor, detailNamesFor, detailSection, genderAge, googleCategory, googleColour, googleMaterial, googlePattern, sizeType, type GoogleCategory } from "../sheet/catalog";
 import { demandPhrases, idealForSentence, judgeSeason, judgeTags, occasion, type Season, type TagVerdict } from "../sheet/idealFor";
 import { allowedFrom, inventedInText } from "./content";
+import { withFabricNames } from "../vocab/fashion";
 import { setPromptVersion, setResultKey } from "./store";
 import type { EvidenceBundle, SheetDraft } from "./types";
 import { addUsage } from "./usage";
@@ -120,13 +121,15 @@ export function assembleSheet(d: SheetDraft, check: ReturnType<typeof checkSheet
   }
   if (!category) checks.push("No Google category: choose one for this piece before it goes to Google.");
   const colour = googleColour(facts.colour);
-  if (!colour.value) checks.push("No colour given: Google needs one for clothing.");
-  for (const u of colour.unmapped) checks.push(`Check the colour: we couldn't match "${u}" to a plain colour, so it's sent as written.`);
+  for (const u of colour.unmapped) checks.push(colour.value
+    ? `Check the colour: "${u}" isn't a plain colour, so Google gets ${colour.value}.`
+    : `Add a colour: "${u}" isn't a plain colour, so no colour is sent to Google. Add one (for example Pink, or Multicolour for a print).`);
+  if (!colour.value && !colour.unmapped.length) checks.push("No colour given: Google needs one for clothing.");
   const material = googleMaterial(facts.material);
   if (!material) checks.push("Material left blank: it wasn't given, and it's never guessed.");
   const season = judgeSeason(d.season, facts);
   if (season?.confidence === "low") checks.push(`Check the season (${season.value}): ${season.reason}`);
-  const ga = genderAge(facts.audience);
+  const ga = genderAge(facts.audience, facts.product_type);
 
   // The phrases the name is built to rank for: the ones it cites first, then the strongest matches, with monthly searches.
   const searchQueries: ProductSheet["searchQueries"] = [];
@@ -188,7 +191,7 @@ export async function writeSheet(id: string, opts: { providers?: Providers } = {
     const facts = g.extractedFacts as ProductFacts;
     const input = (g.originalInput ?? {}) as Record<string, string | undefined>;
     const title = result.recommendation.recommended_title;
-    const inputText = Object.values(input).filter((v): v is string => typeof v === "string").join(" \n ");
+    const inputText = withFabricNames(Object.values(input).filter((v): v is string => typeof v === "string").join(" \n "));
     const source = [inputText, title, ...Object.values(facts).flat().filter((v): v is string => typeof v === "string")].join(" \n ");
     const ctx: Ctx = { facts, allowed: allowedFrom([source]), source, detailNames: detailNamesFor(facts) };
     const payload = {

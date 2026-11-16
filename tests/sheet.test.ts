@@ -26,6 +26,9 @@ describe("what the rules decide (never Claude)", () => {
     expect(categoryFor(facts({ product_type: "dress", audience: "baby" }))?.id).toBe(5424);
     expect(categoryFor(facts({ product_type: "dress", features: ["bridal"] }))?.id).toBe(5329);
     expect(categoryFor(facts({ product_type: "thingamajig" }))).toBeNull();
+    expect(categoryFor(facts({ product_type: "culotte" }))?.id).toBe(204);
+    expect(categoryFor(facts({ product_type: "crochet vest" }))?.id).toBe(212); // a sweater vest is a top
+    expect(categoryFor(facts({ product_type: "vest", features: ["puffer"] }))?.id).toBe(1831);
   });
 
   it("builds the breadcrumb from who it's for, the category and the style", () => {
@@ -46,7 +49,20 @@ describe("what the rules decide (never Claude)", () => {
     expect(googleColour(["cream"]).value).toBe("Cream");
     expect(googleColour(["black", "white", "sage", "red"]).value).toBe("Black/White/Green");
     expect(googleColour(["cocoa", "latte"]).value).toBe("Brown/Beige");
-    expect(googleColour(["zorblax"])).toEqual({ value: "Zorblax", unmapped: ["zorblax"] });
+    // A shade that isn't a colour shoppers recognise is not sent (a person is asked to add one).
+    expect(googleColour(["hibisicus and frangipani"])).toEqual({ value: null, unmapped: ["hibisicus and frangipani"] });
+    expect(googleColour(["pink", "green", "zorblax"]).value).toBe("Pink/Green");
+    // Two-colour names, and shade words that only describe a colour.
+    expect(googleColour(["chocolate ecru"]).value).toBe("Brown/Cream");
+    expect(googleColour(["pink red"]).value).toBe("Pink/Red");
+    expect(googleColour(["pink and green"]).value).toBe("Pink/Green");
+    expect(googleColour(["navy blue"]).value).toBe("Navy");
+    expect(googleColour(["olive green"]).value).toBe("Olive");
+    expect(googleColour(["coral pink"]).value).toBe("Pink");
+    expect(googleColour(["ice blue"]).value).toBe("Blue");
+    expect(googleColour(["matcha ombre"]).value).toBe("Green");
+    expect(googleColour(["brights"]).value).toBe("Multicolour");
+    expect(googleColour(["blues"]).value).toBe("Blue");
     expect(googleColour([]).value).toBeNull();
   });
 
@@ -55,6 +71,12 @@ describe("what the rules decide (never Claude)", () => {
     expect(googleMaterial(["satin"])).toBe("Satin");
     expect(googleMaterial(["100% cotton denim"])).toBe("Cotton");
     expect(googleMaterial(["silk satin"])).toBe("Silk");
+    // The main fibre first by its share, even when the blend is named after the smaller one.
+    expect(googleMaterial(["linen blend", "73% viscose", "27% linen"])).toBe("Viscose/Linen");
+    expect(googleMaterial(["50% recy poly 40% poly 10% vis"])).toBe("Polyester/Viscose");
+    expect(googleMaterial(["pu"])).toBe("Polyurethane");
+    expect(googleMaterial(["woven"])).toBeNull(); // a weave on its own isn't a material
+    expect(googleMaterial(["raffia"])).toBe("Raffia");
     expect(googleMaterial([])).toBeNull();
     expect(googlePattern(["ditsy floral print"])).toBe("Floral");
     expect(googlePattern(["pinstripe"])).toBe("Striped");
@@ -65,6 +87,9 @@ describe("what the rules decide (never Claude)", () => {
     expect(genderAge(null)).toEqual({ gender: "Female", ageGroup: "Adult" });
     expect(genderAge("girls")).toEqual({ gender: "Female", ageGroup: "Kids" });
     expect(genderAge("men")).toEqual({ gender: "Male", ageGroup: "Adult" });
+    expect(genderAge("toddler")).toEqual({ gender: "Unisex", ageGroup: "Toddler" });
+    expect(genderAge("toddler", "dress")).toEqual({ gender: "Female", ageGroup: "Toddler" });
+    expect(genderAge("kids", "tee")).toEqual({ gender: "Unisex", ageGroup: "Kids" });
     expect(sizeType("black midi dress")).toBe("Regular");
     expect(sizeType("petite wide-leg pants")).toBe("Petite");
     expect(sizeType("maternity dress")).toBe("Maternity");
