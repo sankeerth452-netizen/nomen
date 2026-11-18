@@ -11,6 +11,16 @@ export class SerpProviderError extends Error {
   }
 }
 
+/**
+ * A failed DataForSEO task. Their own server errors (status 50000 and up, or "Internal SE Server Error", which Google's
+ * side returns now and then) usually work a second later, so they're retried; a bad request isn't.
+ */
+export function taskError(prefix: string, task: { status_code?: number; status_message?: string } | undefined): SerpProviderError {
+  const msg = task?.status_message ?? "unknown";
+  const temporary = (task?.status_code ?? 0) >= 50000 || /internal|server error|timed? ?out|try again|temporar/i.test(msg);
+  return new SerpProviderError(`${prefix}: ${msg}`, temporary);
+}
+
 type Item = { type?: string; rank_group?: number; domain?: string; title?: string; url?: string; description?: string; breadcrumb?: string; website_name?: string };
 
 /**
@@ -51,9 +61,9 @@ export class DataForSeoProvider implements SerpProvider {
 export function parseResponse(query: string, json: unknown): SerpResponse {
   const j = json as { status_code?: number; tasks?: { status_code?: number; status_message?: string; cost?: number; result?: { items?: Item[] }[] }[] };
   const task = j.tasks?.[0];
-  if (j.status_code !== 20000 || !task || task.status_code !== 20000) {
-    throw new SerpProviderError(`DataForSEO task failed: ${task?.status_message ?? "unknown"}`, false);
-  }
+  // Google had nothing for this search: that's an answer (no results), not a failure.
+  if (task && (task.status_code === 40102 || /no search results/i.test(task.status_message ?? ""))) return { query, checkedAt: new Date().toISOString(), results: [], costUsd: task.cost };
+  if (j.status_code !== 20000 || !task || task.status_code !== 20000) throw taskError("DataForSEO task failed", task);
   // Google now wraps result links (google.com/goto?url=...) and reports google.com as the domain. The shop's real
   // address is in the breadcrumb ("https://www.shop.com.au › collections › lace-tops"), so read it from there.
   // Google's own pages (shopping and image links) aren't competitors' titles, so they still aren't evidence.

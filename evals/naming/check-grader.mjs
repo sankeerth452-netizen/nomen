@@ -17,6 +17,7 @@ const expect = (label, got, want) => { const ok = got === want; if (!ok) bad++; 
 for (const [a, b] of [["ruching", "ruched"], ["sleeves", "sleeved"], ["knitted", "knit"], ["dresses", "dress"], ["pleated", "pleats"], ["frilled", "frill"]]) expect(`same word ${a}/${b}`, stem(a), stem(b));
 for (const [a, b] of [["strappy", "strapless"], ["sleeve", "sleeveless"], ["long", "longline"]]) expect(`different words ${a}/${b}`, stem(a) === stem(b), false);
 expect("'Crew Neck' from 'crew neckline' is not invented", inventedWords("Black Crew Neck Sweater", { freeText: "black sweater, crew neckline" }).length, 0);
+expect("'Recycled Polyester' from 'recy poly' is not invented", inventedWords("Blue Recycled Polyester Shacket", { freeText: "shacket", colour: "blue", extra: "Fabric: 50% recy poly 40% poly 10% vis." }).length, 0);
 expect("'Neck' with no neckline is invented", inventedWords("Black Crew Neck Sweater", { freeText: "black crew sweater" }).join(), "neck");
 
 // 2. Honesty check on reasons (used when there's no keyword list).

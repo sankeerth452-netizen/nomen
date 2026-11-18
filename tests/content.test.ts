@@ -34,6 +34,11 @@ describe("checking a product page", () => {
     expect(check(c).invented.sort()).toEqual(["110cm", "girls", "linen", "machine washable", "organic", "white"].sort());
   });
 
+  it("catches made-by-hand claims in every form (seen in the 18 Nov quality test: 'handcrafted embroidery')", () => {
+    const c = page(`${words(620)} The handcrafted embroidery and hand-stitched hem show artisanal care.`);
+    expect(check(c).invented.sort()).toEqual(["artisanal", "hand-stitched", "handcrafted"]);
+  });
+
   it("doesn't flag everyday words or the buyer's own numbers", () => {
     expect(check(page(`${words(620)} Great for a long weekend or a short walk, it is 100% cotton and made to feel full of ease.`)).invented).toEqual([]);
   });

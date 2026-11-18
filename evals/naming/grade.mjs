@@ -49,8 +49,12 @@ export function stem(word) {
 }
 const words = (s) => String(s ?? "").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 
+// Brand fabric shorthand ("50% recy poly 40% poly 10% vis"), read as the fibre it stands for: "Recycled Polyester" isn't invented.
+const SHORTHAND = [[/\brecy\b\.?/gi, "recycled"], [/\bpoly\b/gi, "polyester"], [/\bvis\b/gi, "viscose"], [/\bpu\b/gi, "polyurethane"]];
 export function inputText(input) {
-  return Object.values(input).filter((v) => typeof v === "string").join(" ");
+  const text = Object.values(input).filter((v) => typeof v === "string").join(" ");
+  const full = SHORTHAND.reduce((t, [re, word]) => t.replace(re, word), text);
+  return full === text ? text : `${text} ${full}`;
 }
 
 // The shorter word retail uses for one the buyer typed ("crew neckline" is sold as a "Crew Neck"). Same thing, not invented.

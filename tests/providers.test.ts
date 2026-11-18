@@ -39,6 +39,22 @@ describe("DataForSEO (mocked HTTP; not run against the live API)", () => {
     expect(m).toBe(2);
     expect(r.results.length).toBe(3);
   }, 15_000);
+
+  // Seen in the 16 Nov quality test: 8 of about 100 searches failed once with this, which held those names at Medium.
+  it("retries DataForSEO's own server error, but not a bad request; no results is an answer, not a failure", async () => {
+    const task = (status_code: number, status_message: string) => new Response(JSON.stringify({ status_code: 20000, tasks: [{ status_code, status_message, cost: 0, result: null }] }), { status: 200 });
+    const q = { query: "q", location: "l", language: "e", device: "d", depth: 10 };
+    let a = 0;
+    const seError = (async () => (++a < 2 ? task(50000, "Internal SE Server Error.") : new Response(JSON.stringify(fixture), { status: 200 }))) as unknown as typeof fetch;
+    expect((await new DataForSeoProvider("a", "b", seError).search(q)).results.length).toBe(3);
+    expect(a).toBe(2);
+    let b = 0;
+    const badField = (async () => { b++; return task(40501, "Invalid Field: 'keyword'."); }) as unknown as typeof fetch;
+    await expect(new DataForSeoProvider("a", "b", badField).search(q)).rejects.toBeInstanceOf(SerpProviderError);
+    expect(b).toBe(1);
+    const none = (async () => task(40102, "No Search Results.")) as unknown as typeof fetch;
+    expect((await new DataForSeoProvider("a", "b", none).search(q)).results).toEqual([]);
+  }, 15_000);
 });
 
 describe("Claude client (mocked SDK)", () => {

@@ -30,7 +30,7 @@ const tokens = (s: string) => s.toLowerCase().match(/[a-z0-9]+(?:['-][a-z0-9]+)*
 const NOT_CHECKED = new Set(["neutral", "multi", "short", "long", "full", "knee"]);
 const CHECKED = new Set([...COLOURS, ...MATERIALS, ...LENGTHS].filter((w) => !NOT_CHECKED.has(w)).map(singular));
 const AUDIENCE = new Set(["girl", "girls", "boy", "boys", "kid", "kids", "baby", "babies", "toddler", "toddlers", "teen", "teens", "men", "mens", "maternity"]);
-const CLAIMS = /\b(organic|recycled|sustainabl\w*|eco[- ]friendly|vegan|hand[- ]?made|ethical\w*|fair[- ]trade|biodegradable|waterproof|water[- ]resistant|breathable|wrinkle[- ]free|machine[- ]wash\w*|hand[- ]wash\w*|dry[- ]clean\w*|lined|unlined|upf ?\d*\+?|uv[- ]protect\w*|sun[- ]protect\w*)\b/gi;
+const CLAIMS = /\b(organic|recycled|sustainabl\w*|eco[- ]friendly|vegan|hand[- ]?(?:made|crafted|stitched|sewn|embroidered|beaded|woven|painted|finished)|artisan\w*|ethical\w*|fair[- ]trade|biodegradable|waterproof|water[- ]resistant|breathable|wrinkle[- ]free|machine[- ]wash\w*|hand[- ]wash\w*|dry[- ]clean\w*|lined|unlined|upf ?\d*\+?|uv[- ]protect\w*|sun[- ]protect\w*)\b/gi;
 // Never written, whatever the source says: Google disapproves of them and the brand doesn't want them.
 const NEVER = /\b(slimming|slims|slimmer|tummy[- ]control|body[- ]shaping|weight[- ]loss|cures?|therapeutic|pain[- ]relief|anti[- ]?(?:bacterial|microbial)|hypoallergenic|detox\w*)\b/gi;
 const MEASURES = /\b\d+(?:\.\d+)?\s?(?:%|cm|mm|inch(?:es)?)/gi;

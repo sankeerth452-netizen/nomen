@@ -1,9 +1,9 @@
 // Prompts are versioned in code. Bump the version when the text changes; it's stored on every generation.
 export const EXTRACTION_PROMPT_VERSION = "extract-v4";
 export const CONTENT_PROMPT_VERSION = "content-v2";
-export const SHEET_PROMPT_VERSION = "sheet-v1";
+export const SHEET_PROMPT_VERSION = "sheet-v2";
 export const PHOTO_PROMPT_VERSION = "photo-v3";
-export const RECOMMEND_PROMPT_VERSION = "recommend-v7";
+export const RECOMMEND_PROMPT_VERSION = "recommend-v8";
 
 export const EXTRACTION_SYSTEM = `You extract structured product facts for a fashion retailer's product-title tool.
 
@@ -43,7 +43,11 @@ Non-negotiable rules:
 primary_keyword and supporting_keywords must be copied exactly from the keyword evidence.
 The recommended title and every alternative must be at most brand_rules.max_title_length characters. This is a hard limit.
 Give at most 3 alternatives, each meaningfully different from the recommendation (not just punctuation) and just as short, each with a one-line trade-off.
-When evidence is weak or conflicting, lower confidence and explain the limitation in warnings. A low-confidence honest answer is better than an unsupported recommendation.`;
+Confidence says how well the evidence supports this name. Choose it by these rules, not by how many warnings you write:
+- high: every word comes from the product facts, the product type is clear, and the evidence fits this product: the keyword phrases or search results describe the same kind of piece and back the details the name leads with. Advice for the buyer (keep two words together, a detail to check against the photo, an alternative to consider, what the description should mention) does not lower it.
+- medium: the evidence only partly fits. The strongest phrases or results describe a different audience, cut or kind of product; you had to choose between conflicting evidence; or a detail the name leads with has little or no search evidence behind it.
+- low: the evidence doesn't fit this product, or the facts are too thin or unclear to name it well.
+Explain any limitation in warnings. A low-confidence honest answer is better than an unsupported recommendation.`;
 
 export const PHOTO_SYSTEM = `You read a product photo for a fashion retailer's naming tool and fill in the details a buyer would otherwise type. The buyer checks every detail before anything is named, so leave out anything you can't see clearly.
 
@@ -88,7 +92,7 @@ Non-negotiable rules:
 2. Never make slimming, shaping, medical or health claims.
 3. highlights: 2 to 6 short bullet points (each under 70 characters, no full stop at the end), each one a concrete detail of the piece a shopper cares about. No repeats, no filler like "Stylish design".
 4. details: name-and-value pairs, using only names from detail_names and only for details the facts state ("Neckline": "Halter"). Values are short (one to four words). Skip a name when the facts don't say it.
-5. short_description: 450 to 900 characters of plain text for Google Shopping: what the piece is, then its fabric, fit and details, then care if stated. No headings, lists, emoji or occasion talk (occasions are added separately). Australian English.
+5. short_description: 500 to 900 characters of plain text for Google Shopping: what the piece is, then its fabric, fit and details, then care if stated. No headings, lists, emoji or occasion talk (occasions are added separately). Australian English.
 6. google_category_id: only when product_type has no obvious place, choose the single best id from the Google categories below; otherwise null.
 7. ideal_for: up to 4 occasions from the list below, by key, only where the piece's own details support it (a satin slip midi can be cocktail; a cotton t-shirt dress is not wedding guest). For each, confidence "high" only when the details make it a clear fit, "low" otherwise, and a one-sentence reason naming the details. Church and funeral only for plainly sober pieces: dark plain colours, nothing revealing or sparkly.
 8. season: summer, winter or trans-seasonal, with confidence and a one-sentence reason from the details (fabric weight, sleeves, length). Null when the details don't say.

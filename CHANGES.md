@@ -322,3 +322,32 @@ It runs as the live site does, with Nitin's keyword list (loaded into the test d
   The last two change between runs. Two names read awkwardly to the judge ("Silver Sequin Detailing Evening Bag", "Beachy Gold Statement Earrings Megapack").
 
 167 tests pass. Because the scorer changed, the next paid run of the name-only test needs a person to approve it again (`--approve-harness`).
+
+## Why names sat at Medium confidence, and the fix (18 Nov 2026)
+
+In the 16 Nov quality test, 19 of 42 names were Medium. There were two causes:
+
+- **8 were a bug.** Each name runs 2 or 3 Google searches through DataForSEO. About one search in twelve failed once with DataForSEO's own temporary "Internal SE Server Error". Nomen treated that as permanent, so the Google evidence counted as incomplete, and incomplete evidence caps confidence at Medium. Now DataForSEO's server errors are retried, as network errors already were (both the Google results and the live keyword figures). A bad request still isn't retried, and "no search results" counts as an answer, not a failure (`src/lib/providers/dataforseo.ts`, tested in `tests/providers.test.ts`).
+- **11 were the AI's own choice.** Its instructions never said what High and Medium mean, so any caution it wrote ("check 'Cropped' against the photo") pulled it down. The name instructions (`recommend-v8`) now define the levels:
+  - **High:** every word is a given fact, the product type is clear, and the evidence fits this piece.
+  - **Medium:** the evidence only partly fits (a different audience, cut or kind of product, conflicting evidence, or a lead detail with little search evidence).
+  - **Low:** the evidence doesn't fit or the facts are too thin.
+
+  Advice for the buyer stays in the warnings without lowering the level.
+
+**Re-test (all 49 pieces, US$3.63):**
+
+- High confidence went from 23 of 42 named pieces to 31 of 43.
+- Only 1 piece still had a failed Google search after the retries.
+- The Mediums that remain mostly have a real reason. For example, the "lemon tee" results are lemon-print tees, and "vest" searches mostly find tank tops and puffer vests. A girls' maxi dress also stays Medium, because the maxi dress evidence is for women's.
+- Names passed on 46 of 49 (was 44). Every name now reads naturally to the judge, and the linen-blend dress that used to ask a question is named. The two pieces that still ask are the polyester "nylon" bag and the "neutral" necklace whose colour is gold.
+- Product data was right on 42 of the 43 pieces that got it. The miss was a short description of 490 characters, under the 500 that reads best on Google.
+
+**Two more fixes from the re-test:**
+
+- **Short description:** the AI was asked for 450 to 900 characters, counting on the "Ideal for" sentence to lift it past 500, but that sentence is missing when no occasion is confirmed. It's now asked for 500 to 900, and a shorter draft is sent back (`sheet-v2`). Checked on three pieces (US$0.30): 595, 687 and 591 characters.
+- **Made-by-hand claims:** that check also caught "handcrafted embroidery" in a girls' dress's product data, which nobody had said. Nomen's own check knew "handmade" but not "handcrafted". It now blocks the family (handcrafted, hand-stitched, hand-embroidered, hand-beaded, artisan…) unless the input says so, on the product page and in the product data alike.
+
+**The test itself:** its word matcher now reads fabric shorthand too, so "Blue Recycled Polyester Shacket" from "recy poly" isn't marked invented. `regrade.mjs` now keeps the product-data verdicts when it re-scores (it had been dropping them) and saves the previous scores first.
+
+169 tests pass.

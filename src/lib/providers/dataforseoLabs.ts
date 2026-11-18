@@ -1,5 +1,5 @@
 import type { KeywordDataProvider } from "./types";
-import { SerpProviderError } from "./dataforseo";
+import { SerpProviderError, taskError } from "./dataforseo";
 
 const BASE = "https://api.dataforseo.com/v3/dataforseo_labs/google";
 const AUSTRALIA = { location_code: 2036, language_code: "en" };
@@ -24,7 +24,7 @@ export class DataForSeoLabs implements KeywordDataProvider {
         if (!res.ok) throw new SerpProviderError(`DataForSEO ${res.status}`, false);
         const j = (await res.json()) as { status_code?: number; tasks?: Task[] };
         const t = j.tasks?.[0];
-        if (j.status_code !== 20000 || !t || t.status_code !== 20000) throw new SerpProviderError(`DataForSEO Labs task failed: ${t?.status_message ?? "unknown"}`, false);
+        if (j.status_code !== 20000 || !t || t.status_code !== 20000) throw taskError("DataForSEO Labs task failed", t);
         return t;
       } catch (e) {
         lastErr = e;

@@ -64,7 +64,8 @@ export function checkSheet(d: SheetDraft, ctx: Ctx) {
     if (inv.length) { badDetails.add(i); problems.push(`detail "${x.name}: ${x.value}" states details that are not in the facts: ${inv.join(", ")}`); }
   });
   const sd = d.short_description.trim();
-  if (sd.length < 400 || sd.length > 950) problems.push(`short_description is ${sd.length} characters; it must be 450 to 900`);
+  // Google reads 500 to 1,000 best. The occasion sentence added afterwards can be missing, so the draft itself must reach 500.
+  if (sd.length < SHORT_DESCRIPTION[0] || sd.length > 950) problems.push(`short_description is ${sd.length} characters; it must be 500 to 900`);
   if (MARKDOWN.test(sd)) problems.push("short_description must be plain text: no headings, lists or markdown");
   const invSd = invented(sd);
   if (invSd.length) { badShort = true; problems.push(`short_description states details that are not in the facts: ${invSd.join(", ")}`); }
@@ -201,7 +202,7 @@ export async function writeSheet(id: string, opts: { providers?: Providers } = {
       buyer_description: input.freeText ?? null, buyer_notes: input.extra ?? null, has_photo: !!g.photo,
       detail_names: ctx.detailNames,
       category_needed: !categoryFor(facts),
-      limits: { highlights: "2 to 6, each under 70 characters", short_description_characters: [450, 900], image_alt_max_characters: ALT_MAX },
+      limits: { highlights: "2 to 6, each under 70 characters", short_description_characters: [500, 900], image_alt_max_characters: ALT_MAX },
     };
     let r = await providers.sheet.write(payload);
     await addUsage(id, { ai: r.usage });
