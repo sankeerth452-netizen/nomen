@@ -5,7 +5,7 @@ import type { RowSource } from "../keywords/readers";
 import { PRODUCT_TYPE_CATEGORY, singular } from "../vocab/fashion";
 import { plainColour } from "../sheet/catalog";
 import type { ItemDetails } from "../batch/shared";
-import { AVAILABILITY, MAX_FILE_PRODUCTS, REQUIRED, type FeedIssue, type FeedRow, type FeedTarget, type FileCheck } from "./shared";
+import { AVAILABILITY, REQUIRED, type FeedIssue, type FeedRow, type FeedTarget, type FileCheck } from "./shared";
 
 const norm = (h: string) => h.toLowerCase().replace(/^google shopping\s*\/\s*/, "").replace(/[_\-()]+/g, " ").replace(/\s+/g, " ").trim();
 
@@ -221,7 +221,7 @@ export function detailsFromFeed(rows: FeedRow[]): ItemDetails {
 
 export type ImportedPiece = { filename: string; imageUrl: string | null; details: ItemDetails; rows: FeedRow[]; issues: string[] };
 
-/** The whole import: read, check, group, and the details for each piece. Only the first MAX_FILE_PRODUCTS products are kept. */
+/** The whole import: read, check, group, and the details for each piece. Every product is kept, however many. */
 export async function importFeed(source: RowSource, mapping: Record<string, FeedTarget>): Promise<{ pieces: ImportedPiece[]; check: FileCheck }> {
   const format = detectFormat(source.headers);
   const { rows, skipped, currencyAssumed } = await readFeed(source, mapping);
@@ -229,7 +229,7 @@ export async function importFeed(source: RowSource, mapping: Record<string, Feed
   const { issues, byRow } = checkFeed(rows);
   if (currencyAssumed) issues.push({ kind: "currency_assumed", level: "info", message: "Prices without a currency were read as Australian dollars (AUD)", rows: [] });
   const groups = groupProducts(rows);
-  const pieces = groups.slice(0, MAX_FILE_PRODUCTS).map((g) => {
+  const pieces = groups.map((g) => {
     const a = g[0].attrs;
     const label = [a.title ?? `Row ${g[0].row}`, a.color].filter(Boolean).join(" · ");
     return {
@@ -237,5 +237,5 @@ export async function importFeed(source: RowSource, mapping: Record<string, Feed
       details: detailsFromFeed(g), rows: g, issues: [...new Set(g.flatMap((r) => (byRow.get(r.row) ?? []).map((m) => (g.length > 1 ? `${r.attrs.size ?? `Row ${r.row}`}: ${m}` : m))))],
     };
   });
-  return { pieces, check: { format, rows: rows.length, products: groups.length, skippedRows: skipped, leftOut: Math.max(0, groups.length - MAX_FILE_PRODUCTS), issues } };
+  return { pieces, check: { format, rows: rows.length, products: groups.length, skippedRows: skipped, leftOut: 0, issues } };
 }

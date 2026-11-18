@@ -17,6 +17,7 @@ export const GOOGLE_CATEGORIES: GoogleCategory[] = [
   [1594, "Clothing > Suits"], [1516, "Clothing > Suits > Skirt Suits"], [5183, "Clothing > Suits > Trouser Suits"], [211, "Clothing > Swimwear"], [204, "Clothing > Trousers & Jeans"],
   [213, "Clothing > Underwear & Socks"], [214, "Clothing > Underwear & Socks > Bras"], [215, "Clothing > Underwear & Socks > Hosiery"], [1772, "Clothing > Underwear & Socks > Lingerie"],
   [1578, "Clothing > Underwear & Socks > Shapewear"], [209, "Clothing > Underwear & Socks > Socks"], [2562, "Clothing > Underwear & Socks > Underwear"], [5834, "Clothing > Underwear & Socks > Underwear Slips"],
+  [5388, "Clothing > Traditional & Ceremonial Clothing"], [8248, "Clothing > Traditional & Ceremonial Clothing > Saris"], [6031, "Clothing > Traditional & Ceremonial Clothing > Dirndls"],
   [5441, "Clothing > Wedding & Bridal Party Dresses"], [5330, "Clothing > Wedding & Bridal Party Dresses > Bridal Party Dresses"], [5329, "Clothing > Wedding & Bridal Party Dresses > Wedding Dresses"],
   [182, "Clothing > Baby & Toddler Clothing"], [5408, "Clothing > Baby & Toddler Clothing > Baby & Toddler Bottoms"], [5424, "Clothing > Baby & Toddler Clothing > Baby & Toddler Dresses"],
   [5425, "Clothing > Baby & Toddler Clothing > Baby & Toddler Outerwear"], [5622, "Clothing > Baby & Toddler Clothing > Baby & Toddler Outfits"], [5412, "Clothing > Baby & Toddler Clothing > Baby & Toddler Sleepwear"],
@@ -51,6 +52,7 @@ const TYPE_CATEGORY: Record<string, number> = {
   pyjama: 2580, pajama: 2580, pj: 2580, robe: 2302, nightie: 5513, nightdress: 5513, loungewear: 5713,
   bra: 214, bralette: 1772, lingerie: 1772, brief: 2562, knicker: 2562, thong: 2562, underwear: 2562, sock: 209, tight: 215, tights: 215, stocking: 215, shapewear: 1578, slip: 5834,
   shoe: 187, boot: 187, heel: 187, sneaker: 187, sandal: 187, flat: 187, loafer: 187, mule: 187, slide: 187, slipper: 187, pump: 187, wedge: 187, espadrille: 187, trainer: 187, clog: 187,
+  saree: 8248, sari: 8248, lehenga: 5388, ghagra: 5388, salwar: 5388, anarkali: 5388, sherwani: 5388, cheongsam: 5388, qipao: 5388, hanbok: 5388, dirndl: 6031,
   bag: 3032, handbag: 3032, tote: 3032, clutch: 3032, crossbody: 3032, purse: 2668, wallet: 2668, backpack: 100, duffle: 103, duffel: 103, "bum-bag": 104,
   necklace: 196, earring: 194, ring: 200, bracelet: 191, bangle: 191, anklet: 189, pendant: 192, charm: 192, brooch: 197, watch: 201,
   belt: 169, hat: 173, cap: 173, beanie: 173, beret: 173, scarf: 177, sunglass: 178, sunglasses: 178, glove: 170, fascinator: 7054, headband: 1662, scrunchie: 1483, clip: 502988, claw: 502988,
@@ -117,7 +119,7 @@ const COLOUR_FAMILY: Record<string, string> = {
   yellow: "Yellow", lemon: "Yellow", butter: "Yellow", mustard: "Yellow", canary: "Yellow",
   orange: "Orange", rust: "Orange", coral: "Orange", apricot: "Orange", peach: "Orange", tangerine: "Orange", terracotta: "Orange", burnt: "Orange",
   red: "Red", scarlet: "Red", cherry: "Red", crimson: "Red", tomato: "Red",
-  burgundy: "Burgundy", maroon: "Burgundy", wine: "Burgundy", merlot: "Burgundy", oxblood: "Burgundy", plum: "Purple",
+  burgundy: "Burgundy", maroon: "Maroon", wine: "Burgundy", merlot: "Burgundy", oxblood: "Burgundy", plum: "Purple",
   pink: "Pink", blush: "Pink", rose: "Pink", fuchsia: "Pink", magenta: "Pink", bubblegum: "Pink", flamingo: "Pink", salmon: "Pink",
   purple: "Purple", lilac: "Purple", lavender: "Purple", mauve: "Purple", violet: "Purple", grape: "Purple", orchid: "Purple",
   matcha: "Green", chartreuse: "Green", periwinkle: "Blue", petrol: "Blue", ink: "Navy", cerise: "Pink", raspberry: "Pink", watermelon: "Pink", ochre: "Yellow",
@@ -137,7 +139,7 @@ export function plainColour(colour: string): string | null {
 }
 
 // The plain colours that are base hues of a more exact one: "navy blue" is Navy, "olive green" is Olive.
-const BASE_HUE: Record<string, string> = { Navy: "Blue", Olive: "Green", Khaki: "Green", Burgundy: "Red", Cream: "White" };
+const BASE_HUE: Record<string, string> = { Navy: "Blue", Olive: "Green", Khaki: "Green", Burgundy: "Red", Maroon: "Red", Cream: "White" };
 const BASIC = new Set(["black", "white", "blue", "green", "red", "pink", "purple", "yellow", "orange", "brown", "grey", "gray", "gold", "silver"]);
 
 /**
@@ -250,7 +252,9 @@ const DETAIL_SECTION: Record<string, string> = {
   Fabric: "Fabric & care", Lining: "Fabric & care", Knit: "Fabric & care", Upper: "Fabric & care", Sole: "Fabric & care", Material: "Fabric & care", Metal: "Fabric & care",
 };
 export const detailSection = (name: string) => DETAIL_SECTION[name] ?? "Design";
+const TRADITIONAL = /\b(sarees?|saris?|lehengas?|ghagras?)\b/;
 export function detailNamesFor(f: ProductFacts): string[] {
+  if (TRADITIONAL.test((f.product_type ?? "").toLowerCase())) return ["Border", "Blouse", "Drape", "Length", "Fabric", "Pattern", "Embellishment", "Details"];
   const c = PRODUCT_TYPE_CATEGORY[singular((f.product_type ?? "").toLowerCase().split(/\s+/).pop() ?? "")] ?? "";
   if (c === "Dresses" || c === "Jumpsuits & Playsuits") return ["Neckline", "Sleeves", "Straps", "Length", "Silhouette", "Waist", "Back", "Closure", "Lining", "Fabric", "Pattern", "Details"];
   if (c === "Tops" || c === "Knitwear") return ["Neckline", "Sleeves", "Straps", "Fit", "Length", "Closure", "Knit", "Fabric", "Pattern", "Details"];

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COPY } from "@/lib/copy";
 import { objectPosition } from "@/lib/frame";
 import { render } from "@/lib/shrink";
-import { MAX_RANGE_PHOTOS, WORKING, duplicateNames, isReady, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
+import { WORKING, duplicateNames, isReady, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
 import type { PresentedItem } from "@/lib/batch/ranges";
 import type { FileCheck } from "@/lib/feed/shared";
 import ProductFile from "./ProductFile";
@@ -29,8 +29,9 @@ type Filter = "all" | "check" | "named" | "attention";
 
 const needsAttention = (i: PresentedItem) => ["needs_input", "failed", "not_product", "read_failed"].includes(i.status) || (i.status === "review" && !isReady(i.details));
 
-export default function RangeClient({ id, initialTitle, initialItems, brandName, source = "photos", fileName = null, fileCheck = null }: { id: string; initialTitle: string; initialItems: PresentedItem[]; brandName: string | null; source?: "photos" | "file"; fileName?: string | null; fileCheck?: FileCheck | null }) {
+export default function RangeClient({ id, initialTitle, initialItems, loadedAt = null, brandName, source = "photos", fileName = null, fileCheck = null }: { id: string; initialTitle: string; initialItems: PresentedItem[]; loadedAt?: string | null; brandName: string | null; source?: "photos" | "file"; fileName?: string | null; fileCheck?: FileCheck | null }) {
   const [items, setItems] = useState(initialItems);
+  const lastCheck = useRef<string | null>(loadedAt); // only pieces changed since then are fetched
   const [title, setTitle] = useState(initialTitle);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
@@ -58,8 +59,20 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName,
   const shown = items.filter((i) => filter === "all" || (filter === "check" ? i.status === "review" : filter === "named" ? i.status === "named" : needsAttention(i)));
 
   const refresh = useCallback(async () => {
-    const res = await fetch(`/api/ranges/${id}`, { cache: "no-store" });
-    if (res.ok) setItems((await res.json()).items);
+    const since = lastCheck.current;
+    const res = await fetch(`/api/ranges/${id}${since ? `?since=${encodeURIComponent(since)}` : ""}`, { cache: "no-store" });
+    if (!res.ok) return;
+    const d = (await res.json()) as { at: string; items?: PresentedItem[]; changed?: PresentedItem[]; ids?: string[] };
+    lastCheck.current = d.at;
+    if (d.items) { setItems(d.items); return; }
+    setItems((cur) => {
+      const byId = new Map(cur.map((i) => [i.id, i]));
+      for (const c of d.changed ?? []) byId.set(c.id, c);
+      const ids = new Set(d.ids ?? []);
+      // A photo added while this check was on its way isn't in the list yet: keep it rather than let it flicker away.
+      const fresh = cur.filter((i) => !ids.has(i.id));
+      return [...(d.ids ?? []).map((i) => byId.get(i)).filter((i): i is PresentedItem => !!i), ...fresh].sort((x, y) => x.position - y.position);
+    });
   }, [id]);
 
   // While anything is being read or named, keep the screen up to date (this also keeps the work moving on the server).
@@ -87,10 +100,7 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName,
     if (source === "file") { setError("This range comes from your product file, so its photos come from the file's image links. Start a new range to add photos."); return; }
     const files = [...list].filter((f) => f.type.startsWith("image/"));
     if (!files.length) { setError(COPY.photo.notAPhoto); return; }
-    const room = MAX_RANGE_PHOTOS - items.length - uploads.filter((u) => u.state !== "error").length;
-    const take = files.slice(0, Math.max(0, room));
-    if (take.length < files.length) setNotice(take.length ? `Added the first ${take.length}. ${COPY.range.full(MAX_RANGE_PHOTOS)}` : COPY.range.full(MAX_RANGE_PHOTOS));
-    const queue = take.map((file) => ({ key: crypto.randomUUID(), file, position: nextPosition.current++ }));
+    const queue = files.map((file) => ({ key: crypto.randomUUID(), file, position: nextPosition.current++ }));
     setUploads((u) => [...u, ...queue.map((q) => ({ key: q.key, name: q.file.name, state: "waiting" as const }))]);
     let next = 0;
     const worker = async () => { while (next < queue.length) await send(queue[next++]); };
@@ -176,7 +186,7 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName,
           </p>
         </div>
         <div className="range-actions">
-          {source === "photos" && <button className="ghost" onClick={() => picker.current?.click()} disabled={items.length >= MAX_RANGE_PHOTOS}>Add photos</button>}
+          {source === "photos" && <button className="ghost" onClick={() => picker.current?.click()} >Add photos</button>}
           {items.length > 0 && <button className="ghost" onClick={() => setShowShared((s) => !s)} aria-expanded={showShared}>Apply to every piece</button>}
           {ready.length > 0 && <button onClick={() => nameThese()} disabled={naming}>{naming ? "Starting…" : `Name ${ready.length} ${ready.length === 1 ? "piece" : "pieces"}`}</button>}
           {named.length > 0 && <button className="ghost" onClick={copyAll}>{copied ? "Copied" : "Copy all names"}</button>}
@@ -206,7 +216,7 @@ export default function RangeClient({ id, initialTitle, initialItems, brandName,
         <button className="range-drop" onClick={() => picker.current?.click()}>
           <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="11" width="34" height="26" fill="none" stroke="currentColor" strokeWidth="1.2" /><circle cx="24" cy="24" r="7" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M17 11l3-4h8l3 4" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
           <span className="t">Drop the range&apos;s photos here</span>
-          <span className="muted">Up to {MAX_RANGE_PHOTOS} at once. Each is read and filled in for you to check before anything is named.</span>
+          <span className="muted">As many as you like. Each is read and filled in for you to check before anything is named.</span>
           <span className="btn ghost">Choose photos</span>
         </button>
       ) : null}

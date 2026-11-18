@@ -1,8 +1,6 @@
 // Range rules shared by the server and the range screen. No database code here: this file also runs in the browser.
 import type { PhotoDetails } from "../pipeline/types";
 
-export const MAX_RANGE_PHOTOS = 60;
-
 /** queued -> reading -> review (or not_product / read_failed); review -> to_name -> naming -> named / needs_input / failed */
 export type ItemStatus = "queued" | "reading" | "review" | "not_product" | "read_failed" | "to_name" | "naming" | "named" | "needs_input" | "failed";
 /** Stages that are still moving on their own (the screen keeps checking while any piece is in one). */

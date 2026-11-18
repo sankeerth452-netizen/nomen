@@ -114,8 +114,8 @@ const settled = (generationStatus: string | undefined) => (generationStatus === 
 /** Put back or settle pieces left mid-way (the server restarted while reading or naming them). */
 export async function recoverStale(now = Date.now()): Promise<void> {
   const readCut = new Date(now - READ_STALE_MS);
-  await db.batchItem.updateMany({ where: { status: "reading", claimedAt: { lt: readCut }, attempts: { lt: MAX_READ_ATTEMPTS } }, data: { status: "queued", claimedAt: null } });
-  await db.batchItem.updateMany({ where: { status: "reading", claimedAt: { lt: readCut } }, data: { status: "read_failed", claimedAt: null } });
+  await db.batchItem.updateMany({ where: { status: "reading", claimedAt: { lt: readCut }, attempts: { lt: MAX_READ_ATTEMPTS } }, data: { status: "queued", claimedAt: null, updatedAt: new Date() } });
+  await db.batchItem.updateMany({ where: { status: "reading", claimedAt: { lt: readCut } }, data: { status: "read_failed", claimedAt: null, updatedAt: new Date() } });
   const stuck = await db.batchItem.findMany({ where: { status: "naming", claimedAt: { lt: new Date(now - NAME_STALE_MS) } }, select: { id: true, generation: { select: { status: true } } } });
   for (const s of stuck) await db.batchItem.update({ where: { id: s.id }, data: { status: settled(s.generation?.status), claimedAt: null } });
 }

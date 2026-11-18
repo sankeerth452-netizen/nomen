@@ -42,8 +42,10 @@ export const DEMAND_FLOOR = 100;
 
 const has = (ws: Set<string>, list: string[]) => list.find((w) => ws.has(w)) ?? null;
 const CASUAL = ["tee", "t-shirt", "tshirt", "tank", "singlet", "hoodie", "hoodies", "sweatshirt", "sweat", "trackpant", "trackpants", "track", "jogger", "joggers", "legging", "leggings", "cargo", "fleece", "denim", "jean", "jeans", "pyjama", "pyjamas", "pj", "pjs", "sleep", "sleepwear", "lounge", "loungewear", "sneaker", "sneakers", "slide", "slides", "active", "activewear", "gym", "sport", "sports", "workout", "swim", "swimwear", "bikini", "rashie", "boardshort", "flannel", "utility", "backpack"];
-const DRESSY = ["satin", "silk", "sequin", "sequins", "sequinned", "velvet", "chiffon", "lace", "beaded", "beading", "embellished", "organza", "tulle", "crepe", "corset", "draped", "slip", "gown", "metallic", "lurex", "taffeta", "jacquard", "brocade", "feather", "pearl", "diamante", "rhinestone", "embroidered", "pleated", "ruched", "one-shoulder", "halter", "cowl", "structured", "tailored", "bias"];
-const LONG = ["maxi", "floor", "floor-length", "gown", "full-length"];
+const DRESSY = ["satin", "silk", "sequin", "sequins", "sequinned", "velvet", "chiffon", "lace", "beaded", "beading", "embellished", "organza", "tulle", "crepe", "corset", "draped", "slip", "gown", "metallic", "lurex", "taffeta", "jacquard", "brocade", "feather", "pearl", "diamante", "rhinestone", "embroidered", "pleated", "ruched", "one-shoulder", "halter", "cowl", "structured", "tailored", "bias",
+  // Traditional occasion wear: a zari saree or a lehenga is dressed up by nature.
+  "zari", "zardozi", "banarasi", "kanjeevaram", "kanchipuram", "saree", "sari", "lehenga", "anarkali", "sherwani"];
+const LONG = ["maxi", "floor", "floor-length", "gown", "full-length", "saree", "sari", "lehenga"];
 const PARTY = ["sequin", "sequins", "metallic", "sheer", "cut-out", "cutout", "backless", "plunge", "plunging", "bralette", "micro", "corset", "glitter", "lurex"];
 const BLOCK_SOBER = [...PARTY, "mini", "bodycon", "slit", "split", "strapless", "crop", "cropped", "neon", "feather", "ruffle", "frill", "tiered", "floral", "leopard", "animal", "print", "printed"];
 const SOBER_COLOURS = new Set(["Black", "Navy", "Grey", "Charcoal", "Brown"]);

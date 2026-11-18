@@ -27,6 +27,9 @@ describe("what the rules decide (never Claude)", () => {
     expect(categoryFor(facts({ product_type: "dress", features: ["bridal"] }))?.id).toBe(5329);
     expect(categoryFor(facts({ product_type: "thingamajig" }))).toBeNull();
     expect(categoryFor(facts({ product_type: "culotte" }))?.id).toBe(204);
+    expect(categoryFor(facts({ product_type: "saree" }))?.path).toBe("Clothing & Accessories > Clothing > Traditional & Ceremonial Clothing > Saris");
+    expect(categoryFor(facts({ product_type: "lehenga" }))?.id).toBe(5388);
+    expect(categoryFor(facts({ product_type: "saree blouse" }))?.id).toBe(212); // the blouse alone is a top
     expect(categoryFor(facts({ product_type: "crochet vest" }))?.id).toBe(212); // a sweater vest is a top
     expect(categoryFor(facts({ product_type: "vest", features: ["puffer"] }))?.id).toBe(1831);
   });
@@ -63,6 +66,7 @@ describe("what the rules decide (never Claude)", () => {
     expect(googleColour(["matcha ombre"]).value).toBe("Green");
     expect(googleColour(["brights"]).value).toBe("Multicolour");
     expect(googleColour(["blues"]).value).toBe("Blue");
+    expect(googleColour(["maroon and gold"]).value).toBe("Maroon/Gold"); // shoppers search "maroon saree", not burgundy
     expect(googleColour([]).value).toBeNull();
   });
 
@@ -99,6 +103,12 @@ describe("what the rules decide (never Claude)", () => {
 describe("ideal for", () => {
   const vols = new Map([["wedding guest dress", 26000], ["cocktail dress", 9900], ["funeral dress", 1600], ["casual dress", 5400], ["races dress", 40]]);
   const satinSlip = facts({ product_type: "dress", material: ["satin"], length: ["midi"], features: ["slip"], colour: ["black"] });
+
+  it("counts traditional occasion wear as dressy: a zari saree can go live for wedding guests (seen 18 Nov)", () => {
+    const saree = facts({ product_type: "saree", colour: ["maroon", "gold"], pattern: ["check"], features: ["zari border"] });
+    const v = judgeTags([{ tag: "wedding_guest", confidence: "high", reason: "A zari border saree for weddings." }], saree, vols);
+    expect(v.map((x) => [x.key, x.outcome])).toEqual([["wedding_guest", "live"]]);
+  });
 
   it("tags an occasion only when the details support it and shoppers search for it", () => {
     const v = judgeTags([{ tag: "cocktail", confidence: "high", reason: "Satin slip midi." }, { tag: "wedding_guest", confidence: "high", reason: "Dressy satin." }], satinSlip, vols);

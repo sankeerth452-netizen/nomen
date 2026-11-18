@@ -21,7 +21,7 @@ export default async function RangePage({ params }: { params: Promise<{ id: stri
     <>
       <Header user={user} active="ranges" />
       <main>
-        <RangeClient id={b.id} initialTitle={b.title} initialItems={JSON.parse(JSON.stringify(await rangeItems(b.id)))} brandName={brandName} source={b.source === "file" ? "file" : "photos"} fileName={b.fileName} fileCheck={(b.fileCheck as FileCheck | null) ?? null} />
+        <RangeClient id={b.id} initialTitle={b.title} loadedAt={new Date(Date.now() - 1000).toISOString()} initialItems={JSON.parse(JSON.stringify(await rangeItems(b.id)))} brandName={brandName} source={b.source === "file" ? "file" : "photos"} fileName={b.fileName} fileCheck={(b.fileCheck as FileCheck | null) ?? null} />
       </main>
       <Footer />
     </>

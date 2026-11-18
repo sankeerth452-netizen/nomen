@@ -27,7 +27,6 @@ export const REQUIRED: FeedTarget[] = ["id", "link", "image_link", "availability
 export const AVAILABILITY = ["in_stock", "out_of_stock", "preorder", "backorder"];
 
 /** At most this many products (size and colour groups) in one range, so a whole catalogue can't run up a surprise bill. */
-export const MAX_FILE_PRODUCTS = 200;
 
 /** One row of the brand's file (one SKU), in Google's attribute names, exactly as the brand gave it. */
 export type FeedRow = { row: number; attrs: Partial<Record<FeedTarget, string>> };

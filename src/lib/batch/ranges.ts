@@ -50,9 +50,10 @@ function fileSummary(f: PieceFeed) {
   return { skus: ids, sizes, price: f.rows[0]?.attrs.price ?? null, salePrice: f.rows[0]?.attrs.sale_price ?? null, issues: f.issues, imageError: f.imageError ?? null };
 }
 
-export async function rangeItems(batchId: string) {
+/** A range's pieces, in order. With `changedSince`, only the pieces that changed after it (the screen's regular check). */
+export async function rangeItems(batchId: string, changedSince?: Date) {
   const items = await db.batchItem.findMany({
-    where: { batchId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }], // ties (two photos given the same place) never reshuffle
+    where: { batchId, ...(changedSince ? { updatedAt: { gt: changedSince } } : {}) }, orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }], // ties (two photos given the same place) never reshuffle
     include: { generation: { select: { id: true, status: true, result: true, confidence: true } } },
   });
   return items.map(presentItem);

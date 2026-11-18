@@ -3,9 +3,6 @@ import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
 import { asDetails, isReady, loadRangeFor } from "@/lib/batch/ranges";
 import { kick } from "@/lib/batch/worker";
 import { COPY } from "@/lib/copy";
-import { rateLimitMany } from "@/lib/rateLimit";
-
-const NAME_PER_HOUR = 300;
 
 // Name the checked pieces: every ready piece, or just the ones listed (e.g. "Name again" on one piece).
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -21,8 +18,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     });
     const ready = candidates.filter((c) => isReady(asDetails(c.details))).map((c) => c.id);
     if (!ready.length) throw new HttpError(400, COPY.range.nothingReady);
-    if (!rateLimitMany(`rangename:${user.id}`, ready.length, NAME_PER_HOUR, 3_600_000)) throw new HttpError(429, COPY.range.tooManyNames);
-    await db.batchItem.updateMany({ where: { id: { in: ready } }, data: { status: "to_name", claimedAt: null } });
+    await db.batchItem.updateMany({ where: { id: { in: ready } }, data: { status: "to_name", claimedAt: null, updatedAt: new Date() } }); // updateMany leaves updatedAt alone; the range screen reads it
     kick();
     return Response.json({ queued: ready.length, skipped: candidates.length - ready.length });
   } catch (e) {

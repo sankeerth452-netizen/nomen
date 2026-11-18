@@ -27,7 +27,7 @@ export default async function Ranges() {
           <div>
             <span className="eyebrow">A whole range at once</span>
             <h1>Name the <em>range</em>, not just the piece.</h1>
-            <p>Drop in up to 60 product photos. Each one is read and filled in for you to check, then every piece is named the same careful way as a single one, ready to copy or download.</p>
+            <p>Drop in as many product photos as you like. Each one is read and filled in for you to check, then every piece is named the same careful way as a single one, ready to copy or download.</p>
           </div>
           <NewRange brands={brands} />
         </div>

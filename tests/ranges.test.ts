@@ -79,6 +79,21 @@ describe("naming a range", () => {
   });
 });
 
+describe("ranges of any size", () => {
+  it("names a range well past the old 60-photo limit, and the screen's check fetches only what changed", async () => {
+    const before = new Date(Date.now() - 1000);
+    const { b } = await range(150, { status: "review", details: ready, readImage: null });
+    const cut = new Date();
+    // "Name" on the last 10, as the name route does it.
+    await db.batchItem.updateMany({ where: { batchId: b.id, position: { gt: 140 } }, data: { status: "to_name", updatedAt: new Date() } });
+    await drain(providers());
+    expect((await statuses(b.id)).filter((s) => s === "named")).toHaveLength(10);
+    const changed = await rangeItems(b.id, cut);
+    expect(changed.map((i) => i.position)).toEqual([141, 142, 143, 144, 145, 146, 147, 148, 149, 150]);
+    expect(await rangeItems(b.id, before)).toHaveLength(150);
+  }, 60_000);
+});
+
 describe("work survives a restart", () => {
   it("puts a half-read photo back in the queue, gives up after three tries, and settles a half-named piece from its result", async () => {
     const old = new Date(Date.now() - 10 * 60_000);

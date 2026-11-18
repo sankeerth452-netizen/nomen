@@ -1,10 +1,9 @@
 import { db } from "@/lib/db";
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
-import { MAX_RANGE_PHOTOS, loadRangeFor, presentItem } from "@/lib/batch/ranges";
+import { loadRangeFor, presentItem } from "@/lib/batch/ranges";
 import { kick } from "@/lib/batch/worker";
 import { COPY } from "@/lib/copy";
 import { MAX_READ_BYTES, MAX_THUMB_BYTES, parsePhoto } from "@/lib/photo";
-import { rateLimit } from "@/lib/rateLimit";
 
 // Add one photo to a range. The browser sends two shrunk copies: `photo` to keep and show, `image` for Claude to read.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -17,8 +16,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (photo === "too_large" || image === "too_large") throw new HttpError(413, COPY.photo.tooLarge);
     if (photo === "not_a_photo" || image === "not_a_photo") throw new HttpError(400, COPY.photo.notAPhoto);
     const count = await db.batchItem.count({ where: { batchId: b.id } });
-    if (count >= MAX_RANGE_PHOTOS) throw new HttpError(409, COPY.range.full(MAX_RANGE_PHOTOS));
-    if (!rateLimit(`rangephoto:${user.id}`, 300, 3_600_000)) throw new HttpError(429, COPY.range.tooManyPhotos);
     const filename = (typeof body?.filename === "string" ? body.filename : "").replace(/[\u0000-\u001f]/g, "").trim().slice(0, 160) || `Photo ${count + 1}`;
     // The browser numbers photos in the order they were dropped (several upload at once and can finish out of order).
     const last = await db.batchItem.aggregate({ where: { batchId: b.id }, _max: { position: true } });

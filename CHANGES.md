@@ -351,3 +351,25 @@ In the 16 Nov quality test, 19 of 42 names were Medium. There were two causes:
 **The test itself:** its word matcher now reads fabric shorthand too, so "Blue Recycled Polyester Shacket" from "recy poly" isn't marked invented. `regrade.mjs` now keeps the product-data verdicts when it re-scores (it had been dropping them) and saves the previous scores first.
 
 169 tests pass.
+
+## Saree review fixes, and ranges with no size limit (18 Nov 2026)
+
+Fixes from checking a saree named on the live site, then naming one again locally (real Claude, Nitin's keyword list, US$0.12):
+
+- **The name's parts showed "&" as a detail.** "Maroon & Gold Check Saree With Zari Border" was split word by word, so "&" became a "Detail" chip. A detail's words were also split apart ("Zari" and "Border"; "Square" and "Neck" for a "square neckline"). Now joining words like "&" and "with" are skipped, and a run of a detail's words stays one part even when the buyer wrote more ("woven zari border"). "Neck" is read as "neckline", and patterns show as "Pattern" (`src/lib/nameParts.ts`, tested). The saree now shows Maroon · Gold · Check · Zari Border · Saree.
+- **Sarees had no Google category.** Google's own Traditional & Ceremonial Clothing branch was missing, so a saree got no category. Added Saris (8248), Traditional & Ceremonial Clothing (5388: lehengas, anarkalis, sherwanis, cheongsams…) and Dirndls (6031), all checked against Google's en-AU list. A saree's product details are now Border, Blouse, Drape, Length, Fabric, Pattern and Embellishment, instead of Style, Size, Fit and Closure.
+- **Maroon was sent to Google as Burgundy.** "Maroon saree" is the most-searched phrase for this piece, and maroon is a colour shoppers search by, so it's now its own colour.
+- **"Wedding guest" wasn't allowed for a zari saree.** The occasion rules didn't count traditional occasion wear as dressy. They now do (zari, zardozi, Banarasi, Kanjeevaram, sarees, lehengas…), and a saree or lehenga counts as full-length. "Christmas and festive" stays a person's call.
+- **Search-figure bars:** the widths were rounded differently on the server and in the browser (a warning in development only). They're now rounded once.
+
+The re-named saree: "Maroon & Gold Check Zari Border Saree" at High confidence, category Saris (8248), with Border, Blouse and Pattern details. Material was left blank because it wasn't given, and nothing was made up on the product page.
+
+**Ranges have no size limit.** A range held up to 60 photos, a product file up to 200 products, and each login could add 300 photos and name 300 pieces an hour. All four limits are gone.
+
+The 60 was there because the range screen re-fetched every piece, with its full product page and product data, every 2.5 seconds while anything was working: several megabytes a check for a big range. Now it asks only for the pieces that changed since its last check, plus the list of pieces, so a range of any size costs about the same to keep up to date.
+
+Bulk status changes ("Name all", restart recovery) now also update each piece's "last changed" time, which they hadn't been doing. A test caught that.
+
+Checked locally with the stand-in AI: a 75-photo range was added, read and named, the screen kept up through the changed-only checks, and it ended on "75 named". A 150-piece range is covered by a test. Naming runs 3 pieces at a time (about 6 a minute with the real AI) and carries on with the screen closed.
+
+175 tests pass.
