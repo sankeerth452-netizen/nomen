@@ -1,0 +1,234 @@
+{
+  "checkedAt": "2026-11-20",
+  "runs": {
+    "naming": "v8",
+    "data": "v4 + v5"
+  },
+  "minCases": 30,
+  "bars": {
+    "classification": 0.95,
+    "details": 0.9,
+    "naming": 0.85,
+    "noUnsupportedClaims": 1
+  },
+  "categories": [
+    {
+      "category": "Bags",
+      "cases": 5,
+      "scores": {
+        "classification": {
+          "share": 1,
+          "n": 3
+        },
+        "details": {
+          "share": 1,
+          "n": 9
+        },
+        "naming": {
+          "share": 0.6,
+          "n": 5
+        },
+        "noUnsupportedClaims": {
+          "share": 1,
+          "n": 6
+        }
+      },
+      "status": "too_few",
+      "below": [
+        "naming"
+      ]
+    },
+    {
+      "category": "Dresses",
+      "cases": 5,
+      "scores": {
+        "classification": {
+          "share": 1,
+          "n": 5
+        },
+        "details": {
+          "share": 0.9375,
+          "n": 16
+        },
+        "naming": {
+          "share": 1,
+          "n": 5
+        },
+        "noUnsupportedClaims": {
+          "share": 1,
+          "n": 9
+        }
+      },
+      "status": "too_few",
+      "below": []
+    },
+    {
+      "category": "Edge cases",
+      "cases": 9,
+      "scores": {
+        "classification": {
+          "share": 1,
+          "n": 5
+        },
+        "details": {
+          "share": 1,
+          "n": 16
+        },
+        "naming": {
+          "share": 1,
+          "n": 9
+        },
+        "noUnsupportedClaims": {
+          "share": 1,
+          "n": 7
+        }
+      },
+      "status": "edge",
+      "below": []
+    },
+    {
+      "category": "Jackets",
+      "cases": 1,
+      "scores": {
+        "classification": {
+          "share": 1,
+          "n": 1
+        },
+        "details": {
+          "share": 1,
+          "n": 3
+        },
+        "naming": {
+          "share": 1,
+          "n": 1
+        },
+        "noUnsupportedClaims": {
+          "share": 1,
+          "n": 2
+        }
+      },
+      "status": "too_few",
+      "below": []
+    },
+    {
+      "category": "Jewellery",
+      "cases": 5,
+      "scores": {
+        "classification": {
+          "share": 1,
+          "n": 5
+        },
+        "details": {
+          "share": 1,
+          "n": 15
+        },
+        "naming": {
+          "share": 1,
+          "n": 5
+        },
+        "noUnsupportedClaims": {
+          "share": 1,
+          "n": 10
+        }
+      },
+      "status": "too_few",
+      "below": []
+    },
+    {
+      "category": "Knitwear",
+      "cases": 5,
+      "scores": {
+        "classification": {
+          "share": 1,
+          "n": 5
+        },
+        "details": {
+          "share": 1,
+          "n": 15
+        },
+        "naming": {
+          "share": 1,
+          "n": 5
+        },
+        "noUnsupportedClaims": {
+          "share": 1,
+          "n": 10
+        }
+      },
+      "status": "too_few",
+      "below": []
+    },
+    {
+      "category": "Pants and jeans",
+      "cases": 5,
+      "scores": {
+        "classification": {
+          "share": 1,
+          "n": 5
+        },
+        "details": {
+          "share": 1,
+          "n": 17
+        },
+        "naming": {
+          "share": 1,
+          "n": 5
+        },
+        "noUnsupportedClaims": {
+          "share": 1,
+          "n": 10
+        }
+      },
+      "status": "too_few",
+      "below": []
+    },
+    {
+      "category": "Shorts and skirts",
+      "cases": 5,
+      "scores": {
+        "classification": {
+          "share": 1,
+          "n": 5
+        },
+        "details": {
+          "share": 1,
+          "n": 15
+        },
+        "naming": {
+          "share": 1,
+          "n": 5
+        },
+        "noUnsupportedClaims": {
+          "share": 1,
+          "n": 10
+        }
+      },
+      "status": "too_few",
+      "below": []
+    },
+    {
+      "category": "Tops",
+      "cases": 9,
+      "scores": {
+        "classification": {
+          "share": 1,
+          "n": 9
+        },
+        "details": {
+          "share": 1,
+          "n": 32
+        },
+        "naming": {
+          "share": 1,
+          "n": 9
+        },
+        "noUnsupportedClaims": {
+          "share": 1,
+          "n": 18
+        }
+      },
+      "status": "too_few",
+      "below": []
+    }
+  ]
+}

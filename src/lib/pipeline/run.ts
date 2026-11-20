@@ -2,20 +2,22 @@ import type { Prisma } from "@prisma/client";
 import { ensureReview } from "../review/workflow";
 import { db } from "../db";
 import { env } from "../env";
-import { parseBrandSettings } from "../brand";
+import { parseBrandSettings, termsForPrompt } from "../brand";
 import { keywordEvidenceFor } from "../keywords/evidence";
 import { liveCandidates, newTally } from "../keywords/live";
 import { LIVE_KEYWORDS_BUDGET_MS, SEARCH_BUDGET_MS, within } from "./budget";
 import type { RawCandidate } from "../keywords/retrieve";
-import { attributeTerms } from "../keywords/retrieve";
+import { attributeTerms, typeContext } from "../keywords/retrieve";
 import { FILLER_WORDS, categoryForType } from "../vocab/fashion";
 import { COPY } from "../copy";
+import { alsoCalled, ruleFor } from "../category/rules";
 import { AiError, type ProductFacts } from "../providers/types";
 import { addUsage } from "./usage";
 import { writeContent } from "./content";
 import { writeSheet } from "./sheet";
 import { getProviders, type Providers } from "../providers";
 import type { Photo } from "../photo";
+import type { PhotoInfo } from "../images/info";
 import type { Box } from "../frame";
 import { EXTRACTION_PROMPT_VERSION, RECOMMEND_PROMPT_VERSION } from "../prompts";
 import { fetchSerp } from "../serp/cache";
@@ -45,12 +47,14 @@ async function setStage(id: string, status: Stage, extra: Prisma.GenerationUpdat
  * `photo` is the buyer's display photo and `focus` where the piece sits in it; `fromPhoto` names the fields their photo
  * filled in and `note` says where the request came from (both engineers only).
  */
-export async function createGeneration(user: { id: string; brandId: string | null }, brandId: string, rawInput: unknown, extra: { photo?: Photo; focus?: Box | null; fromPhoto?: string[]; note?: string } = {}) {
+export async function createGeneration(user: { id: string; brandId: string | null }, brandId: string, rawInput: unknown, extra: { photo?: Photo; morePhotos?: Photo[]; focus?: Box | null; fromPhoto?: string[]; note?: string; photos?: PhotoInfo[] } = {}) {
   const input = GenerationInput.parse(rawInput);
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
   const g = await db.generation.create({
     data: {
       brandId, userId: user.id, datasetId: brand.activeKeywordDatasetId, originalInput: json(input), status: "pending", promptVersions: { extraction: EXTRACTION_PROMPT_VERSION, recommend: RECOMMEND_PROMPT_VERSION },
+      ...(extra.photos?.length ? { photos: json(extra.photos) } : {}),
+      ...(extra.photo && extra.morePhotos?.length ? { images: { create: extra.morePhotos.map((p, i) => ({ position: i + 1, photo: new Uint8Array(p.data), photoType: p.mediaType })) } } : {}),
       ...(extra.photo ? { photo: { create: { mediaType: extra.photo.mediaType, data: new Uint8Array(extra.photo.data), ...(extra.focus ? { focus: json(extra.focus) } : {}) } } } : {}),
       ...(extra.fromPhoto?.length || extra.note ? { usage: json({ notes: [...(extra.note ? [extra.note] : []), ...(extra.fromPhoto?.length ? [`Filled in from the buyer's photo, then checked by them: ${extra.fromPhoto.join(", ")}`] : [])] }) } : {}),
     },
@@ -195,9 +199,8 @@ export async function runPipeline(id: string, injected?: Providers, opts: { back
     if (bundle.limitedKeywordEvidence) { cap("low"); warnings.push(COPY.noMatchingSearches); }
     // A mix of shops and articles is the norm for fashion searches: the evidence panel says so; as a warning it was on almost every name.
     const wantsLength = ["Dresses", "Skirts", "Pants", "Shorts", "Jeans & Denim", "Coats & Jackets"].includes(categoryForType(facts.product_type) ?? "");
-    const kind = categoryForType(facts.product_type) ?? "";
-    const accessory = ["Bags", "Shoes"].includes(kind) || /\b(belts?|hats?|caps?|beanies?|sunglasses|watch(es)?|clips?|claws?|headbands?|scrunchies?)\b/i.test(facts.product_type ?? "");
-    const materialWord = kind === "Jewellery" ? COPY.missing.materialJewellery : accessory ? COPY.missing.materialAccessory : COPY.missing.material;
+    const word = ruleFor(facts.product_type, [...facts.occasion_or_style, ...facts.features].join(" ")).materialWord;
+    const materialWord = word === "metal or material" ? COPY.missing.materialJewellery : word === "upper material" ? COPY.missing.materialShoes : word === "material" ? COPY.missing.materialAccessory : COPY.missing.material;
     for (const k of ["colour", "material", "length"] as const) if (!facts[k].length && (k !== "length" || wantsLength)) warnings.push(k === "material" ? materialWord : COPY.missing[k]);
 
     const result = { recommendation: { ...rec, confidence, warnings: [...new Set(warnings)] }, meta: { serpStatus: bundle.serpStatus, limitedKeywordEvidence: bundle.limitedKeywordEvidence, datasetId: bundle.datasetId, orderFinal: bundle.order.final } };
@@ -224,7 +227,13 @@ export function buildPayload(facts: ProductFacts, brand: ReturnType<typeof parse
   return {
     task: "Recommend one PDP product title plus up to three alternatives.",
     product_facts: { ...facts, conflicts: undefined },
-    brand_rules: { title_case: brand.titleCase, max_title_length: brand.maxTitleLength, required_core_terms: brand.requiredCoreTerms, allowed_vocabulary: brand.allowedVocabulary, prohibited_terms: brand.prohibitedTerms, avoid_words: brand.avoidWords, good_examples: brand.goodExamples, poor_examples: brand.poorExamples },
+    ...(alsoCalled(facts.product_type, typeContext(facts)).length ? { product_type_also_called: alsoCalled(facts.product_type, typeContext(facts)) } : {}),
+    brand_rules: {
+      title_case: brand.titleCase, max_title_length: brand.maxTitleLength, required_core_terms: brand.requiredCoreTerms, allowed_vocabulary: brand.allowedVocabulary, prohibited_terms: brand.prohibitedTerms, avoid_words: brand.avoidWords, good_examples: brand.goodExamples, poor_examples: brand.poorExamples,
+      ...(brand.profile.terms.length ? { preferred_terms: termsForPrompt(brand.profile.terms) } : {}),
+      ...(brand.profile.audience ? { audience: brand.profile.audience } : {}),
+      ...(brand.profile.seo ? { seo_preferences: brand.profile.seo } : {}),
+    },
     keyword_evidence: b.keywords.map((k) => ({ id: k.id, keyword: k.keyword, search_volume: k.searchVolume, category: k.category })),
     limited_keyword_evidence: b.limitedKeywordEvidence,
     serp_status: b.serpStatus,

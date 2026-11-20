@@ -9,6 +9,8 @@ import { normalizeKeyword } from "../keywords/normalize";
 import { breadcrumbFor, categoryFor, detailNamesFor, detailSection, genderAge, googleCategory, googleColour, googleMaterial, googlePattern, sizeType, type GoogleCategory } from "../sheet/catalog";
 import { demandPhrases, idealForSentence, judgeSeason, judgeTags, occasion, type Season, type TagVerdict } from "../sheet/idealFor";
 import { allowedFrom, inventedInText } from "./content";
+import { brandWordsFor, insteadTermsIn, parseBrandSettings, PREFERRED_TERMS_RULE, termsForPrompt, type BrandTerm } from "../brand";
+import { KIND_RULES, alsoCalled, kindOf, typeContext, type Kind } from "../category/rules";
 import { withFabricNames } from "../vocab/fashion";
 import { setPromptVersion, setResultKey } from "./store";
 import type { EvidenceBundle, SheetDraft } from "./types";
@@ -43,14 +45,14 @@ export type ProductSheet = {
 };
 export type StoredSheet = { status: "writing" } | { status: "failed" } | ({ status: "ready" } & ProductSheet);
 
-type Ctx = { facts: ProductFacts; allowed: Set<string>; source: string; detailNames: string[] };
+type Ctx = { facts: ProductFacts; allowed: Set<string>; source: string; detailNames: string[]; kind?: Kind; terms?: BrandTerm[] };
 const MARKDOWN = /^\s*(#|[-*•]\s)|\*\*/m;
 const CARE_WORDS = /\b(wash|washing|dry ?clean|tumble|iron|bleach|line dry|dry flat|cold|gentle|hand wash|machine)\b/i;
 
 /** What's wrong with Claude's draft, worded for the one repair, and which parts must not be used as they are. */
 export function checkSheet(d: SheetDraft, ctx: Ctx) {
   const problems: string[] = [];
-  const invented = (t: string) => inventedInText(t, ctx.allowed, ctx.source);
+  const invented = (t: string) => inventedInText(t, ctx.allowed, ctx.source, ctx.kind);
   const badHighlights = new Set<number>(), badDetails = new Set<number>();
   let badShort = false, badCare = false, badAlt = false;
 
@@ -69,6 +71,7 @@ export function checkSheet(d: SheetDraft, ctx: Ctx) {
   // Google reads 500 to 1,000 best. The occasion sentence added afterwards can be missing, so the draft itself must reach 500.
   if (sd.length < SHORT_DESCRIPTION[0] || sd.length > 950) problems.push(`short_description is ${sd.length} characters; it must be 500 to 900`);
   if (MARKDOWN.test(sd)) problems.push("short_description must be plain text: no headings, lists or markdown");
+  for (const x of insteadTermsIn([sd, ...d.highlights].join("\n"), ctx.terms ?? [])) problems.push(`uses "${x.found}": the brand's word is "${x.use}"`);
   const invSd = invented(sd);
   if (invSd.length) { badShort = true; problems.push(`short_description states details that are not in the facts: ${invSd.join(", ")}`); }
   if (d.care) {
@@ -206,14 +209,20 @@ export async function writeSheet(id: string, opts: { providers?: Providers } = {
     const input = (g.originalInput ?? {}) as Record<string, string | undefined>;
     const title = result.recommendation.recommended_title;
     const inputText = withFabricNames(Object.values(input).filter((v): v is string => typeof v === "string").join(" \n "));
-    const source = [inputText, title, ...Object.values(facts).flat().filter((v): v is string => typeof v === "string")].join(" \n ");
-    const ctx: Ctx = { facts, allowed: allowedFrom([source]), source, detailNames: detailNamesFor(facts) };
+    const source = [inputText, title, ...Object.values(facts).flat().filter((v): v is string => typeof v === "string"), ...alsoCalled(facts.product_type, typeContext(facts))].join(" \n ");
+    const kind = kindOf(facts.product_type, [...facts.occasion_or_style, ...facts.features].join(" "));
+    const brand = parseBrandSettings(g.brand.settings);
+    const brandWords = brandWordsFor(source, brand.profile.terms); // the brand's word for what the facts say is as true as the facts
+    const ctx: Ctx = { facts, allowed: allowedFrom([source, ...brandWords]), source: [source, ...brandWords].join(" \n "), detailNames: detailNamesFor(facts), kind, terms: brand.profile.terms };
     const payload = {
       task: "Fill in the product data for this product.",
+      ...(KIND_RULES[kind].claimsNote ? { kind_of_piece: KIND_RULES[kind].label, kind_rules: `${KIND_RULES[kind].claimsNote} (A rule for this kind of product.)` } : {}),
       product_name: title, brand_name: g.brand.name, product_type: facts.product_type,
       product_facts: { colour: facts.colour, material: facts.material, pattern: facts.pattern, fit_or_silhouette: facts.fit_or_silhouette, length: facts.length, features: facts.features, occasion_or_style: facts.occasion_or_style, audience: facts.audience },
       buyer_description: input.freeText ?? null, buyer_notes: input.extra ?? null, has_photo: !!g.photo,
       detail_names: ctx.detailNames,
+      ...(brand.profile.terms.length ? { brand_rules: { preferred_terms: termsForPrompt(brand.profile.terms), preferred_terms_rule: PREFERRED_TERMS_RULE } } : {}),
+      ...(brand.profile.tone ? { brand_voice: { tone: brand.profile.tone, rule: "Write the highlights and short description in this tone, within every rule above. It adds no fact." } } : {}),
       category_needed: !categoryFor(facts),
       limits: { highlights: "2 to 6, each under 70 characters", short_description_characters: [500, 900], image_alt_max_characters: ALT_MAX },
     };

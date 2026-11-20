@@ -1,8 +1,9 @@
 import { deterministicFacts } from "../pipeline/facts";
+import { kindOf, type Kind } from "../category/rules";
 import type { GenerationInput } from "../pipeline/types";
 import { Recommendation, type PageContent, type PhotoDetails, type SheetDraft } from "../pipeline/types";
 import { classify } from "../vocab/fashion";
-import type { ContentWriter, FactExtractor, KeywordDataProvider, PhotoReader, Recommender, SerpProvider, SerpResponse, SheetWriter } from "./types";
+import type { ContentWriter, FactExtractor, KeywordDataProvider, PhotoReader, Recommender, SerpProvider, SerpResponse, SheetWriter, StyleReader } from "./types";
 import { classifyPage } from "../serp/reduce";
 import { titleCase } from "../serp/patterns";
 
@@ -31,13 +32,15 @@ export class MockRecommender implements Recommender {
   async recommend(payload: Record<string, unknown>) {
     this.calls++;
     if (this.failTimes > 0) { this.failTimes--; const { AiError } = await import("./types"); throw new AiError("mock outage", "ai_unavailable"); }
-    const p = payload as { title_order: { final: string[] }; keyword_evidence: { id: string; keyword: string }[]; serp_evidence: { id: string }[]; product_facts: { product_type: string }; brand_rules?: { max_title_length?: number } };
+    const p = payload as { title_order: { final: string[] }; keyword_evidence: { id: string; keyword: string }[]; serp_evidence: { id: string }[]; product_facts: { product_type: string }; brand_rules?: { max_title_length?: number; preferred_terms?: { use: string; instead_of: string[] }[] } };
     const kws = p.keyword_evidence;
-    const noun = p.product_facts.product_type;
+    // The brand's own words, as the real writer is told to use them ("Pants" where the facts say "trousers").
+    const own = (w: string) => { const t = p.brand_rules?.preferred_terms?.find((x) => x.instead_of.some((i) => i.toLowerCase() === w.toLowerCase())); return t ? t.use.toLowerCase() : w; };
+    const noun = own(p.product_facts.product_type);
     const cap = (s: string) => s.replace(/(^|\s)([a-z])/g, (_, a, b) => a + b.toUpperCase());
     // Drop trailing details until the title fits the brand's maximum length.
     const max = p.brand_rules?.max_title_length ?? Infinity;
-    let attrs = p.title_order.final;
+    let attrs = p.title_order.final.map(own);
     let title = titleCase([...attrs, noun].join(" "));
     while (title.length > max && attrs.length) { attrs = attrs.slice(0, -1); title = cap([...attrs, noun].join(" ")); }
     const alts: { title: string; trade_off: string }[] = [];
@@ -75,16 +78,26 @@ export class MockSerpProvider implements SerpProvider {
   }
 }
 
+// Example category details per kind: one clearly visible, one only partly, so screens show both.
+const MOCK_ATTRIBUTES: Partial<Record<Kind, PhotoDetails["attributes"]>> = {
+  shoes: [{ name: "Heel type", value: "block", seen: "clear" }, { name: "Toe", value: "pointed", seen: "partly" }],
+  swimwear: [{ name: "Neckline", value: "scoop", seen: "clear" }, { name: "Back", value: "low", seen: "partly" }],
+  jewellery: [{ name: "Finish", value: "gold-tone", seen: "clear" }],
+  bags: [{ name: "Strap", value: "chain", seen: "clear" }],
+};
+
 /** Example details, the same for every photo. MOCK, not AI: lets the photo flow run without paid keys (the screen says so). */
 export class MockPhotoReader implements PhotoReader {
   calls = 0;
-  async read({ productType }: { productType?: string }) {
+  async read({ productType, extras = [] }: { productType?: string; extras?: unknown[] }) {
     this.calls++;
     const type = productType?.trim().toLowerCase() || "dress";
     const details: PhotoDetails = {
       not_a_product: false, product_type: type, colour: "black", pattern: null, material: null, fit: null,
       length: type === "dress" || type === "skirt" ? "midi" : null, feature: "square neckline", occasion: null, audience: null,
       description: `black ${type} with a square neckline`, unsure: ["fabric"], focus: null,
+      attributes: MOCK_ATTRIBUTES[kindOf(type)] ?? [],
+      images: [{ view: "front" as const, alt: `Black ${type} with a square neckline`, problem: "none" as const }, ...extras.map((_, i) => ({ view: (i === 0 ? "back" : "detail") as "back" | "detail", alt: i === 0 ? `Back view of the black ${type}` : `Close-up of the black ${type}'s neckline`, problem: "none" as const }))],
     };
     return { details, usage: NO_USAGE };
   }
@@ -152,3 +165,12 @@ export class MockKeywordData implements KeywordDataProvider {
   }
 }
 
+
+/** Example words about a brand's voice. MOCK, not AI: lets "learn from your catalogue" run without paid keys (the screen says so). */
+export class MockStyleReader implements StyleReader {
+  calls = 0;
+  async describe(samples: { title: string; description?: string }[]) {
+    this.calls++;
+    return { voice: { tone: `Example only: warm and confident, read from ${samples.length} of your products.`, audience: "Example only: women shopping for everyday and going-out pieces.", description_style: "Example only: opens with the piece, then its details, then how to wear it, in short paragraphs." }, usage: NO_USAGE };
+  }
+}

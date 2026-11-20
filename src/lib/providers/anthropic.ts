@@ -1,13 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaContentBlockParam } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import type { z } from "zod";
-import { CONTENT_SYSTEM, EXTRACTION_SYSTEM, PHOTO_SYSTEM, RECOMMEND_SYSTEM, sheetSystem } from "../prompts";
+import { z } from "zod";
+import { CONTENT_SYSTEM, EXTRACTION_SYSTEM, PHOTO_SYSTEM, RECOMMEND_SYSTEM, STYLE_SYSTEM, sheetSystem } from "../prompts";
 import { ExtractedFacts, PageContent, PhotoDetails, Recommendation, SheetDraft } from "../pipeline/types";
 import { GOOGLE_CATEGORIES } from "../sheet/catalog";
 import { OCCASIONS } from "../sheet/idealFor";
 import { imageSize, type Photo } from "../photo";
-import { AiError, type AiUsage, type ContentWriter, type FactExtractor, type PhotoReader, type ProductFacts, type Recommender, type SheetWriter } from "./types";
+import { AiError, type AiUsage, type ContentWriter, type FactExtractor, type PhotoReader, type ProductFacts, type Recommender, type SheetWriter, type StyleReader } from "./types";
 
 /** Models that accept server-side refusal fallbacks in the "default" form on the Claude API. */
 const FALLBACK_DEFAULT = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"]);
@@ -79,12 +79,13 @@ export class ClaudeRecommender implements Recommender {
 
 export class ClaudePhotoReader implements PhotoReader {
   constructor(private c: ClaudeClient) {}
-  async read({ image, productType }: { image: Photo; productType?: string }) {
+  async read({ image, extras = [], productType }: { image: Photo; extras?: Photo[]; productType?: string }) {
     const size = imageSize(image);
-    // Image first, then the request: the order Claude reads best.
+    const all = [image, ...extras];
+    // Images first, then the request: the order Claude reads best.
     const content: BetaContentBlockParam[] = [
-      { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data.toString("base64") } },
-      { type: "text", text: JSON.stringify({ task: "Fill in the details of the piece in this photo.", ...(size ? { image_width: size.width, image_height: size.height } : {}), ...(productType ? { buyer_product_type: productType } : {}) }) },
+      ...all.map((p): BetaContentBlockParam => ({ type: "image", source: { type: "base64", media_type: p.mediaType, data: p.data.toString("base64") } })),
+      { type: "text", text: JSON.stringify({ task: all.length > 1 ? `Fill in the details of the piece in these ${all.length} photos of it.` : "Fill in the details of the piece in this photo.", ...(size ? { image_width: size.width, image_height: size.height } : {}), ...(productType ? { buyer_product_type: productType } : {}) }) },
     ];
     const { data, usage } = await this.c.json(PHOTO_SYSTEM, content, PhotoDetails, "low"); // reading what's visible: simple
     return { details: data, usage };
@@ -110,3 +111,13 @@ export class ClaudeSheetWriter implements SheetWriter {
   }
 }
 
+
+const StyleVoice = z.object({ tone: z.string(), audience: z.string(), description_style: z.string() });
+
+export class ClaudeStyleReader implements StyleReader {
+  constructor(private c: ClaudeClient) {}
+  async describe(samples: { title: string; description?: string }[]) {
+    const { data, usage } = await this.c.json(STYLE_SYSTEM, JSON.stringify({ task: "Describe how this brand writes.", examples: samples }), StyleVoice, "low", 2000);
+    return { voice: data, usage };
+  }
+}

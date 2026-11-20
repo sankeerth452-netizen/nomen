@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import { VIEW_LABEL } from "@/lib/images/info";
 import Link from "next/link";
 import { useState } from "react";
 import type { ReviewPayload } from "@/lib/review/load";
@@ -87,6 +88,25 @@ export default function ReviewClient({ initial }: { initial: ReviewPayload }) {
       <div className="review-grid">
         <aside className="review-side">
           {p.hasPhoto && <div className="review-photo"><Image src={`/api/generations/${p.id}/photo`} alt="The product photo" fill unoptimized sizes="320px" /></div>}
+          {(p.morePhotos.length > 0 || p.photos.some((x) => x.problems.length) || p.seen.attributes.length > 0 || p.seen.contradictions.length > 0) && (
+            <div className="card review-photos">
+              <strong>Photos</strong>
+              {p.morePhotos.length > 0 && (
+                <ul className="photo-thumbs">
+                  {p.morePhotos.map((pos) => { const info = p.photos.find((x) => x.position === pos); return (
+                    <li key={pos} title={info?.alt ?? undefined}>
+                      <span className="strip-photo"><Image src={`/api/generations/${p.id}/photos/${pos}`} alt={info?.alt ?? `Photo ${pos + 1}`} fill unoptimized /></span>
+                      <span className="strip-label">{info?.view ? VIEW_LABEL[info.view] : `Photo ${pos + 1}`}</span>
+                    </li>
+                  ); })}
+                </ul>
+              )}
+              {p.photos.filter((x) => x.position > 0 && x.alt).map((x) => <p key={x.position} className="small"><span className="muted">Photo {x.position + 1} alt text:</span> {x.alt}</p>)}
+              {p.seen.attributes.length > 0 && <p className="small"><span className="muted">What the photos show:</span> {p.seen.attributes.map((a) => `${a.name} ${a.value}${a.seen === "partly" ? " (partly visible)" : ""}`).join(" · ")}</p>}
+              {p.seen.contradictions.map((c) => <p key={c} className="small warn-text">{c}</p>)}
+              {p.photos.flatMap((x) => x.problems.map((m) => <p key={`${x.position}${m}`} className="photo-problem">{x.position === 0 ? "Main photo" : `Photo ${x.position + 1}`}: {m}</p>))}
+            </div>
+          )}
           <div className="card">
             <strong>What we were given</strong>
             <dl className="review-original">

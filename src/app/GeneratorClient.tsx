@@ -2,6 +2,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import ResultView, { type Gen } from "@/components/ResultView";
+import { attributeNotes, cleanAttributes, materialLabel } from "@/lib/category/rules";
 import { COPY } from "@/lib/copy";
 import { PHOTOS, TYPE_TILES, photoForType, tileForType } from "@/lib/photos";
 import PhotoPicker, { type PhotoResult } from "./PhotoPicker";
@@ -27,6 +28,8 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
   const [thumb, setThumb] = useState<string | null>(null);
   const [fromPhoto, setFromPhoto] = useState<Set<string>>(new Set());
   const [photoNotes, setPhotoNotes] = useState<{ text: string; fix?: { label: string; apply: () => void } }[]>([]);
+  const [morePhotos, setMorePhotos] = useState<string[]>([]);
+  const [photoInfo, setPhotoInfo] = useState<PhotoResult["photos"]>([]);
   const tile = tileForType(productType);
   const nouns = TYPE_TILES.find((t) => t.key === tile)?.nouns ?? [];
   const shownBrand = brandName ?? brands.find((b) => b.id === brandId)?.name ?? null;
@@ -51,7 +54,8 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
   const changeType = (v: string) => { setProductType(v); mine("productType"); };
 
   /** Fill only the empty fields: never overwrite what the buyer wrote. Point out where the photo disagrees with them. */
-  function applyPhoto({ details: d, example }: PhotoResult) {
+  function applyPhoto({ details: d, example, photos }: PhotoResult) {
+    setPhotoInfo(photos ?? []);
     if (d.not_a_product) { setPhotoNotes([{ text: COPY.photo.notProduct }]); return; }
     const differs = (typed: string | undefined, v: string | null) => !!typed?.trim() && !!v?.trim() && typed.trim().toLowerCase() !== v.trim().toLowerCase();
     // The photo's one-line description must not contradict the buyer: drop it if they chose another product type,
@@ -59,14 +63,17 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
     let description = d.description?.trim() || null;
     if (differs(productType, d.product_type)) description = null;
     else if (description && d.colour && differs(values.colour, d.colour)) description = description.replace(new RegExp(`\\b${d.colour.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"), "").replace(/\s{2,}/g, " ").trim() || null;
-    const seen: Record<string, string | null> = { productType: d.product_type, freeText: description, colour: d.colour, material: d.material, pattern: d.pattern, fit: d.fit, length: d.length, feature: d.feature, occasion: d.occasion, audience: d.audience };
+    // The kind's own details (heel type, neckline...): clearly visible ones fill "Extra product facts", partly visible ones are only flagged.
+    const attrs = cleanAttributes(d.product_type, d.attributes);
+    const seen: Record<string, string | null> = { productType: d.product_type, freeText: description, colour: d.colour, material: d.material, pattern: d.pattern, fit: d.fit, length: d.length, feature: d.feature, occasion: d.occasion, audience: d.audience, extra: attributeNotes(attrs) || null };
     const filled: string[] = [];
     const notes: { text: string; fix?: { label: string; apply: () => void } }[] = example ? [{ text: COPY.photo.example }] : [];
     const next = { ...values };
     for (const [name, raw] of Object.entries(seen)) {
       const v = raw?.trim();
       if (!v) continue;
-      const typed = (name === "productType" ? productType : values[name] ?? "").trim();
+      // What an earlier reading filled in isn't the buyer's: a new reading (more photos added) may replace it.
+      const typed = fromPhoto.has(name) ? "" : (name === "productType" ? productType : values[name] ?? "").trim();
       if (!typed) {
         if (name === "productType") setProductType(v); else next[name] = v;
         filled.push(name);
@@ -78,8 +85,8 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
     setValues(next);
     setFromPhoto(new Set(filled));
     notes.push({ text: filled.length ? COPY.photo.filled : COPY.photo.nothingNew });
-    const unsure = d.unsure.map((u) => u.trim().toLowerCase()).filter((u) => u && !(u === "fabric" && next.material) && !(u === "length" && next.length));
-    if (unsure.length) notes.push({ text: COPY.photo.unsure(unsure.slice(0, 3)) });
+    const unsure = [...d.unsure.map((u) => u.trim().toLowerCase()), ...attrs.filter((a) => a.seen === "partly").map((a) => a.name.toLowerCase())].filter((u) => u && !(u === "fabric" && next.material) && !(u === "length" && next.length));
+    if (unsure.length) notes.push({ text: COPY.photo.unsure([...new Set(unsure)].slice(0, 4)) });
     setPhotoNotes(notes);
   }
 
@@ -87,6 +94,7 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
   function removePhoto() {
     setThumb(null);
     setPhotoNotes([]);
+    setPhotoInfo([]);
     if (fromPhoto.has("productType")) setProductType("");
     setValues((x) => Object.fromEntries(Object.entries(x).filter(([k]) => !fromPhoto.has(k))));
     setFromPhoto(new Set());
@@ -96,7 +104,7 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
     e.preventDefault();
     if (busy) return;
     setBusy(true); setError(""); setGen(null); setStage(0);
-    const f = { ...Object.fromEntries(new FormData(e.currentTarget).entries()), ...(thumb ? { photo: thumb, fromPhoto: [...fromPhoto] } : {}) };
+    const f = { ...Object.fromEntries(new FormData(e.currentTarget).entries()), ...(thumb ? { photo: thumb, fromPhoto: [...fromPhoto], morePhotos, photos: photoInfo } : {}) };
     const res = await fetch("/api/generations", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(f) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { setBusy(false); setError(data.error ?? "Something went wrong. Please try again."); return; }
@@ -120,7 +128,7 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
         {brands.length === 1 && <input type="hidden" name="brandId" value={brands[0].id} />}
 
         <div className="step-head"><span className="step-no">01</span><h2>Start with a photo</h2><p className="muted">Optional. It fills in what it can see, and you check it.</p></div>
-        <PhotoPicker thumb={thumb} productType={productType} onThumb={setThumb} onRead={applyPhoto} onRemove={removePhoto} />
+        <PhotoPicker thumb={thumb} productType={productType} onThumb={setThumb} onRead={applyPhoto} onRemove={removePhoto} onMore={setMorePhotos} />
         {photoNotes.length > 0 && (
           <ul className="photo-notes" aria-live="polite">
             {photoNotes.map((n) => <li key={n.text}>{n.text}{n.fix && <button type="button" className="link" onClick={n.fix.apply}>{n.fix.label}</button>}</li>)}
@@ -166,13 +174,13 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
 
         <div className="step-head"><span className="step-no">04</span><h2>Add the specifics</h2><p className="muted">Optional, but every detail sharpens the name</p></div>
         <div className="field-grid">
-          {FIELDS.map(([name, label, ph]) => (
+          {FIELDS.map(([name, baseLabel, basePh]) => { const [label, ph] = name === "material" ? materialLabel(productType) : [baseLabel, basePh]; return (
             <div key={name} className={fromPhoto.has(name) ? "filled" : undefined}>
               <label htmlFor={name}>{label}</label>
               <input id={name} name={name} maxLength={120} placeholder={ph ? `e.g. ${ph}` : ""} value={values[name] ?? ""} onChange={(e) => set(name, e.target.value)} />
               {fromPhoto.has(name) && <span className="from-photo below">{COPY.photo.fromPhoto}</span>}
             </div>
-          ))}
+          ); })}
         </div>
         <label htmlFor="extra">Extra product facts</label>
         <input id="extra" name="extra" maxLength={2000} placeholder="Paste supplier notes or fabric composition" value={values.extra ?? ""} onChange={(e) => set("extra", e.target.value)} />

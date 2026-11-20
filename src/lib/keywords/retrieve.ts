@@ -1,3 +1,5 @@
+import { alsoCalled, typeContext } from "../category/rules";
+export { typeContext };
 import { db } from "../db";
 import { singular } from "../vocab/fashion";
 import type { ProductFacts } from "../providers/types";
@@ -20,10 +22,19 @@ export function attributeTerms(f: ProductFacts): string[] {
   return [...new Set(all.flatMap(tokens))];
 }
 
-/** Deterministic phrase variants built from facts, e.g. "black midi dress", "black dress", "midi dress". */
-export function searchVariants(f: ProductFacts): string[] {
+
+/**
+ * Deterministic phrase variants built from facts, e.g. "black midi dress", "black dress", "midi dress", and the same
+ * for any other name the type goes by ("black one piece swimsuit", "black one piece").
+ */
+export function searchVariants(f: ProductFacts, withOtherNames = true): string[] {
   const t = f.product_type?.toLowerCase();
   if (!t) return [];
+  if (withOtherNames) {
+    const own = searchVariants(f, false);
+    const others = alsoCalled(t, typeContext(f)).flatMap((n) => searchVariants({ ...f, product_type: n }, false));
+    return [...new Set([...own, ...others])];
+  }
   const colour = f.colour[0], length = f.length[0], feat = f.features[0], mat = f.material[0];
   const parts = (...xs: (string | undefined)[]) => xs.filter(Boolean).join(" ");
   const v = new Set<string>([t, parts(colour, t), parts(length, t), parts(feat, t), parts(mat, t), parts(colour, length, t), parts(colour, feat, t), parts(feat, length, t), parts(colour, feat, length, t), parts(colour, mat, t)]);
@@ -75,6 +86,18 @@ export async function retrieveCandidates(datasetId: string, facts: ProductFacts,
         `SELECT ${cols} FROM "Keyword" WHERE "datasetId" = $1 AND ${tsv} @@ to_tsquery('english', $2)
          ORDER BY ts_rank_cd(${tsv}, to_tsquery('english', $2)) DESC, "searchVolume" DESC NULLS LAST LIMIT 100`,
         datasetId, q,
+      ).then((r) => add(r, "fts_all")),
+    );
+  }
+  // 2b. the same for each other name the type goes by, as a phrase ("one <-> piece"): "black one piece" has no "swimsuit"
+  for (const n of alsoCalled(facts.product_type, typeContext(facts))) {
+    const phrase = n.toLowerCase().split(/[\s-]+/).map((w) => lex(singular(w))).filter(Boolean).join(" <-> ");
+    if (!phrase || !attrs.length) continue;
+    jobs.push(
+      db.$queryRawUnsafe<Omit<RawCandidate, "source">[]>(
+        `SELECT ${cols} FROM "Keyword" WHERE "datasetId" = $1 AND ${tsv} @@ to_tsquery('english', $2)
+         ORDER BY "searchVolume" DESC NULLS LAST LIMIT 40`,
+        datasetId, `(${phrase}) & (${attrs.join(" | ")})`,
       ).then((r) => add(r, "fts_all")),
     );
   }

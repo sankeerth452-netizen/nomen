@@ -1,18 +1,22 @@
 // Checks across a whole range: the same web address twice, the same thing named two ways, missing descriptions or
-// alt text, mixed size systems, and every attribute against Google's rules. Suggestions only: nothing is changed.
+// alt text, photo problems, mixed size systems, and every attribute against Google's rules. Suggestions only: nothing is changed.
 import type { PresentedItem } from "../batch/ranges";
 import { slugFor } from "../batch/shared";
 import type { ReportRow } from "../batch/report";
 import { GOOGLE_RULES as R } from "./googleRules";
+import { insteadTermsIn, type BrandTerm } from "../brand";
+import { learnOrder, orderIn } from "../brandStyle";
 
 // Words that mean exactly the same thing: using both makes names and Google's filters inconsistent.
 const SAME_THING: string[][] = [
   ["grey", "gray"], ["multi", "multicolour", "multicolor", "multi-colour"], ["off white", "off-white"],
   ["viscose", "rayon"], ["elastane", "spandex", "lycra"], ["pu", "polyurethane"],
   ["midi", "mid-length", "mid length"], ["tee", "t-shirt", "tshirt"], ["jumper", "sweater"], ["pants", "trousers"], ["sneakers", "trainers"],
+  ["faux leather", "vegan leather", "pu leather", "leather look", "leather-look"], ["faux fur", "vegan fur"], ["playsuit", "romper"],
 ];
+const ORDER_WORD: Record<string, string> = { colour: "colour", feature: "detail", material: "material", length: "length" };
 
-export function catalogueIssues(items: PresentedItem[], opts: { categories?: Map<number, string>; sizesByItem?: Map<string, string[]>; brandCategoriesByItem?: Map<string, string[]> } = {}): ReportRow[] {
+export function catalogueIssues(items: PresentedItem[], opts: { categories?: Map<number, string>; sizesByItem?: Map<string, string[]>; brandCategoriesByItem?: Map<string, string[]>; terms?: BrandTerm[] } = {}): ReportRow[] {
   const out: ReportRow[] = [];
   const who = (i: PresentedItem) => ({ product: i.name ?? i.filename, skus: i.file?.skus.join(" ") ?? "" });
   const named = items.filter((i) => i.status === "named" && i.name);
@@ -28,6 +32,23 @@ export function catalogueIssues(items: PresentedItem[], opts: { categories?: Map
     const used = new Map<string, number>();
     for (const i of named) for (const w of group) if (new RegExp(`(^|[^a-z])${w.replace(/[-\s]/g, "[-\\s]?")}($|[^a-z])`).test(text(i))) used.set(w, (used.get(w) ?? 0) + 1);
     if (used.size > 1) out.push({ product: "Whole range", skus: "", level: "Warning", where: "Catalogue", problem: `The same thing is called ${[...used].map(([w, n]) => `"${w}" (${n})`).join(" and ")}: pick one word so names and filters match` });
+  }
+
+  // The brand's own words: a name written before the brand chose them, or edited by hand. A suggestion, not a change.
+  for (const i of named) for (const x of insteadTermsIn(i.name!, opts.terms ?? [])) out.push({ ...who(i), level: "Warning", where: "Brand words", problem: `Uses "${x.found}": your word is "${x.use}" (${i.name!.replace(new RegExp(x.found.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), x.use)})` });
+
+  // Names that put details in a different order from the rest of the range ("Midi Black Dress" among "Black Midi Dress").
+  const usual = learnOrder(named.map((i) => i.name!));
+  if (usual) {
+    const rank = (o: string) => usual.indexOf(o as never);
+    const odd = named.filter((i) => { const o = orderIn(i.name!).filter((k) => usual.includes(k)); return o.some((k, n) => n > 0 && rank(k) < rank(o[n - 1])); });
+    if (odd.length && odd.length * 4 <= named.length) for (const i of odd) out.push({ ...who(i), level: "Warning", where: "Brand words", problem: `Details are in a different order from the rest of the range, which mostly goes ${usual.map((o) => ORDER_WORD[o]).join(", ")}` });
+  }
+
+  // Photos: too small, blurry, the same photo twice, a different product, or disagreeing with the brand's file.
+  for (const i of items) {
+    for (const p of i.details?.photos ?? []) for (const m of p.problems) out.push({ ...who(i), level: m.startsWith("Too small for Google") ? "Error" : "Warning", where: "Photos", problem: `${p.position === 0 ? "Main photo" : `Photo ${p.position + 1}`}: ${m}` });
+    for (const c of i.details?.contradictions ?? []) out.push({ ...who(i), level: "Warning", where: "Photos", problem: c });
   }
 
   for (const i of named) {

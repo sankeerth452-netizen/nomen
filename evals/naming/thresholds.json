@@ -1,0 +1,10 @@
+{
+  "_note": "The bar each kind of piece must clear, on at least `minCases` checked test products, before it's called ready. Agreed with Nitin before a category goes live; change only with his say. Shares are 0 to 1.",
+  "minCases": 30,
+  "bars": {
+    "classification": 0.95,
+    "details": 0.9,
+    "naming": 0.85,
+    "noUnsupportedClaims": 1.0
+  }
+}

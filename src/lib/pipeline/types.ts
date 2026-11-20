@@ -44,6 +44,9 @@ export const Recommendation = z.object({
 export type Recommendation = z.infer<typeof Recommendation>;
 
 /** What Claude can see in a product photo, in the form's own fields (also the Claude structured-output schema). */
+export const PHOTO_VIEWS = ["front", "back", "side", "detail", "fabric", "lifestyle", "other"] as const;
+export type PhotoView = (typeof PHOTO_VIEWS)[number];
+
 export const PhotoDetails = z.object({
   not_a_product: z.boolean(),
   product_type: z.string().nullable(),
@@ -59,6 +62,10 @@ export const PhotoDetails = z.object({
   unsure: z.array(z.string()),
   /** Pixel box around the piece being named, used to frame the photo for the product page. */
   focus: z.object({ left: z.number(), top: z.number(), right: z.number(), bottom: z.number() }).nullable(),
+  /** The kind's own details the photo shows (heel type, neckline...), each marked clearly or partly visible. */
+  attributes: z.array(z.object({ name: z.string(), value: z.string(), seen: z.enum(["clear", "partly"]) })),
+  /** One per photo, in order: what it shows, its alt text, and a problem only eyes can spot. */
+  images: z.array(z.object({ view: z.enum(PHOTO_VIEWS), alt: z.string(), problem: z.enum(["none", "different_product", "several_products", "unclear"]) })),
 });
 export type PhotoDetails = z.infer<typeof PhotoDetails>;
 

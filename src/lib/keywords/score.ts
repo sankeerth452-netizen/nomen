@@ -3,7 +3,8 @@ import {
   CLASS_ORDER, PLURAL_NATURAL, categoryForType, classify, keepsPartScope, partScoped, singular, wordStem,
 } from "../vocab/fashion";
 import type { ProductFacts } from "../providers/types";
-import { attributeTerms, type RawCandidate } from "./retrieve";
+import { attributeTerms, typeContext, type RawCandidate } from "./retrieve";
+import { alsoCalled } from "../category/rules";
 import { inversions as learnedInversions, type OrderModel } from "./orderModel";
 
 export type Weights = { factRelevance: number; typeAndIntent: number; titleSuitability: number; demand: number; brandFit: number };
@@ -38,13 +39,17 @@ export function scoreCandidate(c: RawCandidate, facts: ProductFacts, rules: Bran
   }
 
   const typeTok = facts.product_type ? singular(facts.product_type.toLowerCase().split(/\s+/).pop()!) : "";
-  const hasType = !!typeTok && kt.some((t) => singular(t) === typeTok);
+  // Another name the type goes by counts as the type: "black one piece" names a swimsuit.
+  const others = alsoCalled(facts.product_type, typeContext(facts));
+  const otherHit = others.map((n) => toks(n.replace(/-/g, " "))).find((nw) => nw.length && kt.join(" ").includes(nw.join(" ")) && (nw.length > 1 || kt.some((t) => singular(t) === singular(nw[0]))));
+  const hasType = !!typeTok && (kt.some((t) => singular(t) === typeTok) || !!otherHit);
+  const headNouns = new Set([typeTok, ...(otherHit ? [singular(otherHit[otherHit.length - 1])] : [])]);
 
   // Matched by word form, so the buyer's "ruching" supports a "ruched midi dress" keyword.
   const attrTokens = [...new Set(attributeTerms(facts).map(wordStem))];
   // The piece's own audience ("girls") supports a keyword that names it ("girls maxi dress").
   const audienceTokens = (facts.audience ?? "").toLowerCase().match(/[a-z]+/g)?.filter((t) => !["women", "womens", "ladies", "s"].includes(t)).map(wordStem) ?? [];
-  const factSet = new Set([...attrTokens, wordStem(typeTok), ...audienceTokens]);
+  const factSet = new Set([...attrTokens, wordStem(typeTok), ...audienceTokens, ...(otherHit ?? []).map(wordStem)]);
   const content = kt.filter((t) => !STOP_WORDS.has(t));
   const supported = content.filter((t) => factSet.has(wordStem(t)));
   const unsupportedAttrs = content.filter((t) => !factSet.has(wordStem(t)) && ATTRIBUTE_VOCAB.has(singular(t)));
@@ -70,14 +75,14 @@ export function scoreCandidate(c: RawCandidate, facts: ProductFacts, rules: Bran
   let titleSuitability = 1;
   const last = kt[kt.length - 1] ?? "";
   const buyerPlural = !!facts.product_type && facts.product_type.toLowerCase().trim() !== singular(facts.product_type.toLowerCase().trim());
-  if (singular(last) === typeTok && last !== typeTok && !buyerPlural && !PLURAL_NATURAL.has(last)) {
+  if (headNouns.has(singular(last)) && last !== singular(last) && !buyerPlural && !PLURAL_NATURAL.has(last)) {
     titleSuitability *= 0.5;
     flags.push("plural_category_phrase");
   }
   if (kt.length === 1) titleSuitability *= 0.6;
   else if (kt.length > 5) titleSuitability *= 0.4;
   // Product noun should be the head (last) word: "wide leg pants outfit" is a search, not a title.
-  if (hasType && singular(last) !== typeTok) { titleSuitability *= 0.5; flags.push("type_not_last"); }
+  if (hasType && !headNouns.has(singular(last))) { titleSuitability *= 0.5; flags.push("type_not_last"); }
   // Order fit. A brand's explicit attributeOrder wins; otherwise use the order learned from the keyword list.
   let inv = 0;
   const explicit = (rules.attributeOrder ?? []).filter((x): x is (typeof CLASS_ORDER)[number] => (CLASS_ORDER as string[]).includes(x));

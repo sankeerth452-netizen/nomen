@@ -4,7 +4,9 @@
 import { Prisma, type BatchItem } from "@prisma/client";
 import { db } from "../db";
 import { getProviders, type Providers } from "../providers";
-import { focusFractions, imageSize, type PhotoType } from "../photo";
+import { focusFractions, imageSize, type Photo, type PhotoType } from "../photo";
+import { imageStats, photoProblems } from "../images/quality";
+import { MAX_PHOTOS, photoInfo } from "../images/info";
 import { createGeneration, runPipeline } from "../pipeline/run";
 import { asBox, asDetails, detailsFromPhoto, isReady } from "./ranges";
 import { mergePhotoDetails } from "./shared";
@@ -33,6 +35,27 @@ async function claim(kind: "read" | "name"): Promise<BatchItem | null> {
   return rows[0] ? db.batchItem.findUnique({ where: { id: rows[0].id } }) : null;
 }
 
+/** A piece's other photos, ready to read: uploaded ones as they are, file links fetched (and kept for screens). */
+async function loadExtraPhotos(itemId: string, fetchImage: ImageFetcher) {
+  const rows = await db.productImage.findMany({ where: { batchItemId: itemId }, orderBy: { position: "asc" }, take: MAX_PHOTOS - 1 });
+  const loaded: { position: number; photo: Photo; size?: { width: number; height: number } }[] = [];
+  const failed = new Map<number, string>();
+  for (const r of rows) {
+    if (r.readImage && r.readType) loaded.push({ position: r.position, photo: { mediaType: r.readType as PhotoType, data: Buffer.from(r.readImage) } });
+    else if (r.photo && r.photoType) loaded.push({ position: r.position, photo: { mediaType: r.photoType as PhotoType, data: Buffer.from(r.photo) } });
+    else if (r.url) {
+      try {
+        const got = await fetchImage(r.url);
+        loaded.push({ position: r.position, photo: got.read, size: got.size });
+        await db.productImage.update({ where: { id: r.id }, data: { photo: new Uint8Array(got.keep.data), photoType: got.keep.mediaType } });
+      } catch (e) {
+        failed.set(r.position, e instanceof ImageFetchError ? e.message : "The image link couldn't be loaded.");
+      }
+    }
+  }
+  return { loaded, failed };
+}
+
 /**
  * Read one photo into details for the buyer to check. Failures go back in the queue, up to three tries.
  * A product-file piece's photo is fetched from its image link first; its details from the file always win.
@@ -41,11 +64,14 @@ export async function readItem(item: BatchItem, providers: Providers, fetchImage
   const fromFile = asDetails(item.details);
   let image: { mediaType: PhotoType; data: Buffer };
   let keep: { mediaType: PhotoType; data: Buffer } | null = null;
+  let mainSize: { width: number; height: number } | undefined;
   if (item.readImage && item.readType) image = { mediaType: item.readType as PhotoType, data: Buffer.from(item.readImage) };
+  // Read again (more photos were added): the kept copy is plenty, and a file's image link isn't fetched twice.
+  else if (item.photo && item.photoType) image = { mediaType: item.photoType as PhotoType, data: Buffer.from(item.photo) };
   else if (item.imageUrl) {
     try {
       const got = await fetchImage(item.imageUrl);
-      image = got.read; keep = got.keep;
+      image = got.read; keep = got.keep; mainSize = got.size;
     } catch (e) {
       const message = e instanceof ImageFetchError ? e.message : "The image link couldn't be loaded.";
       console.error("range image fetch failed", item.id, e instanceof Error ? e.message : e);
@@ -63,20 +89,30 @@ export async function readItem(item: BatchItem, providers: Providers, fetchImage
     return;
   }
   try {
+    const extras = await loadExtraPhotos(item.id, fetchImage);
     // A file piece's product type is known: say so, or a photo of jeans worn with a jumper gets read as the jumper.
-    const { details, usage } = await providers.photo.read({ image, ...(fromFile?.fields.productType ? { productType: fromFile.fields.productType } : {}) });
-    console.info("range photo read", { item: item.id, model: usage.model, input: usage.inputTokens, output: usage.outputTokens });
+    const { details, usage } = await providers.photo.read({ image, extras: extras.loaded.map((x) => x.photo), ...(fromFile?.fields.productType ? { productType: fromFile.fields.productType } : {}) });
+    console.info("range photo read", { item: item.id, photos: 1 + extras.loaded.length, model: usage.model, input: usage.inputTokens, output: usage.outputTokens });
     const kept = keep ? { photo: new Uint8Array(keep.data), photoType: keep.mediaType } : {};
+    const all = [{ photo: image, size: mainSize }, ...extras.loaded];
+    const stats = await Promise.all(all.map((x) => imageStats(x.photo.data, x.size).catch(() => null)));
+    const photos = photoInfo([0, ...extras.loaded.map((x) => x.position)], details.images, photoProblems(stats), extras.failed);
+    await db.productImage.updateMany({ where: { batchItemId: item.id }, data: { readImage: null, readType: null } });
     if (details.not_a_product) {
       // A file piece keeps its file details: the brand knows what it sells even when the photo doesn't show it plainly.
       const stay = fromFile && isReady(fromFile);
-      await db.batchItem.update({ where: { id: item.id }, data: { status: stay ? "review" : "not_product", details: json(stay ? fromFile : { fields: {}, fromPhoto: [], unsure: [] }), readImage: null, readType: null, claimedAt: null, readUsage: json(usage), ...kept } });
+      await db.batchItem.update({ where: { id: item.id }, data: { status: stay ? "review" : "not_product", details: json(stay ? { ...fromFile, photos } : { fields: {}, fromPhoto: [], unsure: [], photos }), readImage: null, readType: null, claimedAt: null, readUsage: json(usage), ...kept } });
       return;
     }
     const seen = detailsFromPhoto(details);
+    // What stays from before: a file piece's own details, and on a second reading (more photos were added) whatever
+    // the buyer typed. What the last reading filled in is replaced by this one.
+    const own = fromFile ? { ...fromFile, fields: Object.fromEntries(Object.entries(fromFile.fields).filter(([k]) => !fromFile.fromPhoto.includes(k as never))) } : null;
+    const merged = own && Object.keys(own.fields).length ? mergePhotoDetails(own, seen) : seen;
+    if (!item.imageUrl) delete merged.contradictions; // only a brand's file can disagree with its photos
     await db.batchItem.update({
       where: { id: item.id },
-      data: { status: "review", details: json(fromFile ? mergePhotoDetails(fromFile, seen) : seen), focus: json(focusFractions(details.focus, imageSize(image))), readImage: null, readType: null, claimedAt: null, readUsage: json(usage), ...kept },
+      data: { status: "review", details: json({ ...merged, photos }), focus: json(focusFractions(details.focus, imageSize(image))), readImage: null, readType: null, claimedAt: null, readUsage: json(usage), ...kept },
     });
   } catch (e) {
     console.error("range photo read failed", item.id, e instanceof Error ? e.message : e);
@@ -96,10 +132,11 @@ export async function nameItem(item: BatchItem, providers?: Providers): Promise<
     const skus = ((item.feed as PieceFeed | null)?.rows ?? []).map((r) => r.attrs.id).filter(Boolean);
     const genId = await createGeneration(batch.user, batch.brandId, { ...details.fields }, {
       ...(item.photo && item.photoType ? { photo: { mediaType: item.photoType as PhotoType, data: Buffer.from(item.photo) } } : {}),
-      focus: asBox(item.focus), fromPhoto: details.fromPhoto,
+      focus: asBox(item.focus), fromPhoto: details.fromPhoto, photos: details.photos,
       note: batch.source === "file" ? `Named from the product file "${batch.fileName ?? batch.title}" (SKUs ${skus.slice(0, 12).join(", ")}${skus.length > 12 ? "…" : ""})` : `Named as part of the range "${batch.title}"`,
     });
     await db.batchItem.update({ where: { id: item.id }, data: { generationId: genId } });
+    await db.productImage.updateMany({ where: { batchItemId: item.id }, data: { generationId: genId } });
     await runPipeline(genId, providers, { background: true }); // a range: longer waits for slow searches
     const g = await db.generation.findUnique({ where: { id: genId }, select: { status: true } });
     await db.batchItem.update({ where: { id: item.id }, data: { status: settled(g?.status), claimedAt: null } });

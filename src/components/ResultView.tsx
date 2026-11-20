@@ -6,6 +6,7 @@ import { photoForType } from "@/lib/photos";
 import { anatomy } from "@/lib/nameParts";
 import { ColourSwatches } from "./ColourSwatches";
 import { plain, plainList } from "@/lib/copy";
+import { VIEW_LABEL, type PhotoInfo } from "@/lib/images/info";
 
 type Kw = { id: string; keyword: string; searchVolume: number | null; category: string | null; source?: "google" };
 type Serp = { id: string; query: string; rank: number; title: string; domain: string; pageClass: string; checkedAt: string; cached: boolean };
@@ -28,6 +29,8 @@ type Sheet = { status: "writing" | "failed" } | {
 
 export type Gen = {
   id: string; status: string; errorCode?: string | null; hasPhoto?: boolean; photoPosition?: string | null;
+  /** What each photo shows, its alt text and problems (position 0 is the main photo); the other photos' positions. */
+  photos?: PhotoInfo[]; morePhotos?: number[];
   input?: { productType?: string; freeText?: string };
   result: { recommendation?: Rec; meta?: { serpStatus: string; orderFinal: string[] }; needs?: string; conflicts?: string[]; message?: string; content?: Page | null; sheet?: Sheet | null } | null;
   evidence: { datasetId?: string | null; limitedKeywordEvidence?: boolean; keywords: Kw[]; serp: Serp[]; queries: { query: string; reason: string }[]; serpStatus: string; patterns: { intent: string; resultsAnalysed: number; productNouns: { term: string; count: number }[]; attributeWording: { term: string; count: number }[]; serpOrder: string[] | null } | null; order: { keywordOrder: string[]; serpOrder: string[] | null; final: string[] } } | null;
@@ -184,6 +187,8 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
 
       <ProductPage genId={gen.id} title={title} page={page} onChange={setPage} />
       <ProductData genId={gen.id} title={title} slug={slug} sheet={sheet} onChange={setSheet} />
+
+      {gen.hasPhoto && (gen.morePhotos?.length || gen.photos?.some((p) => p.problems.length)) ? <PiecePhotos genId={gen.id} photos={gen.photos ?? []} more={gen.morePhotos ?? []} mainAlt={sheet?.status === "ready" ? sheet.imageAlt : null} /> : null}
 
       {rec.alternatives.length > 0 && (<>
 
@@ -432,3 +437,32 @@ function ProductData({ genId, title, slug, sheet, onChange }: { genId: string; t
   );
 }
 
+
+/** Every photo of the piece: what it shows, its own alt text (the main photo's is the product data's), and problems. */
+function PiecePhotos({ genId, photos, more, mainAlt }: { genId: string; photos: PhotoInfo[]; more: number[]; mainAlt: string | null }) {
+  const [copied, setCopied] = useState("");
+  const copy = (key: string, text: string) => { void navigator.clipboard.writeText(text).then(() => { setCopied(key); setTimeout(() => setCopied(""), 1500); }); };
+  const all = [0, ...more];
+  return (
+    <section className="piece-photos">
+      <div className="section-title"><h3>Photos</h3><span>Each photo gets its own alt text; problems to fix before it goes live</span></div>
+      <ul>
+        {all.map((pos) => {
+          const info = photos.find((p) => p.position === pos);
+          const alt = pos === 0 ? mainAlt ?? info?.alt ?? null : info?.alt ?? null;
+          return (
+            <li key={pos}>
+              <div className="pp-photo"><Image src={pos === 0 ? `/api/generations/${genId}/photo` : `/api/generations/${genId}/photos/${pos}`} alt={alt ?? ""} fill unoptimized /></div>
+              <div className="pp-copy">
+                <span className="pp-view">{pos === 0 ? "Main photo" : `Photo ${pos + 1}`}{info?.view ? ` · ${VIEW_LABEL[info.view]}` : ""}</span>
+                <span className={alt ? "" : "empty"}>{alt ?? "No alt text yet"}</span>
+                {alt && <button className="ghost small" onClick={() => copy(`alt${pos}`, alt)}>{copied === `alt${pos}` ? "Copied" : "Copy alt text"}</button>}
+                {info?.problems.map((p) => <span key={p} className="photo-problem">{p}</span>)}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}

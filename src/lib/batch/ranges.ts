@@ -25,7 +25,7 @@ export async function loadRangeFor(user: SessionUser, id: string): Promise<Batch
   return b;
 }
 
-type ItemWithGen = BatchItem & { generation: (Pick<Generation, "id" | "status" | "result" | "confidence"> & { review?: { status: string; edits: unknown } | null }) | null };
+type ItemWithGen = BatchItem & { generation: (Pick<Generation, "id" | "status" | "result" | "confidence"> & { review?: { status: string; edits: unknown } | null }) | null; images?: { position: number }[] };
 
 /** What the range screen shows. No photos (served separately), no usage, nothing technical. */
 export function presentItem(i: ItemWithGen) {
@@ -46,6 +46,8 @@ export function presentItem(i: ItemWithGen) {
     page: result?.content ? { status: result.content.status, metaTitle: result.content.meta_title ?? null, metaDescription: result.content.meta_description ?? null, description: result.content.description ?? null, words: result.content.words ?? null } : null,
     sheet: result?.sheet ?? null,
     hasPhoto: !!i.photo,
+    /** The piece's other photos, by position (served at .../photos/<position> once loaded). */
+    morePhotos: (i.images ?? []).map((x) => x.position),
     // A product-file piece: a summary of its rows for the card (the full rows stay on the server, for the Google feed).
     file: i.feed ? fileSummary(i.feed as unknown as PieceFeed) : null,
   };
@@ -62,7 +64,7 @@ function fileSummary(f: PieceFeed) {
 export async function rangeItems(batchId: string, changedSince?: Date) {
   const items = await db.batchItem.findMany({
     where: { batchId, ...(changedSince ? { updatedAt: { gt: changedSince } } : {}) }, orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }], // ties (two photos given the same place) never reshuffle
-    include: { generation: { select: { id: true, status: true, result: true, confidence: true, review: { select: { status: true, edits: true } } } } },
+    include: { generation: { select: { id: true, status: true, result: true, confidence: true, review: { select: { status: true, edits: true } } } }, images: { select: { position: true }, orderBy: { position: "asc" } } },
   });
   return items.map(presentItem);
 }
@@ -116,6 +118,7 @@ export function rangeCsv(items: PresentedItem[]): string {
     "Short description", "Highlights", "Product details", "Ideal for", "Ideal for (check first)", "Google category", "Google category ID", "Product type (breadcrumb)",
     "Colour", "Pattern", "Material", "Gender", "Age group", "Size type", "Size system", "Custom label 0", "Custom label 1", "Season", "Care", "Image alt text", "URL slug", "Search queries",
     "Piece", "What the buyer described", "SKUs", "Product file checks", "Size and fit", "Review status",
+    "Other photos' alt text", "Photo problems",
   ]];
   const status: Record<string, string> = { named: "Named", needs_input: "Needs a detail", failed: "Didn't work", review: "Not named yet", not_product: "No fashion piece found", read_failed: "Couldn't read the photo" };
   const level = (c: string | null) => (c ? c[0].toUpperCase() + c.slice(1) : "");
@@ -136,6 +139,8 @@ export function rangeCsv(items: PresentedItem[]): string {
       sh?.searchQueries.map((q) => (q.volume ? `${q.phrase} (${q.volume})` : q.phrase)).join(" | ") ?? "",
       i.details?.fields.productType ?? "", i.details?.fields.freeText ?? "",
       i.file?.skus.join(" | ") ?? "", [...(i.file?.issues ?? []), ...(i.file?.imageError ? [i.file.imageError] : [])].join(" | "), sh?.sizeFit ?? "", i.review ? STATUS_LABEL[i.review.status] ?? i.review.status : "",
+      (i.details?.photos ?? []).filter((p) => p.position > 0 && p.alt).map((p) => `Photo ${p.position + 1}: ${p.alt}`).join(" | "),
+      [...(i.details?.photos ?? []).flatMap((p) => p.problems.map((m) => `${p.position === 0 ? "Main photo" : `Photo ${p.position + 1}`}: ${m}`)), ...(i.details?.contradictions ?? [])].join(" | "),
     ]);
   }
   return "﻿" + rows.map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n"; // BOM so Excel reads the accents right

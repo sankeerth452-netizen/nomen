@@ -7,6 +7,7 @@ import { createGeneration, runPipeline } from "@/lib/pipeline/run";
 import { rateLimit } from "@/lib/rateLimit";
 import { COPY } from "@/lib/copy";
 import { MAX_THUMB_BYTES, parsePhoto, type Photo } from "@/lib/photo";
+import { MAX_PHOTOS, sanitizePhotoInfo } from "@/lib/images/info";
 
 const FORM_FIELDS = new Set(["productType", "freeText", "colour", "material", "pattern", "fit", "length", "feature", "occasion", "audience", "extra"]);
 
@@ -29,7 +30,19 @@ export async function POST(req: Request) {
       photo = p;
     }
     const fromPhoto = Array.isArray(body.fromPhoto) ? body.fromPhoto.filter((f: unknown): f is string => typeof f === "string" && FORM_FIELDS.has(f)) : [];
-    const id = await createGeneration(user, brandId, body, { photo, fromPhoto });
+    // The piece's other photos (back, side, details), kept with it, and what the reading said about each photo.
+    const morePhotos: Photo[] = [];
+    if (photo && Array.isArray(body.morePhotos)) {
+      if (body.morePhotos.length > MAX_PHOTOS - 1) throw new HttpError(400, `A piece can have up to ${MAX_PHOTOS} photos: the main one and ${MAX_PHOTOS - 1} more.`);
+      for (const m of body.morePhotos) {
+        const p = parsePhoto(m, MAX_THUMB_BYTES);
+        if (p === "too_large") throw new HttpError(413, COPY.photo.tooLarge);
+        if (p === "not_a_photo") throw new HttpError(400, COPY.photo.notAPhoto);
+        morePhotos.push(p);
+      }
+    }
+    const photos = photo ? sanitizePhotoInfo(body.photos, 1 + morePhotos.length) : [];
+    const id = await createGeneration(user, brandId, body, { photo, morePhotos, fromPhoto, photos });
     void runPipeline(id).catch((e) => console.error("runPipeline crashed", id, e instanceof Error ? e.message : e));
     return Response.json({ id }, { status: 202 });
   } catch (e) {

@@ -157,6 +157,8 @@ model Generation {
   modelName         String?
   durationMs        Int?
   usage             Json?
+  /// What each of the piece's photos shows, its alt text and any problems found ([{ position, view, alt, problems }])
+  photos            Json?
   createdAt         DateTime @default(now())
 
   brand     Brand            @relation(fields: [brandId], references: [id])
@@ -165,6 +167,7 @@ model Generation {
   photo     GenerationPhoto?
   batchItem BatchItem?
   review    ProductReview?
+  images    ProductImage[]
 
   @@index([brandId, createdAt])
   @@index([userId, createdAt])
@@ -368,7 +371,34 @@ model BatchItem {
 
   batch      Batch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
   generation Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+  images     ProductImage[]
 
   @@index([batchId, position])
   @@index([status, updatedAt])
+}
+
+/// More photos of a piece besides its main one (back, side, details), read together with it. The main photo stays
+/// where it always was (BatchItem.photo, GenerationPhoto). What each photo shows, its alt text and any problems are
+/// kept with the piece's details (BatchItem.details.photos) and, once named, its result (Generation.result.photos).
+model ProductImage {
+  id           String      @id @default(uuid())
+  batchItemId  String?
+  generationId String?
+  /// 1, 2, ... in the order the brand gave them (the main photo is 0)
+  position     Int
+  /// From a product file (additional_image_link, or Shopify's extra image rows); fetched when the piece is read
+  url          String?
+  /// The copy kept for screens (900px)
+  photo        Bytes?
+  photoType    String?
+  /// The larger copy Claude reads (1568px); cleared once read
+  readImage    Bytes?
+  readType     String?
+  createdAt    DateTime    @default(now())
+
+  batchItem  BatchItem?  @relation(fields: [batchItemId], references: [id], onDelete: Cascade)
+  generation Generation? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+
+  @@index([batchItemId, position])
+  @@index([generationId, position])
 }

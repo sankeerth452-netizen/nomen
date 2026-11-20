@@ -1,10 +1,11 @@
 import type { ProductFacts } from "../providers/types";
-import type { BrandSettings } from "../brand";
+import { brandWordsFor, insteadTermsIn, type BrandSettings } from "../brand";
 import type { EvidenceBundle, Recommendation } from "./types";
 import { STOP_WORDS, keepsPartScope, partScoped, shortForms, singular, wordStem } from "../vocab/fashion";
 import { normalizeKeyword } from "../keywords/normalize";
 import { titleCase } from "../serp/patterns";
 import { COPY } from "../copy";
+import { alsoCalled, alsoCalledNouns, alsoCalledWords, typeContext } from "../category/rules";
 
 const toks = (s: string) => s.toLowerCase().split(/[^a-z0-9'-]+/).filter(Boolean);
 const flat = (s: string) => toks(s).join("");
@@ -21,6 +22,10 @@ export type Validated = { errors: string[]; warnings: string[]; internal: string
 export function allowedWords(facts: ProductFacts, brand: BrandSettings): Set<string> {
   const vals = [facts.product_type ?? "", ...facts.colour, ...facts.material, ...facts.pattern, ...facts.fit_or_silhouette, ...facts.length, ...facts.features, ...facts.occasion_or_style, facts.audience ?? "", ...facts.buyer_terms, ...brand.allowedVocabulary, ...brand.requiredCoreTerms];
   const set = new Set<string>();
+  // Other names the type goes by are as true as the type ("One Piece Swimsuit" for a swimsuit), and so is the brand's
+  // own word for something the facts say ("Pants" where the facts say "trousers").
+  const brandWords = brandWordsFor(vals.join(" "), brand.profile.terms);
+  for (const w of [...alsoCalledWords(alsoCalled(facts.product_type, typeContext(facts))), ...brandWords.flatMap((b) => toks(b))]) { set.add(w); set.add(singular(w)); set.add(wordStem(w)); }
   for (const v of vals) for (const w of toks(v)) for (const f of [w, ...shortForms(w)]) { set.add(singular(f)); set.add(f); set.add(wordStem(f)); }
   return set;
 }
@@ -39,13 +44,16 @@ export function validateRecommendation(rec: Recommendation, facts: ProductFacts,
   const allowed = allowedWords(facts, brand);
   const scoped = partScoped([...facts.features, ...facts.fit_or_silhouette], [...facts.colour, ...facts.material, ...facts.pattern]);
   const noun = singular((facts.product_type ?? "").toLowerCase().split(/\s+/).pop() ?? "");
+  const brandNouns = brandWordsFor(facts.product_type ?? "", brand.profile.terms).map((w) => singular(w.toLowerCase().split(/\s+/).pop() ?? ""));
+  const nouns = new Set([noun, ...alsoCalledNouns(alsoCalled(facts.product_type, typeContext(facts))), ...brandNouns]);
+  const namesType = (t: string) => toks(t).flatMap((w) => [w, ...w.split("-")]).some((w) => nouns.has(singular(w)));
   const fmt = (t: string) => (brand.titleCase === "title" ? titleCase(t) : brand.titleCase === "lower" ? t.toLowerCase() : t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
 
   const title = rec.recommended_title.replace(/\s+/g, " ").trim();
   if (!title) errors.push("recommended_title is empty");
 
   // product noun
-  if (noun && !toks(title).some((w) => singular(w) === noun)) errors.push(`Title must contain the product type "${facts.product_type}"`);
+  if (noun && !namesType(title)) errors.push(`Title must contain the product type "${facts.product_type}"`);
 
   // prohibited / avoided vocabulary
   const banned = [...brand.prohibitedTerms, ...brand.avoidWords].filter(Boolean);
@@ -55,6 +63,7 @@ export function validateRecommendation(rec: Recommendation, facts: ProductFacts,
     if (bad.length) errors.push(`${label} uses words the buyer did not supply: ${bad.join(", ")}`);
     for (const sc of scoped) if (!keepsPartScope(toks(t), sc)) errors.push(`${label} uses "${sc.word}" for the whole product, but only the ${sc.parts.join(" and ")} ${sc.parts.length > 1 ? "are" : "is"} ${sc.word}: keep it as ${sc.parts.map((p) => `"${sc.word} ${p}"`).join(" or ")}`);
     if (t.length > brand.maxTitleLength) errors.push(`${label} is ${t.length} characters; the brand maximum is ${brand.maxTitleLength}`);
+    for (const x of insteadTermsIn(t, brand.profile.terms)) errors.push(`${label} uses "${x.found}": the brand's word is "${x.use}"`);
   };
   check(title, "Recommended title");
 
@@ -77,7 +86,7 @@ export function validateRecommendation(rec: Recommendation, facts: ProductFacts,
     if (alts.length >= 3) { internal.push("Extra alternatives were dropped (maximum 3)"); break; }
     const before = errors.length;
     check(t, `Alternative "${t}"`);
-    if (errors.length === before && toks(t).some((w) => singular(w) === noun)) alts.push({ title: fmt(t), trade_off: a.trade_off });
+    if (errors.length === before && namesType(t)) alts.push({ title: fmt(t), trade_off: a.trade_off });
   }
 
   return { errors, warnings: [...new Set(warnings)], internal, cleaned: { ...rec, recommended_title: fmt(title), alternatives: alts, warnings: [...new Set(warnings)] } };

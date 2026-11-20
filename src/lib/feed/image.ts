@@ -52,18 +52,22 @@ export async function downloadImage(link: string): Promise<Buffer> {
 }
 
 /** The two copies Nomen keeps of a photo: one to read, one for screens. Anything that isn't an image is refused. */
-export async function photoCopies(buf: Buffer): Promise<{ read: Photo; keep: Photo }> {
+export async function photoCopies(buf: Buffer): Promise<{ read: Photo; keep: Photo; size?: { width: number; height: number } }> {
   try {
     const base = sharp(buf, { failOn: "error" }).rotate();
+    const meta = await base.metadata();
+    const turned = (meta.orientation ?? 1) >= 5;
+    const size = meta.width && meta.height ? (turned ? { width: meta.height, height: meta.width } : { width: meta.width, height: meta.height }) : undefined;
     const [read, keep] = await Promise.all([
       base.clone().resize({ width: 1568, height: 1568, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer(),
       base.clone().resize({ width: 900, height: 900, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer(),
     ]);
-    return { read: { mediaType: "image/jpeg", data: read }, keep: { mediaType: "image/jpeg", data: keep } };
+    return { read: { mediaType: "image/jpeg", data: read }, keep: { mediaType: "image/jpeg", data: keep }, size };
   } catch {
     throw new ImageFetchError("The image link isn't a photo we can open.");
   }
 }
 
-export type ImageFetcher = (link: string) => Promise<{ read: Photo; keep: Photo }>;
+/** `size`: the original's width and height, before shrinking (Google judges the original). */
+export type ImageFetcher = (link: string) => Promise<{ read: Photo; keep: Photo; size?: { width: number; height: number } }>;
 export const fetchProductImage: ImageFetcher = async (link) => photoCopies(await downloadImage(link));

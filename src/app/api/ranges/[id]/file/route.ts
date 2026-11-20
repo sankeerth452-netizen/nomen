@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { requireCapability } from "@/lib/review/guard";
 import { db } from "@/lib/db";
@@ -55,15 +56,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (await db.batchItem.count({ where: { batchId: b.id } })) throw new HttpError(409, "This range already has pieces in it. Start a new range for your product file.");
 
     const { pieces, check } = await importFeed(source, mapping).catch((e) => { throw new HttpError(400, e instanceof Error ? e.message : "We couldn't read that file."); });
+    const ids = pieces.map(() => randomUUID());
     await db.$transaction([
       db.batchItem.createMany({
         data: pieces.map((p, i) => ({
-          batchId: b.id, position: i + 1, filename: p.filename, imageUrl: p.imageUrl,
+          id: ids[i], batchId: b.id, position: i + 1, filename: p.filename, imageUrl: p.imageUrl,
           // With an image link, the photo is read first; without one, the file's own details go straight to checking.
           status: p.imageUrl ? "queued" : "review",
           details: json(p.details), feed: json({ rows: p.rows, issues: p.issues }),
         })),
       }),
+      // Each piece's other photos (back, side, details): fetched and read with the main one.
+      db.productImage.createMany({ data: pieces.flatMap((p, i) => (p.imageUrl ? p.moreImageUrls : []).map((url, n) => ({ batchItemId: ids[i], position: n + 1, url }))) }),
       db.batch.update({ where: { id: b.id }, data: { source: "file", fileName: file.name.slice(0, 160), fileCheck: json(check) } }),
       // Remember what each column is, for this brand's next file.
       ...Object.entries(mapping).filter(([h]) => h.trim()).map(([h, target]) => db.feedColumn.upsert({

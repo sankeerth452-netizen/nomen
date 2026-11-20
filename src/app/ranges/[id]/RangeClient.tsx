@@ -7,7 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COPY } from "@/lib/copy";
 import { objectPosition } from "@/lib/frame";
 import { render } from "@/lib/shrink";
-import { WORKING, duplicateNames, isReady, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
+import { BEFORE_NAMING, WORKING, duplicateNames, isReady, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
+import { MAX_PHOTOS, VIEW_LABEL } from "@/lib/images/info";
 import type { PresentedItem } from "@/lib/batch/ranges";
 import type { FileCheck } from "@/lib/feed/shared";
 import ProductFile from "./ProductFile";
@@ -343,6 +344,7 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: Pr
         {item.file && item.file.issues.length > 0 && (
           <details className="piece-alts piece-issues"><summary>{item.file.issues.length} {item.file.issues.length === 1 ? "thing" : "things"} Google will flag in your file</summary><ul>{item.file.issues.map((m) => <li key={m}>{m}</li>)}</ul></details>
         )}
+        <PhotoStrip item={item} rangeId={rangeId} onUpdate={onUpdate} />
 
         {item.status === "named" && item.name && (
           <>
@@ -461,3 +463,71 @@ function FileChecks({ check }: { check: FileCheck }) {
   );
 }
 
+
+/**
+ * A piece's other photos (back, side, details), with "Add photos" until it's named; what the photos showed and how
+ * clearly; photo problems; and where the photos disagree with the brand's file.
+ */
+function PhotoStrip({ item, rangeId, onUpdate }: { item: PresentedItem; rangeId: string; onUpdate: (i: PresentedItem) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  const photos = item.details?.photos ?? [];
+  const info = (pos: number) => photos.find((p) => p.position === pos);
+  const problems = photos.flatMap((p) => p.problems.map((m) => `${p.position === 0 ? "Main photo" : `Photo ${p.position + 1}`}: ${m}`));
+  const attrs = item.details?.attributes ?? [];
+  const contradictions = item.details?.contradictions ?? [];
+  const canAdd = BEFORE_NAMING.includes(item.status) && !WORKING.includes(item.status) && (item.hasPhoto || !!item.file) && item.morePhotos.length < MAX_PHOTOS - 1;
+
+  async function add(files: FileList | null) {
+    if (!files?.length) return;
+    setErr(""); setBusy(true);
+    try {
+      const picked = [...files].filter((f) => f.type.startsWith("image/")).slice(0, MAX_PHOTOS - 1 - item.morePhotos.length);
+      const copies = await Promise.all(picked.map(async (f) => ({ photo: await render(f, 900, 190_000), image: await render(f, 1568, 2_800_000) })));
+      const res = await fetch(`/api/ranges/${rangeId}/items/${item.id}/photos`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ photos: copies }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setErr(data.error ?? "Those photos didn't upload. Please try again.");
+      else onUpdate(data as PresentedItem);
+    } catch {
+      setErr(COPY.photo.cantOpen);
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  }
+
+  async function remove(pos: number) {
+    setErr("");
+    const res = await fetch(`/api/ranges/${rangeId}/items/${item.id}/photos/${pos}`, { method: "DELETE" });
+    if (!res.ok) { const data = await res.json().catch(() => ({})); setErr(data.error ?? "That didn't work. Please try again."); return; }
+    onUpdate({ ...item, status: "queued", morePhotos: item.morePhotos.filter((p) => p !== pos), details: item.details ? { ...item.details, photos: item.details.photos?.filter((p) => p.position !== pos) } : null });
+  }
+
+  if (!item.morePhotos.length && !canAdd && !problems.length && !attrs.length && !contradictions.length) return null;
+  return (
+    <div className="photo-strip">
+      {item.morePhotos.length > 0 && (
+        <ul className="photo-thumbs">
+          {item.morePhotos.map((pos) => (
+            <li key={pos} title={info(pos)?.alt ?? undefined}>
+              <span className="strip-photo"><Image src={`/api/ranges/${rangeId}/items/${item.id}/photos/${pos}`} alt={info(pos)?.alt ?? `Photo ${pos + 1}`} fill unoptimized /></span>
+              <span className="strip-label">{info(pos)?.view ? VIEW_LABEL[info(pos)!.view!] : `Photo ${pos + 1}`}</span>
+              {BEFORE_NAMING.includes(item.status) && !WORKING.includes(item.status) && <button className="link small" onClick={() => void remove(pos)} aria-label={`Remove photo ${pos + 1}`}>Remove</button>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canAdd && (<>
+        <label className="btn ghost small" htmlFor={`more-${item.id}`} aria-disabled={busy}>{busy ? "Adding…" : item.morePhotos.length ? "Add more photos" : "Add photos (back, side, details)"}</label>
+        <input ref={input} id={`more-${item.id}`} type="file" accept="image/*" multiple className="sr-only" disabled={busy} onChange={(e) => void add(e.target.files)} />
+      </>)}
+      {attrs.length > 0 && (
+        <p className="piece-hint seen">What the photos show: {attrs.map((a) => `${a.name} ${a.value}${a.seen === "partly" ? " (partly visible, check it)" : ""}`).join(" · ")}</p>
+      )}
+      {contradictions.map((c) => <p key={c} className="piece-hint warn">{c}</p>)}
+      {problems.length > 0 && <details className="piece-alts piece-issues"><summary>{problems.length} photo {problems.length === 1 ? "problem" : "problems"}</summary><ul>{problems.map((m) => <li key={m}>{m}</li>)}</ul></details>}
+      {err && <p className="err">{err}</p>}
+    </div>
+  );
+}

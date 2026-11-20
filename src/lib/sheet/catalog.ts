@@ -2,6 +2,7 @@
 // Google category, your own breadcrumb, plain colour, pattern, material, gender, age group and size. Claude never
 // guesses these. Category IDs are from Google's product taxonomy (taxonomy-with-ids.en-AU.txt, checked 15 Nov 2026).
 import { PRODUCT_TYPE_CATEGORY, singular } from "../vocab/fashion";
+import { kindOf } from "../category/rules";
 import type { ProductFacts } from "../providers/types";
 
 export type GoogleCategory = { id: number; path: string };
@@ -140,6 +141,8 @@ export function plainColour(colour: string): string | null {
 
 // The plain colours that are base hues of a more exact one: "navy blue" is Navy, "olive green" is Olive.
 const BASE_HUE: Record<string, string> = { Navy: "Blue", Olive: "Green", Khaki: "Green", Burgundy: "Red", Maroon: "Red", Cream: "White" };
+/** The broad hue of a plain colour ("Navy" is Blue), for telling whether two colours could be the same thing. */
+export const baseHue = (plain: string) => BASE_HUE[plain] ?? plain;
 const BASIC = new Set(["black", "white", "blue", "green", "red", "pink", "purple", "yellow", "orange", "brown", "grey", "gray", "gold", "silver"]);
 
 /**
@@ -248,13 +251,18 @@ export function sizeType(text: string): "Regular" | "Petite" | "Plus" | "Tall" |
 /** Product-detail names Claude may fill for each kind of piece, and the section each sits in. Only stated details are filled. */
 const DETAIL_SECTION: Record<string, string> = {
   Neckline: "Design", Sleeves: "Design", Back: "Design", Collar: "Design", Straps: "Design", Details: "Design", Pattern: "Design", Style: "Design", Toe: "Design", Hardware: "Design", Stone: "Design", Finish: "Design", Wash: "Design", Pockets: "Design", Compartments: "Design",
-  Length: "Fit", Fit: "Fit", Silhouette: "Fit", Waist: "Fit", Rise: "Fit", Leg: "Fit", Coverage: "Fit", Support: "Fit", Size: "Fit", "Heel height": "Fit", "Heel type": "Fit", Closure: "Fit", Strap: "Fit",
+  Length: "Fit", Fit: "Fit", Silhouette: "Fit", "Leg length": "Fit", Waistband: "Fit", Padding: "Fit", Underwire: "Fit", Waist: "Fit", Rise: "Fit", Leg: "Fit", Coverage: "Fit", Support: "Fit", Size: "Fit", "Heel height": "Fit", "Heel type": "Fit", Closure: "Fit", Strap: "Fit",
   Fabric: "Fabric & care", Lining: "Fabric & care", Knit: "Fabric & care", Upper: "Fabric & care", Sole: "Fabric & care", Material: "Fabric & care", Metal: "Fabric & care",
 };
 export const detailSection = (name: string) => DETAIL_SECTION[name] ?? "Design";
 const TRADITIONAL = /\b(sarees?|saris?|lehengas?|ghagras?)\b/;
 export function detailNamesFor(f: ProductFacts): string[] {
   if (TRADITIONAL.test((f.product_type ?? "").toLowerCase())) return ["Border", "Blouse", "Drape", "Length", "Fabric", "Pattern", "Embellishment", "Details"];
+  const kind = kindOf(f.product_type, [...f.occasion_or_style, ...f.features].join(" "));
+  if (kind === "swimwear") return ["Style", "Neckline", "Straps", "Coverage", "Back", "Lining", "Fabric", "Pattern", "Details"];
+  if (kind === "lingerie") return ["Style", "Coverage", "Padding", "Underwire", "Support", "Straps", "Closure", "Fabric", "Pattern", "Details"];
+  if (kind === "activewear") return ["Style", "Waistband", "Leg length", "Fit", "Activity", "Support", "Pockets", "Fabric", "Details"];
+  if (kind === "jewellery") return ["Style", "Metal", "Finish", "Stone", "Closure", "Details"];
   const c = PRODUCT_TYPE_CATEGORY[singular((f.product_type ?? "").toLowerCase().split(/\s+/).pop() ?? "")] ?? "";
   if (c === "Dresses" || c === "Jumpsuits & Playsuits") return ["Neckline", "Sleeves", "Straps", "Length", "Silhouette", "Waist", "Back", "Closure", "Lining", "Fabric", "Pattern", "Details"];
   if (c === "Tops" || c === "Knitwear") return ["Neckline", "Sleeves", "Straps", "Fit", "Length", "Closure", "Knit", "Fabric", "Pattern", "Details"];

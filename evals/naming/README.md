@@ -39,3 +39,18 @@ DATABASE_URL=postgresql://…/pno_eval PROVIDER_MODE=live EVAL_JUDGE_MODEL=claud
 `EVAL_KEYWORD_LIST` picks the brand's keyword list for the run by its name in `pno_eval` (load one with
 `npm run dataset:import` against `pno_eval`, without `--activate`); it defaults to `none`, which is how the naming flow
 has always run. Add `PAGE_CONTENT=on` to check the product page's wording too (about US$1.60 more).
+
+## Category test sets (Milestone 2)
+
+Each kind of piece is called ready only once it clears the bar in `thresholds.json` (agreed with Nitin) on at least 30
+checked test products. Four things are scored separately per category: the Google category (classification), the
+details (colour, material, pattern, gender and age), the name, and claims the product's page didn't make.
+
+1. Collect 40 per category (about 2 hours at Sportsgirl's 10-second pace; re-running resumes):
+   `python evals/naming/crawl.py <out-dir> 40` (or name categories: `... 40 belts,hats,sunglasses`).
+   Sportsgirl doesn't sell shoes, swimwear, activewear or lingerie, so those need test products from another source.
+2. `node evals/naming/build-cases.mjs <out-dir>/products.json`, then label each new case in `data-labels.mjs` from what
+   its page states. A person checks every label before it counts: that is what makes the set "checked".
+3. Run the naming flow and the product-data flow (step 5 and "Product data" above).
+4. `node evals/naming/category-report.mjs` prints each category's scores and writes `readiness.json` (shares and
+   counts only, no product copy), which is committed so the readiness of every category is on record.

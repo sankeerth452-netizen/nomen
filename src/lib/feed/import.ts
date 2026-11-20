@@ -111,13 +111,14 @@ function normaliseAvailability(v: string): string {
 const FILL_DOWN: FeedTarget[] = ["title", "description", "brand", "product_type", "google_product_category", "image_link", "link", "gender", "age_group", "material", "pattern", "condition"];
 
 /** Read every row into Google's attribute names. Shopify's one-row-per-variant export is filled down by product. */
-export async function readFeed(source: RowSource, mapping: Record<string, FeedTarget>): Promise<{ rows: FeedRow[]; skipped: number; currencyAssumed: number }> {
+export async function readFeed(source: RowSource, mapping: Record<string, FeedTarget>): Promise<{ rows: FeedRow[]; skipped: number; currencyAssumed: number; moreImages: Map<string, string[]> }> {
   const cols = Object.entries(mapping).filter(([, t]) => t !== "ignore" && t !== "metadata");
   const shopify = detectFormat(source.headers) === "Shopify export";
   const rows: FeedRow[] = [];
   const firstOfGroup = new Map<string, FeedRow>();
   const optionNames = new Map<string, string[]>(); // Shopify names options on a product's first row only
   let skipped = 0, currencyAssumed = 0;
+  const moreImages = new Map<string, string[]>(); // Shopify's extra image rows, by product
   for await (const { rowNumber, cells } of source.rows) {
     const attrs: FeedRow["attrs"] = {};
     for (const [h, t] of cols) {
@@ -142,7 +143,10 @@ export async function readFeed(source: RowSource, mapping: Record<string, FeedTa
       if (!attrs.availability && qty != null && String(qty).trim() !== "") attrs.availability = Number(qty) > 0 ? "in_stock" : "out_of_stock";
     }
     // Rows with nothing to sell of their own (Shopify's extra image rows, blank lines) aren't products.
-    if (!attrs.id && !attrs.price && !attrs.title) { skipped++; continue; }
+    if (!attrs.id && !attrs.price && !attrs.title) {
+      if (attrs.image_link && attrs.item_group_id) moreImages.set(attrs.item_group_id, [...(moreImages.get(attrs.item_group_id) ?? []), attrs.image_link]);
+      skipped++; continue;
+    }
     const group = attrs.item_group_id;
     if (group) {
       const first = firstOfGroup.get(group);
@@ -158,7 +162,7 @@ export async function readFeed(source: RowSource, mapping: Record<string, FeedTa
     if (group && !firstOfGroup.has(group)) firstOfGroup.set(group, row);
     rows.push(row);
   }
-  return { rows, skipped, currencyAssumed };
+  return { rows, skipped, currencyAssumed, moreImages };
 }
 
 /** Google's sale_price_effective_date: two ISO 8601 date-times joined by "/". */
@@ -279,12 +283,22 @@ export function detailsFromFeed(rows: FeedRow[]): ItemDetails {
   return { fields, fromPhoto: [], unsure: [] };
 }
 
-export type ImportedPiece = { filename: string; imageUrl: string | null; details: ItemDetails; rows: FeedRow[]; issues: string[] };
+export type ImportedPiece = { filename: string; imageUrl: string | null; moreImageUrls: string[]; details: ItemDetails; rows: FeedRow[]; issues: string[] };
+
+/** A piece's other photos: its rows' additional image links, Shopify's extra image rows, and other rows' own images. */
+export function moreImagesFor(g: FeedRow[], main: string | null, shopifyRows: Map<string, string[]>): string[] {
+  const links = [
+    ...g.flatMap((r) => (r.attrs.additional_image_link ?? "").split(",")),
+    ...g.map((r) => r.attrs.image_link ?? ""),
+    ...(g[0].attrs.item_group_id ? shopifyRows.get(g[0].attrs.item_group_id) ?? [] : []),
+  ].map((l) => l.trim()).filter((l) => l && l !== main && isUrl(l));
+  return [...new Set(links)].slice(0, 10); // Google takes up to 10 more
+}
 
 /** The whole import: read, check, group, and the details for each piece. Every product is kept, however many. */
 export async function importFeed(source: RowSource, mapping: Record<string, FeedTarget>): Promise<{ pieces: ImportedPiece[]; check: FileCheck }> {
   const format = detectFormat(source.headers);
-  const { rows, skipped, currencyAssumed } = await readFeed(source, mapping);
+  const { rows, skipped, currencyAssumed, moreImages } = await readFeed(source, mapping);
   if (!rows.length) throw new Error("We couldn't find any products in that file.");
   const { issues, byRow } = checkFeed(rows);
   if (currencyAssumed) issues.push({ kind: "currency_assumed", level: "info", message: "Prices without a currency were read as Australian dollars (AUD)", rows: [] });
@@ -292,8 +306,9 @@ export async function importFeed(source: RowSource, mapping: Record<string, Feed
   const pieces = groups.map((g) => {
     const a = g[0].attrs;
     const label = [a.title ?? `Row ${g[0].row}`, a.color].filter(Boolean).join(" · ");
+    const imageUrl = g.find((r) => r.attrs.image_link)?.attrs.image_link ?? null;
     return {
-      filename: label.slice(0, 160), imageUrl: g.find((r) => r.attrs.image_link)?.attrs.image_link ?? null,
+      filename: label.slice(0, 160), imageUrl, moreImageUrls: moreImagesFor(g, imageUrl, moreImages),
       details: detailsFromFeed(g), rows: g, issues: [...new Set(g.flatMap((r) => (byRow.get(r.row) ?? []).map((m) => (g.length > 1 ? `${r.attrs.size ?? `Row ${r.row}`}: ${m}` : m))))],
     };
   });

@@ -54,7 +54,8 @@ export interface Recommender {
 
 /** Reads a product photo into the details a buyer would type. They pre-fill the form; the buyer checks them before naming. */
 export interface PhotoReader {
-  read(input: { image: import("../photo").Photo; productType?: string }): Promise<{ details: import("../pipeline/types").PhotoDetails; usage: AiUsage }>;
+  /** `extras`: more photos of the same piece (back, side, details), read together with the main one. */
+  read(input: { image: import("../photo").Photo; extras?: import("../photo").Photo[]; productType?: string }): Promise<{ details: import("../pipeline/types").PhotoDetails; usage: AiUsage }>;
 }
 
 /** Writes the product page (meta title, meta description, description) around a chosen name. `repair` on the single retry. */
@@ -74,4 +75,9 @@ export interface KeywordDataProvider {
 
 export interface SheetWriter {
   write(payload: Record<string, unknown>, repair?: { errors: string[]; previous: unknown }): Promise<{ sheet: import("../pipeline/types").SheetDraft; usage: AiUsage }>;
+}
+
+/** Reads a sample of a brand's own approved products and says how the brand writes (for the brand profile, checked by an admin). */
+export interface StyleReader {
+  describe(samples: { title: string; description?: string }[]): Promise<{ voice: { tone: string; audience: string; description_style: string }; usage: AiUsage }>;
 }

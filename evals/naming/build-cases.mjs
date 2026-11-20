@@ -10,7 +10,8 @@ const STYLE_NAMES = new Set(["felicity", "annette", "clover", "stella", "catalin
   "freya", "zali", "caitlin", "zoe", "willow", "bryanna", "sadie", "the", "ella", "ayla", "mavis", "luna", "pippa", "alexis", "aiden", "hazel",
   "monique", "layla", "ruby", "evelyn", "rewind", "monty", "nora"]);
 const GROUP = { dresses: "dresses", tops: "tops", shirts: "tops", tees: "tops", pants: "pants", jeans: "pants", skirts: "skirts", shorts: "shorts",
-  knitwear: "knitwear", jackets: "jackets", bags: "bags", jewellery: "jewellery" };
+  knitwear: "knitwear", jackets: "jackets", bags: "bags", jewellery: "jewellery",
+  belts: "accessories", hats: "accessories", sunglasses: "accessories", hair: "accessories", scarves: "accessories", wallets: "bags" };
 const NOUN_FIX = { neckalce: "necklace" }; // a typo in one Sportsgirl name
 const JOINED = { cornflowerblue: "cornflower blue", abstractprint: "abstract print", lightblue: "light blue" };
 const PATTERNS = new Set(["check", "print", "floral", "stripe", "abstract print", "shadow floral"]);

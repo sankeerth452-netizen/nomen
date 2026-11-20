@@ -224,7 +224,7 @@ describe("product data after the name", () => {
     expect(r.sheet.google).toMatchObject({ category: { id: 2271 }, colour: "Black", gender: "Female", sizeSystem: "AU" });
     expect(r.sheet.highlights.length).toBeGreaterThanOrEqual(2);
     expect(r.sheet.shortDescription!.length).toBeGreaterThanOrEqual(500);
-    expect(g.promptVersions).toMatchObject({ content: "content-v2", sheet: "sheet-v2" });
+    expect(g.promptVersions).toMatchObject({ content: "content-v3", sheet: "sheet-v3" });
   });
 
   it("asks once to fix a draft that invents, and a sheet that keeps failing never touches the name", async () => {

@@ -40,7 +40,7 @@ describe("reading a range's photos", () => {
 
   it("marks a photo with no fashion piece in it", async () => {
     const { b } = await range(1);
-    const notFashion: PhotoReader = { read: async () => ({ details: { not_a_product: true, product_type: null, colour: null, pattern: null, material: null, fit: null, length: null, feature: null, occasion: null, audience: null, description: "", unsure: [], focus: null }, usage: { inputTokens: 0, outputTokens: 0 } }) };
+    const notFashion: PhotoReader = { read: async () => ({ details: { not_a_product: true, product_type: null, colour: null, pattern: null, material: null, fit: null, length: null, feature: null, occasion: null, audience: null, description: "", unsure: [], focus: null, attributes: [], images: [] }, usage: { inputTokens: 0, outputTokens: 0 } }) };
     await drain(providers(notFashion));
     expect(await statuses(b.id)).toEqual(["not_product"]);
   });
@@ -173,7 +173,7 @@ describe("range rules", () => {
       idealFor: { live: [{ key: "cocktail", label: "Cocktail", outcome: "live" as const, reason: "Ruched midi.", demand: 9900 }], review: [], sentence: "Ideal for cocktail evenings." },
       season: null, care: null, imageAlt: "Black ruched midi dress", searchQueries: [{ phrase: "black midi dress", volume: 4200 }], checks: ["Material left blank: it wasn't given, and it's never guessed."],
     };
-    const base = { position: 1, status: "named" as const, details: ready, focus: null, generationId: "g", review: null, alternatives: ["A", "B"], confidence: "low", question: null, page, sheet, hasPhoto: true, file: null };
+    const base = { position: 1, status: "named" as const, details: ready, focus: null, generationId: "g", review: null, alternatives: ["A", "B"], confidence: "low", question: null, page, sheet, hasPhoto: true, morePhotos: [], file: null };
     const csv = rangeCsv([{ ...base, id: "1", filename: "=HYPERLINK(\"x\")", name: "Black Midi Dress, Ruched" }, { ...base, id: "2", filename: "b.jpg", name: "Black Midi Dress, Ruched", sheet: null }]);
     expect(csv.startsWith("\uFEFFPhoto,Name,Other options,Confidence,Status,Checks,Meta title,Meta description,Description,Description words,Short description,Highlights")).toBe(true);
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`);

@@ -15,6 +15,7 @@ export const COPY = {
     material: "You didn't mention the fabric. Adding it can help shoppers find the piece.",
     materialAccessory: "You didn't mention the material. Adding it can help shoppers find the piece.",
     materialJewellery: "You didn't mention the metal or material. Adding it can help shoppers find the piece.",
+    materialShoes: "You didn't mention the upper material. Adding it can help shoppers find the piece.",
     length: "You didn't mention the length (mini, midi or maxi). Shoppers often search for it.",
   },
   brandTerm: (term: string) => `The name doesn't include “${term}”, which your brand asks for.`,

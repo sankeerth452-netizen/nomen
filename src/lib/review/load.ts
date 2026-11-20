@@ -1,3 +1,5 @@
+import { asPhotoInfo } from "../images/info";
+import type { ItemDetails } from "../batch/shared";
 // Loading a product's review with access checked, and the shape the review screen gets.
 import type { ProductReview } from "@prisma/client";
 import { db } from "../db";
@@ -26,7 +28,7 @@ export async function presentReview(g: Awaited<ReturnType<typeof loadGenerationF
   const [revisions, comments, item, approver] = await Promise.all([
     db.reviewRevision.findMany({ where: { reviewId: review.id }, orderBy: { createdAt: "desc" }, take: 300, include: { user: { select: { displayName: true, username: true } } } }),
     db.reviewComment.findMany({ where: { reviewId: review.id }, orderBy: { createdAt: "asc" }, include: { user: { select: { displayName: true, username: true } } } }),
-    db.batchItem.findUnique({ where: { generationId: g.id }, select: { feed: true, batchId: true, batch: { select: { title: true } } } }),
+    db.batchItem.findUnique({ where: { generationId: g.id }, select: { feed: true, details: true, batchId: true, batch: { select: { title: true } } } }),
     review.approvedById ? db.user.findUnique({ where: { id: review.approvedById }, select: { displayName: true, username: true } }) : null,
   ]);
   const ready = { page: result.content?.status === "ready", sheet: result.sheet?.status === "ready" };
@@ -34,6 +36,9 @@ export async function presentReview(g: Awaited<ReturnType<typeof loadGenerationF
   const who = (u: { displayName: string; username: string } | null) => (u ? u.displayName || u.username : "Someone");
   return {
     id: g.id, status: review.status, statusLabel: STATUS_LABEL[review.status], confidence: g.confidence, hasPhoto: !!g.photo,
+    // Every photo, what it shows and its alt text; what the photos showed of the kind's details, and how clearly.
+    photos: asPhotoInfo(g.photos), morePhotos: (g.images ?? []).map((x) => x.position),
+    seen: { attributes: (item?.details as ItemDetails | null)?.attributes ?? [], contradictions: (item?.details as ItemDetails | null)?.contradictions ?? [] },
     approvedBy: approver ? who(approver) : null, approvedAt: review.approvedAt, updatedAt: review.updatedAt,
     range: item ? { id: item.batchId, title: item.batch.title } : null,
     original: { input: g.originalInput as Record<string, string>, file: fileRow, skus: ((item?.feed as PieceFeed | null)?.rows ?? []).map((r) => r.attrs.id).filter(Boolean) },

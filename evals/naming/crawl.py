@@ -1,7 +1,10 @@
 """Collect Sportsgirl products for the Nomen quality test. Polite: one request every 10 s (robots.txt Crawl-delay: 10),
 no query strings. Saves raw pages under OUT/pages and a products.json summary.
 
-usage: python crawl.py OUT_DIR PER_CATEGORY
+usage: python crawl.py OUT_DIR PER_CATEGORY [cat1,cat2,...]
+Re-running into the same OUT_DIR keeps what's there and only fetches products it doesn't have yet.
+Sportsgirl doesn't sell shoes, swimwear, activewear or lingerie (checked 21 Nov 2026: those pages redirect to /clothing/),
+so those categories' test products have to come from elsewhere.
 """
 import html
 import json
@@ -18,6 +21,8 @@ CATEGORIES = {
     "tees": "/clothing/t-shirts", "pants": "/clothing/pants", "jeans": "/clothing/jeans", "skirts": "/clothing/skirts",
     "shorts": "/clothing/shorts", "knitwear": "/clothing/knitwear", "jackets": "/clothing/jackets-coats",
     "bags": "/accessories/bags", "jewellery": "/accessories/jewellery",
+    "belts": "/accessories/belts", "hats": "/accessories/hats", "sunglasses": "/accessories/sunglasses",
+    "hair": "/accessories/hair-accessories", "scarves": "/accessories/scarves", "wallets": "/accessories/wallets-purses",
 }
 DELAY = 10.5
 last = 0.0
@@ -54,9 +59,14 @@ def parse_pdp(page):
 
 def main():
     out, per = sys.argv[1], int(sys.argv[2])
+    only = set(sys.argv[3].split(",")) if len(sys.argv) > 3 else None
     os.makedirs(os.path.join(out, "pages"), exist_ok=True)
-    products = []
+    known = os.path.join(out, "products.json")
+    products = json.load(open(known)) if os.path.exists(known) else []
+    have = {p["slug"] for p in products}
     for cat, path in CATEGORIES.items():
+        if only and cat not in only:
+            continue
         try:
             listing = get(path)
         except Exception as e:
@@ -75,6 +85,8 @@ def main():
         print(cat, len(links), "listed,", len(picked), "picked", flush=True)
         for url in picked:
             slug = url.rsplit("/", 1)[1]
+            if slug in have:
+                continue
             try:
                 page = get("/" + slug)
             except Exception as e:
