@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { requireCapability } from "@/lib/review/guard";
 import { db } from "@/lib/db";
 import { errorResponse, requireUser } from "@/lib/auth/guards";
 import { asDetails, cleanFields, fillEmpty, loadRangeFor, rangeItems } from "@/lib/batch/ranges";
@@ -8,6 +9,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const user = await requireUser("buyer");
     const b = await loadRangeFor(user, (await params).id);
+    await requireCapability(user, "edit", b.brandId);
     const shared = cleanFields(((await req.json().catch(() => ({}))) as { fields?: unknown }).fields);
     delete shared.freeText; // a description is per piece
     const items = await db.batchItem.findMany({ where: { batchId: b.id, status: { in: ["review", "needs_input", "failed"] } }, select: { id: true, details: true } });

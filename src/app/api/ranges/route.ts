@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { requireCapability } from "@/lib/review/guard";
 import { assertBrandAccess, errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
 import { COPY } from "@/lib/copy";
 
@@ -10,6 +11,7 @@ export async function POST(req: Request) {
     const brandId = user.brandId ?? (typeof body.brandId === "string" ? body.brandId : null); // owners pick a brand
     if (!brandId) throw new HttpError(400, "Choose a brand first.");
     assertBrandAccess(user, brandId);
+    await requireCapability(user, "edit", brandId);
     const title = (typeof body.title === "string" && body.title.trim().slice(0, 80)) || COPY.range.title(new Date());
     const b = await db.batch.create({ data: { brandId, userId: user.id, title } });
     return Response.json({ id: b.id }, { status: 201 });

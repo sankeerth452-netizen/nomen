@@ -3,7 +3,7 @@ import { useState } from "react";
 
 type U = { username: string; displayName: string; role: string; brand: string; active: boolean; lastLogin: string };
 type B = { id: string; name: string };
-const ROLE: Record<string, string> = { owner: "Owner", admin: "Brand admin", buyer: "Buyer" };
+const ROLE: Record<string, string> = { owner: "Owner", admin: "Brand admin", editor: "Editor", reviewer: "Reviewer", buyer: "Buyer" };
 
 export default function UsersClient({ users, brands }: { users: U[]; brands: B[] }) {
   const [msg, setMsg] = useState("");
@@ -54,7 +54,12 @@ export default function UsersClient({ users, brands }: { users: U[]; brands: B[]
         <label>Brand</label>
         <select name="brandId" required>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
         <label>Role</label>
-        <select name="role"><option value="buyer">Buyer</option><option value="admin">Brand admin</option></select>
+        <select name="role">
+          <option value="editor">Editor: names and edits products, sends them for approval</option>
+          <option value="reviewer">Reviewer: approves or rejects, comments</option>
+          <option value="admin">Brand admin: everything for the brand, including approving</option>
+          <option value="buyer">Buyer: the same as an editor (older logins)</option>
+        </select>
         <label>Password (leave blank and we&apos;ll make one)</label><input name="password" autoComplete="off" />
         <p><button>Create the login</button></p>
       </form>

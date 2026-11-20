@@ -22,7 +22,7 @@ type Sheet = { status: "writing" | "failed" } | {
   google: { category: { id: number; path: string } | null; productType: string | null; colour: string | null; pattern: string | null; material: string | null; gender: string; ageGroup: string; sizeType: string; sizeSystem: string; customLabels: string[] };
   highlights: string[]; details: { section: string; name: string; value: string }[]; shortDescription: string | null;
   idealFor: { live: Verdict[]; review: Verdict[]; sentence: string | null };
-  season: { value: string; confidence: "high" | "low"; reason: string } | null; care: string | null; imageAlt: string | null;
+  season: { value: string; confidence: "high" | "low"; reason: string } | null; care: string | null; imageAlt: string | null; sizeFit?: string | null;
   searchQueries: { phrase: string; volume: number | null; fromGoogle?: boolean }[]; checks: string[];
 };
 
@@ -240,6 +240,9 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
         </div>
       </>)}
 
+      {gen.status === "completed" && (
+        <p className="review-link"><Link className="btn ghost" href={`/review/${gen.id}`}>Review, edit and approve</Link> <span className="muted">Change anything that isn&apos;t right, and approve it before it goes live.</span></p>
+      )}
       {canFeedback && (
         <div className="feedback">
           {sent ? <div><h3>Thank you</h3><p>{sent}. It helps the next name get better.</p></div> : (<>
@@ -356,7 +359,7 @@ function ProductData({ genId, title, slug, sheet, onChange }: { genId: string; t
     ["title", title], ["google_product_category", g.category ? String(g.category.id) : ""], ["product_type", g.productType ?? ""], ["color", g.colour ?? ""], ["pattern", g.pattern ?? ""],
     ["material", g.material ?? ""], ["gender", g.gender.toLowerCase()], ["age_group", g.ageGroup.toLowerCase()], ["size_type", g.sizeType.toLowerCase()], ["size_system", g.sizeSystem],
     ["description", sheet.shortDescription ?? ""], ["product_highlight", sheet.highlights.join(" | ")], ["product_detail", sheet.details.map((d) => `${d.section}:${d.name}:${d.value}`).join(" | ")],
-    ["custom_label_0", g.customLabels[0] ?? ""], ["custom_label_1", g.customLabels[1] ?? ""], ["image_alt", sheet.imageAlt ?? ""], ["url_slug", slug],
+    ["custom_label_0", g.customLabels[0] ?? ""], ["custom_label_1", g.customLabels[1] ?? ""], ["image_alt", sheet.imageAlt ?? ""], ["url_slug", slug], ["size_and_fit", sheet.sizeFit ?? ""],
   ];
   const tsv = [row.map(([k]) => k).join("\t"), row.map(([, v]) => v.replace(/[\t\n]+/g, " ")).join("\t")].join("\n");
 
@@ -419,6 +422,7 @@ function ProductData({ genId, title, slug, sheet, onChange }: { genId: string; t
         <dl className="data-grid">
           <div><dt>Season</dt><dd className={sheet.season ? "" : "empty"}>{sheet.season ? sheet.season.value[0].toUpperCase() + sheet.season.value.slice(1) : "Not clear from the details"}</dd>{sheet.season && <span className="muted">{sheet.season.confidence === "high" ? sheet.season.reason : `To check: ${sheet.season.reason}`}</span>}</div>
           <div><dt>Care</dt><dd className={sheet.care ? "" : "empty"}>{sheet.care ?? "Not given"}</dd>{!sheet.care && <span className="muted">Never made up</span>}</div>
+          <div><dt>Size and fit</dt><dd className={sheet.sizeFit ? "" : "empty"}>{sheet.sizeFit ?? "Not given"}</dd><span className="muted">{sheet.sizeFit ? "From your notes" : "Only from your notes, never a photo"}</span></div>
           <div><dt>URL slug</dt><dd>{slug}</dd>{copyButton("slug", slug)}</div>
           <div><dt>Image alt text</dt><dd className={sheet.imageAlt ? "" : "empty"}>{sheet.imageAlt ?? "Not written"}</dd>{sheet.imageAlt && copyButton("alt", sheet.imageAlt)}</div>
         </dl>

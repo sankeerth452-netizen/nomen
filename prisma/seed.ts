@@ -1,5 +1,6 @@
 import { db } from "../src/lib/db";
 import { createUser, UserError } from "../src/lib/users";
+import { seedTaxonomy } from "../src/lib/sheet/taxonomy";
 
 // Sensible defaults from brief section 19. Everything here is editable in brand settings later.
 const SPORTSGIRL_SETTINGS = {
@@ -23,6 +24,10 @@ async function main() {
     create: { name: "Sportsgirl", slug: "sportsgirl", country: "AU", language: "en", settings: SPORTSGIRL_SETTINGS },
   });
   console.log("Seeded brand: sportsgirl. Create logins with `npm run user:create`.");
+
+  // Google's category list, from the copy that ships with the code (only new or renamed categories are written).
+  const t = await seedTaxonomy();
+  console.log(`Google categories: ${t.total} (${t.added} added, ${t.renamed} renamed).`);
 
   // First owner login from the host's settings (OWNER_USERNAME + OWNER_PASSWORD), so a fresh deploy can be signed
   // into without a shell. Only ever creates: an existing login is never changed here (reset passwords in the app).

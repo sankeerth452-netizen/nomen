@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { requireCapability } from "@/lib/review/guard";
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
 import { asDetails, isReady, loadRangeFor } from "@/lib/batch/ranges";
 import { kick } from "@/lib/batch/worker";
@@ -9,6 +10,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const user = await requireUser("buyer");
     const b = await loadRangeFor(user, (await params).id);
+    await requireCapability(user, "edit", b.brandId);
     const body = (await req.json().catch(() => ({}))) as { itemIds?: unknown };
     const only = Array.isArray(body.itemIds) ? body.itemIds.filter((x): x is string => typeof x === "string") : null;
     // Waiting to be named for the first time, or named before and changed since (a question answered, a failure retried).

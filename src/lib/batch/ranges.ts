@@ -1,6 +1,9 @@
 // A range: many product photos a buyer names together. Each photo is read by Claude, checked by the buyer, then
 // named through the normal pipeline, so every name still comes from details the buyer has seen.
 import type { Batch, BatchItem, Generation, Prisma } from "@prisma/client";
+import { applyReviewEdits, EXPORTABLE, STATUS_LABEL, type ResultLike } from "../review/fields";
+import type { FeedPiece } from "../feed/export";
+import { seesWholeBrand } from "../review/permissions";
 import { db } from "../db";
 import { HttpError, hasRole } from "../auth/guards";
 import type { SessionUser } from "../auth/session";
@@ -17,20 +20,25 @@ export const asBox = (j: Prisma.JsonValue | null): Box | null => (j && typeof j 
 /** Buyers: their own ranges; brand admins: their brand's; owner: everything. 404 (not 403) so ids can't be probed. */
 export async function loadRangeFor(user: SessionUser, id: string): Promise<Batch> {
   const b = await db.batch.findUnique({ where: { id } });
-  const allowed = b && (user.role === "owner" || (b.brandId === user.brandId && (b.userId === user.id || hasRole(user, "admin"))));
+  const allowed = b && (user.role === "owner" || (b.brandId === user.brandId && (b.userId === user.id || seesWholeBrand(user))));
   if (!b || !allowed) throw new HttpError(404, "We couldn't find that range.");
   return b;
 }
 
-type ItemWithGen = BatchItem & { generation: Pick<Generation, "id" | "status" | "result" | "confidence"> | null };
+type ItemWithGen = BatchItem & { generation: (Pick<Generation, "id" | "status" | "result" | "confidence"> & { review?: { status: string; edits: unknown } | null }) | null };
 
 /** What the range screen shows. No photos (served separately), no usage, nothing technical. */
 export function presentItem(i: ItemWithGen) {
-  const result = (i.generation?.result ?? null) as { recommendation?: { recommended_title: string; alternatives: { title: string; trade_off: string }[] }; message?: string; conflicts?: string[]; content?: { status: string; meta_title?: string; meta_description?: string; description?: string; words?: number } | null; sheet?: StoredSheet | null } | null;
+  // What people changed in review is what the range shows and exports; the AI's own values stay in the generation.
+  const review = i.generation?.review ?? null;
+  const edits = (review?.edits ?? {}) as Record<string, unknown>;
+  const raw = (i.generation?.result ?? null) as ResultLike | null;
+  const result = (raw ? applyReviewEdits(raw, edits) : null) as { recommendation?: { recommended_title: string; alternatives: { title: string; trade_off: string }[] }; message?: string; conflicts?: string[]; content?: { status: string; meta_title?: string; meta_description?: string; description?: string; words?: number } | null; sheet?: StoredSheet | null } | null;
   return {
     id: i.id, position: i.position, filename: i.filename, status: i.status as ItemStatus,
     details: asDetails(i.details), focus: asBox(i.focus),
     generationId: i.generation?.id ?? null,
+    review: review ? { status: review.status, edited: Object.keys(edits).length > 0 } : null,
     name: result?.recommendation?.recommended_title ?? null,
     alternatives: result?.recommendation?.alternatives?.map((a) => a.title) ?? [],
     confidence: i.generation?.confidence ?? null,
@@ -54,21 +62,52 @@ function fileSummary(f: PieceFeed) {
 export async function rangeItems(batchId: string, changedSince?: Date) {
   const items = await db.batchItem.findMany({
     where: { batchId, ...(changedSince ? { updatedAt: { gt: changedSince } } : {}) }, orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }], // ties (two photos given the same place) never reshuffle
-    include: { generation: { select: { id: true, status: true, result: true, confidence: true } } },
+    include: { generation: { select: { id: true, status: true, result: true, confidence: true, review: { select: { status: true, edits: true } } } } },
   });
   return items.map(presentItem);
 }
 
 /** Who may see a range list: same rule as History. */
 export function rangeWhere(user: SessionUser): Prisma.BatchWhereInput {
-  return user.role === "owner" ? {} : hasRole(user, "admin") ? { brandId: user.brandId! } : { userId: user.id };
+  return user.role === "owner" ? {} : seesWholeBrand(user) ? { brandId: user.brandId! } : { userId: user.id };
 }
 
 // A cell starting with = + - @ (or a tab/CR) would run as a formula in Excel or Sheets: neutralise it.
-const cell = (v: string) => {
+export const cell = (v: string) => {
   const s = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
+
+/**
+ * Try every failed piece again: photos that couldn't be read are read again, names that didn't work are named again.
+ * Pieces that worked are left alone, so nothing is paid for twice. updateMany leaves updatedAt alone, so it's set here.
+ */
+export async function retryFailed(batchId: string): Promise<{ reread: number; renamed: number }> {
+  const now = new Date();
+  const reread = await db.batchItem.updateMany({
+    where: { batchId, status: "read_failed", OR: [{ imageUrl: { not: null } }, { readImage: { not: null } }] },
+    data: { status: "queued", attempts: 0, claimedAt: null, updatedAt: now },
+  });
+  const renamed = await db.batchItem.updateMany({ where: { batchId, status: "failed" }, data: { status: "to_name", claimedAt: null, updatedAt: now } });
+  return { reread: reread.count, renamed: renamed.count };
+}
+
+/** The Google feed's pieces: named products with people's edits applied; with approval required, approved ones only. */
+export async function feedPieces(batchId: string, approvalRequired: boolean): Promise<FeedPiece[]> {
+  const items = await db.batchItem.findMany({
+    where: { batchId, status: "named" }, orderBy: [{ position: "asc" }, { id: "asc" }],
+    select: { feed: true, details: true, generation: { select: { result: true, review: { select: { status: true, edits: true } } } } },
+  });
+  return items.flatMap((i) => {
+    const review = i.generation?.review;
+    if (approvalRequired && !EXPORTABLE.includes(review?.status ?? "")) return [];
+    const raw = i.generation?.result as ResultLike | null;
+    const r = (raw ? applyReviewEdits(raw, (review?.edits ?? {}) as Record<string, unknown>) : null) as { recommendation?: { recommended_title: string }; sheet?: StoredSheet } | null;
+    const feed = i.feed as PieceFeed | null;
+    if (!r?.recommendation || !feed || !asDetails(i.details)) return [];
+    return [{ name: r.recommendation.recommended_title, rows: feed.rows, sheet: r.sheet?.status === "ready" ? r.sheet : null }];
+  });
+}
 
 /** The download: one row per photo, in upload order. */
 export function rangeCsv(items: PresentedItem[]): string {
@@ -76,7 +115,7 @@ export function rangeCsv(items: PresentedItem[]): string {
     "Photo", "Name", "Other options", "Confidence", "Status", "Checks", "Meta title", "Meta description", "Description", "Description words",
     "Short description", "Highlights", "Product details", "Ideal for", "Ideal for (check first)", "Google category", "Google category ID", "Product type (breadcrumb)",
     "Colour", "Pattern", "Material", "Gender", "Age group", "Size type", "Size system", "Custom label 0", "Custom label 1", "Season", "Care", "Image alt text", "URL slug", "Search queries",
-    "Piece", "What the buyer described", "SKUs", "Product file checks",
+    "Piece", "What the buyer described", "SKUs", "Product file checks", "Size and fit", "Review status",
   ]];
   const status: Record<string, string> = { named: "Named", needs_input: "Needs a detail", failed: "Didn't work", review: "Not named yet", not_product: "No fashion piece found", read_failed: "Couldn't read the photo" };
   const level = (c: string | null) => (c ? c[0].toUpperCase() + c.slice(1) : "");
@@ -96,7 +135,7 @@ export function rangeCsv(items: PresentedItem[]): string {
       sh?.season ? `${sh.season.value}${sh.season.confidence === "low" ? " (check)" : ""}` : "", sh?.care ?? "", sh?.imageAlt ?? "", i.name ? slugFor(i.name) : "",
       sh?.searchQueries.map((q) => (q.volume ? `${q.phrase} (${q.volume})` : q.phrase)).join(" | ") ?? "",
       i.details?.fields.productType ?? "", i.details?.fields.freeText ?? "",
-      i.file?.skus.join(" | ") ?? "", [...(i.file?.issues ?? []), ...(i.file?.imageError ? [i.file.imageError] : [])].join(" | "),
+      i.file?.skus.join(" | ") ?? "", [...(i.file?.issues ?? []), ...(i.file?.imageError ? [i.file.imageError] : [])].join(" | "), sh?.sizeFit ?? "", i.review ? STATUS_LABEL[i.review.status] ?? i.review.status : "",
     ]);
   }
   return "﻿" + rows.map((r) => r.map(cell).join(",")).join("\r\n") + "\r\n"; // BOM so Excel reads the accents right

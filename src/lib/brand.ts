@@ -11,6 +11,10 @@ export const BrandSettings = z.object({
   goodExamples: z.array(z.string()).default([]),
   poorExamples: z.array(z.string()).default([]),
   maxSerpQueries: z.number().int().min(0).max(10).default(3),
+  /** Exports (the Google feed and the review sheet) include only approved products. Off: everything named, as before. */
+  approvalRequired: z.boolean().default(false),
+  /** Who may do what, when a brand wants it different from the defaults in lib/review/permissions.ts. */
+  permissions: z.record(z.string(), z.array(z.enum(["owner", "admin", "editor", "reviewer", "buyer"]))).optional(),
   serp: z.object({ location: z.string().default("Australia"), language: z.string().default("English"), device: z.string().default("desktop") }).default({ location: "Australia", language: "English", device: "desktop" }),
 }).passthrough();
 export type BrandSettings = z.infer<typeof BrandSettings>;

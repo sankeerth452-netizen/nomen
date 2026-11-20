@@ -24,6 +24,8 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma migrate deploy
+      # The schema and the database must agree: a schema-generated migration once dropped an index nobody had declared.
+      - run: npm run db:check
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

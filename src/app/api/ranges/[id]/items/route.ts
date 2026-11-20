@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { requireCapability } from "@/lib/review/guard";
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
 import { loadRangeFor, presentItem } from "@/lib/batch/ranges";
 import { kick } from "@/lib/batch/worker";
@@ -10,6 +11,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const user = await requireUser("buyer");
     const b = await loadRangeFor(user, (await params).id);
+    await requireCapability(user, "edit", b.brandId);
     const body = (await req.json().catch(() => null)) as { filename?: unknown; photo?: unknown; image?: unknown; position?: unknown } | null;
     const photo = parsePhoto(body?.photo, MAX_THUMB_BYTES);
     const image = parsePhoto(body?.image, MAX_READ_BYTES);

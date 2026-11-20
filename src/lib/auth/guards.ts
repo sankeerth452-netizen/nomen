@@ -8,8 +8,8 @@ export class HttpError extends Error {
   }
 }
 
-// owner > admin > buyer
-const RANK: Record<Role, number> = { buyer: 1, admin: 2, owner: 3 };
+// owner > admin > editor, reviewer, buyer (who may approve is a separate permission: see lib/review/permissions.ts)
+const RANK: Record<Role, number> = { buyer: 1, editor: 1, reviewer: 1, admin: 2, owner: 3 };
 export const hasRole = (user: Pick<SessionUser, "role">, min: Role) => RANK[user.role] >= RANK[min];
 
 /** For API routes: throws HttpError(401/403). */

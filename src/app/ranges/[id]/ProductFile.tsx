@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { FEED_TARGETS, type FeedTarget } from "@/lib/feed/shared";
 
-type Preview = { headers: string[]; suggestedMapping: Record<string, FeedTarget>; preview: Record<string, unknown>[]; format: string };
+type Preview = { headers: string[]; suggestedMapping: Record<string, FeedTarget>; remembered?: string[]; preview: Record<string, unknown>[]; format: string };
 
 /** Start a range from the brand's product file: open it, check what each column is, then add its products. */
 export default function ProductFile({ rangeId }: { rangeId: string }) {
@@ -42,11 +42,11 @@ export default function ProductFile({ rangeId }: { rangeId: string }) {
 
       {preview && (
         <>
-          <p className="muted" style={{ marginTop: 16 }}>This looks like a <b>{preview.format}</b>. We&apos;ve matched each column to Google&apos;s name for it; change any that are wrong. The grey text is the first value in each column.</p>
+          <p className="muted" style={{ marginTop: 16 }}>This looks like a <b>{preview.format}</b>. We&apos;ve matched each column to Google&apos;s name for it; change any that are wrong. The grey text is the first value in each column.{preview.remembered?.length ? " Columns marked “as last time” use what you chose for your last file." : ""}</p>
           <div className="table-wrap"><table className="file-map"><tbody>
             {preview.headers.map((h) => (
               <tr key={h}>
-                <td>{h}<br /><span className="muted">{String(preview.preview[0]?.[h] ?? "").slice(0, 60)}</span></td>
+                <td>{h}{preview.remembered?.includes(h) && <span className="remembered"> · as last time</span>}<br /><span className="muted">{String(preview.preview[0]?.[h] ?? "").slice(0, 60)}</span></td>
                 <td><select value={mapping[h] ?? "metadata"} onChange={(e) => setMapping({ ...mapping, [h]: e.target.value as FeedTarget })} aria-label={`What "${h}" is`}>
                   {FEED_TARGETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select></td>

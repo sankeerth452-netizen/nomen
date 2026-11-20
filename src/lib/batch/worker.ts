@@ -70,13 +70,13 @@ export async function readItem(item: BatchItem, providers: Providers, fetchImage
     if (details.not_a_product) {
       // A file piece keeps its file details: the brand knows what it sells even when the photo doesn't show it plainly.
       const stay = fromFile && isReady(fromFile);
-      await db.batchItem.update({ where: { id: item.id }, data: { status: stay ? "review" : "not_product", details: json(stay ? fromFile : { fields: {}, fromPhoto: [], unsure: [] }), readImage: null, readType: null, claimedAt: null, ...kept } });
+      await db.batchItem.update({ where: { id: item.id }, data: { status: stay ? "review" : "not_product", details: json(stay ? fromFile : { fields: {}, fromPhoto: [], unsure: [] }), readImage: null, readType: null, claimedAt: null, readUsage: json(usage), ...kept } });
       return;
     }
     const seen = detailsFromPhoto(details);
     await db.batchItem.update({
       where: { id: item.id },
-      data: { status: "review", details: json(fromFile ? mergePhotoDetails(fromFile, seen) : seen), focus: json(focusFractions(details.focus, imageSize(image))), readImage: null, readType: null, claimedAt: null, ...kept },
+      data: { status: "review", details: json(fromFile ? mergePhotoDetails(fromFile, seen) : seen), focus: json(focusFractions(details.focus, imageSize(image))), readImage: null, readType: null, claimedAt: null, readUsage: json(usage), ...kept },
     });
   } catch (e) {
     console.error("range photo read failed", item.id, e instanceof Error ? e.message : e);

@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { MockContentWriter, MockFactExtractor, MockPhotoReader, MockRecommender, MockSerpProvider, MockSheetWriter } from "@/lib/providers/mock";
 import type { Providers } from "@/lib/providers";
 import type { PhotoReader } from "@/lib/providers/types";
-import { cleanFields, fillEmpty, isReady, loadRangeFor, rangeCsv, rangeItems, withEdits, type ItemDetails } from "@/lib/batch/ranges";
+import { cleanFields, fillEmpty, isReady, loadRangeFor, rangeCsv, rangeItems, retryFailed, withEdits, type ItemDetails } from "@/lib/batch/ranges";
+import { loadReportData, rangeProgress, reportRows, summaryCsv } from "@/lib/batch/report";
 import { MAX_AT_ONCE, drain, kick, recoverStale } from "@/lib/batch/worker";
 import { resetDb, seedBrand } from "./helpers";
 
@@ -94,6 +95,32 @@ describe("ranges of any size", () => {
   }, 60_000);
 });
 
+describe("progress, retries and the summary", () => {
+  it("estimates the time left, tries only the failed pieces again, and sums up counts and cost", async () => {
+    const { b } = await range(4, { status: "to_name", details: ready, readImage: null });
+    expect((await rangeProgress(b.id)).remaining).toBe(4);
+    expect((await rangeProgress(b.id)).etaSeconds).toBeGreaterThan(0);
+    await drain(providers());
+    expect(await rangeProgress(b.id)).toEqual({ remaining: 0, etaSeconds: null });
+    const [first, second] = await db.batchItem.findMany({ where: { batchId: b.id }, orderBy: { position: "asc" } });
+    await db.batchItem.update({ where: { id: first.id }, data: { status: "failed" } });
+    await db.batchItem.update({ where: { id: second.id }, data: { status: "read_failed", readImage: new Uint8Array(JPEG), readType: "image/jpeg" } });
+    expect(await retryFailed(b.id)).toEqual({ reread: 1, renamed: 1 });
+    expect((await statuses(b.id)).slice(0, 2)).toEqual(["to_name", "queued"]);
+    expect(await retryFailed(b.id)).toEqual({ reread: 0, renamed: 0 }); // nothing failed is left
+    await drain(providers());
+    // A photo read again goes back to be checked before it's named; the name that failed is named again.
+    const last = (await db.batchItem.findMany({ where: { batchId: b.id }, orderBy: { position: "asc" } }))[3];
+    await db.batchItem.update({ where: { id: last.id }, data: { readUsage: { model: "claude-opus-5-5", inputTokens: 2000, outputTokens: 300 } } });
+    const data = await loadReportData(b.id);
+    const csv = summaryCsv(b, data, reportRows(data.items, null, data.rowsByItem));
+    expect(csv).toMatch(/Named,3/);
+    expect(csv).toMatch(/Still to check,1/);
+    expect(csv).toMatch(/Claude: reading photos \(US\$\),0\.01/); // 2,000 in + 300 out on Opus 5.5 = $0.014
+    expect(csv).toMatch(/Total cost \(US\$\)/);
+  }, 60_000);
+});
+
 describe("work survives a restart", () => {
   it("puts a half-read photo back in the queue, gives up after three tries, and settles a half-named piece from its result", async () => {
     const old = new Date(Date.now() - 10 * 60_000);
@@ -146,7 +173,7 @@ describe("range rules", () => {
       idealFor: { live: [{ key: "cocktail", label: "Cocktail", outcome: "live" as const, reason: "Ruched midi.", demand: 9900 }], review: [], sentence: "Ideal for cocktail evenings." },
       season: null, care: null, imageAlt: "Black ruched midi dress", searchQueries: [{ phrase: "black midi dress", volume: 4200 }], checks: ["Material left blank: it wasn't given, and it's never guessed."],
     };
-    const base = { position: 1, status: "named" as const, details: ready, focus: null, generationId: "g", alternatives: ["A", "B"], confidence: "low", question: null, page, sheet, hasPhoto: true, file: null };
+    const base = { position: 1, status: "named" as const, details: ready, focus: null, generationId: "g", review: null, alternatives: ["A", "B"], confidence: "low", question: null, page, sheet, hasPhoto: true, file: null };
     const csv = rangeCsv([{ ...base, id: "1", filename: "=HYPERLINK(\"x\")", name: "Black Midi Dress, Ruched" }, { ...base, id: "2", filename: "b.jpg", name: "Black Midi Dress, Ruched", sheet: null }]);
     expect(csv.startsWith("\uFEFFPhoto,Name,Other options,Confidence,Status,Checks,Meta title,Meta description,Description,Description words,Short description,Highlights")).toBe(true);
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`);

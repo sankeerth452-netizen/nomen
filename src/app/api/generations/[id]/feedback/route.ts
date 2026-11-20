@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { requireCapability } from "@/lib/review/guard";
 import { db } from "@/lib/db";
 import { errorResponse, requireUser } from "@/lib/auth/guards";
 import { loadGenerationFor } from "@/lib/pipeline/access";
@@ -14,6 +15,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const user = await requireUser("buyer");
     const { id } = await params;
     const g = await loadGenerationFor(user, id);
+    await requireCapability(user, "edit", g.brandId);
     if (g.userId !== user.id) return Response.json({ error: "Only the person who created this name can give feedback on it." }, { status: 403 });
     const parsed = body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return Response.json({ error: parsed.error.issues[0]?.message ?? "We couldn't save that. Please try again." }, { status: 400 });

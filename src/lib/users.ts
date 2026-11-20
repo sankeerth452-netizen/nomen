@@ -22,7 +22,7 @@ export async function createUser(input: {
   const username = normalizeUsername(input.username);
   const bad = validateUsername(username);
   if (bad) throw new UserError(bad);
-  if (input.role !== "owner" && !input.brandId) throw new UserError("Brand admins and buyers need a brand.");
+  if (input.role !== "owner" && !input.brandId) throw new UserError("Brand logins (admins, editors, reviewers and buyers) need a brand.");
   if (input.role === "owner" && input.brandId) throw new UserError("Owner logins aren't tied to a brand.");
 
   const password = input.password ?? generatePassword();

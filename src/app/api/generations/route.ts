@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { requireCapability } from "@/lib/review/guard";
+import { seesWholeBrand } from "@/lib/review/permissions";
 import { db } from "@/lib/db";
 import { assertBrandAccess, errorResponse, HttpError, requireUser, hasRole } from "@/lib/auth/guards";
 import { createGeneration, runPipeline } from "@/lib/pipeline/run";
@@ -18,6 +20,7 @@ export async function POST(req: Request) {
     const brandId = user.brandId ?? body.brandId; // owners pick a brand
     if (!brandId || typeof brandId !== "string") throw new HttpError(400, "Choose a brand first.");
     assertBrandAccess(user, brandId);
+    await requireCapability(user, "edit", brandId);
     let photo: Photo | undefined;
     if (body.photo) {
       const p = parsePhoto(body.photo, MAX_THUMB_BYTES);
@@ -41,7 +44,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const take = Math.min(50, Number(url.searchParams.get("limit") ?? 20) || 20);
     const cursor = url.searchParams.get("cursor") ?? undefined;
-    const where = user.role === "owner" ? {} : hasRole(user, "admin") ? { brandId: user.brandId! } : { userId: user.id };
+    const where = user.role === "owner" ? {} : seesWholeBrand(user) ? { brandId: user.brandId! } : { userId: user.id };
     const rows = await db.generation.findMany({
       where, orderBy: { createdAt: "desc" }, take: take + 1, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       include: { user: { select: { displayName: true } }, feedback: { orderBy: { createdAt: "desc" }, take: 1 } },

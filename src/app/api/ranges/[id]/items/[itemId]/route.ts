@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { requireCapability } from "@/lib/review/guard";
 import { db } from "@/lib/db";
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
 import { WORKING, asDetails, cleanFields, loadRangeFor, presentItem, withEdits, type ItemStatus } from "@/lib/batch/ranges";
@@ -19,6 +20,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const user = await requireUser("buyer");
     const { id, itemId } = await params;
     const b = await loadRangeFor(user, id);
+    await requireCapability(user, "edit", b.brandId);
     const item = await load(b.id, itemId);
     if (WORKING.includes(item.status as ItemStatus)) throw new HttpError(409, COPY.range.busy);
     const body = (await req.json().catch(() => ({}))) as { fields?: unknown; retryRead?: unknown };
@@ -43,6 +45,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const user = await requireUser("buyer");
     const { id, itemId } = await params;
     const b = await loadRangeFor(user, id);
+    await requireCapability(user, "edit", b.brandId);
     const item = await load(b.id, itemId);
     if (WORKING.includes(item.status as ItemStatus)) throw new HttpError(409, COPY.range.busy);
     await db.batchItem.delete({ where: { id: item.id } });

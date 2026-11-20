@@ -8,10 +8,12 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Logins" };
 
 export default async function UsersPage() {
-  const user = await requirePageUser("owner");
+  const user = await requirePageUser("admin");
+  // Brand admins manage their own brand's logins; the owner, everyone's.
+  const own = user.role === "owner" ? {} : { brandId: user.brandId!, role: { not: "owner" as const } };
   const [users, brands] = await Promise.all([
-    db.user.findMany({ orderBy: { createdAt: "desc" }, include: { brand: true } }),
-    db.brand.findMany({ orderBy: { name: "asc" } }),
+    db.user.findMany({ where: own, orderBy: { createdAt: "desc" }, include: { brand: true } }),
+    db.brand.findMany({ where: user.role === "owner" ? {} : { id: user.brandId! }, orderBy: { name: "asc" } }),
   ]);
   return (
     <>

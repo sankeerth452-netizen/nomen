@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { ensureReview } from "../review/workflow";
 import { db } from "../db";
 import { env } from "../env";
 import { parseBrandSettings } from "../brand";
@@ -206,6 +207,9 @@ export async function runPipeline(id: string, injected?: Providers, opts: { back
     if (env().PAGE_CONTENT !== "off") after.push(writeContent(id, { providers }).catch((e) => console.error("product page crashed", id, e instanceof Error ? e.message : e)));
     if (env().PRODUCT_SHEET !== "off") after.push(writeSheet(id, { providers }).catch((e) => console.error("product data crashed", id, e instanceof Error ? e.message : e)));
     await Promise.all(after);
+    // Its review starts once everything is written: "Needs review" if Nomen saw something to check, else "AI generated".
+    const done = await db.generation.findUnique({ where: { id }, select: { id: true, brandId: true, status: true, confidence: true, result: true } });
+    if (done) await ensureReview(done).catch((err) => console.error("review not started", id, err instanceof Error ? err.message : err));
   } catch (e) {
     const code = e instanceof AiError ? e.code : e instanceof ConfigError ? "config_error" : "internal_error";
     const message = e instanceof Error ? e.message : String(e);

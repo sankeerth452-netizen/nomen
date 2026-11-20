@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import { STATUS_LABEL } from "@/lib/review/fields";
 import { ColourSwatches } from "@/components/ColourSwatches";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -43,6 +44,8 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
   const [shared, setShared] = useState<Fields>({});
   const [naming, setNaming] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [progress, setProgress] = useState<{ remaining: number; etaSeconds: number | null } | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   // The next place in the range, so pieces keep the order they were dropped in even though they upload in parallel.
   const nextPosition = useRef(Math.max(0, ...initialItems.map((i) => i.position)) + 1);
@@ -51,6 +54,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
   const busy = sending || items.some((i) => WORKING.includes(i.status));
   const ready = items.filter((i) => i.status === "review" && isReady(i.details));
   const named = items.filter((i) => i.status === "named");
+  const failedCount = items.filter((i) => i.status === "failed" || i.status === "read_failed").length;
   const counts = useMemo(() => ({
     all: items.length,
     check: items.filter((i) => i.status === "review").length,
@@ -63,8 +67,9 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
     const since = lastCheck.current;
     const res = await fetch(`/api/ranges/${id}${since ? `?since=${encodeURIComponent(since)}` : ""}`, { cache: "no-store" });
     if (!res.ok) return;
-    const d = (await res.json()) as { at: string; items?: PresentedItem[]; changed?: PresentedItem[]; ids?: string[] };
+    const d = (await res.json()) as { at: string; items?: PresentedItem[]; changed?: PresentedItem[]; ids?: string[]; progress?: { remaining: number; etaSeconds: number | null } };
     lastCheck.current = d.at;
+    setProgress(d.progress ?? null);
     if (d.items) { setItems(d.items); return; }
     setItems((cur) => {
       const byId = new Map(cur.map((i) => [i.id, i]));
@@ -148,6 +153,16 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
     await refresh();
   }
 
+  async function retryFailed() {
+    setError(""); setNotice(""); setRetrying(true);
+    const res = await fetch(`/api/ranges/${id}/retry`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    setRetrying(false);
+    if (!res.ok) { setError(data.error ?? "That didn't work. Please try again."); return; }
+    setNotice(`Trying again: ${[data.reread ? `${data.reread} ${data.reread === 1 ? "photo" : "photos"} to read` : "", data.renamed ? `${data.renamed} to name` : ""].filter(Boolean).join(" and ")}. Pieces that worked are left alone.`);
+    await refresh();
+  }
+
   async function applyShared() {
     setError("");
     const res = await fetch(`/api/ranges/${id}/apply`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ fields: shared }) });
@@ -184,6 +199,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
               ? <>{counts.all} {counts.all === 1 ? "product" : "products"} · {items.reduce((n, i) => n + (i.file?.skus.length ?? 0), 0)} SKUs from {fileName ?? "your file"}</>
               : <>{counts.all} {counts.all === 1 ? "photo" : "photos"}</>}
             {" "}· {counts.named} named{counts.check ? ` · ${counts.check} to check` : ""}{brandName ? ` · ${brandName}` : ""}
+            {busy && progress?.etaSeconds ? ` · about ${timeLeft(progress.etaSeconds)} left` : ""}
           </p>
         </div>
         <div className="range-actions">
@@ -193,6 +209,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
           {named.length > 0 && <button className="ghost" onClick={copyAll}>{copied ? "Copied" : "Copy all names"}</button>}
           {named.length > 0 && <a className="btn ghost" href={`/api/ranges/${id}/download`}>{source === "file" ? "Download the review sheet" : "Download names"}</a>}
           {source === "file" && named.length > 0 && <a className="btn" href={`/api/ranges/${id}/feed`}>Download for Google</a>}
+          {failedCount > 0 && <button className="ghost" onClick={retryFailed} disabled={retrying}>{retrying ? "Starting…" : `Try the ${failedCount} failed again`}</button>}
         </div>
       </div>
       <input ref={picker} type="file" accept="image/*" multiple className="sr-only" aria-label="Choose photos" onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ""; }} />
@@ -212,6 +229,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
       {(notice || error) && <p className={error ? "err range-msg" : "range-msg"} aria-live="polite">{error || notice}</p>}
 
       {fileCheck && <FileChecks check={fileCheck} />}
+      {items.length > 0 && <CatalogueCheck rangeId={id} />}
 
       {items.length === 0 && !sending ? (
         <button className="range-drop" onClick={() => picker.current?.click()}>
@@ -353,6 +371,7 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: Pr
             {sameAs && <p className="piece-hint">Same name as {sameAs.join(", ")}. Google treats matching names as one product, so change one of them.</p>}
             <div className="piece-btns">
               <button onClick={async () => { try { await navigator.clipboard.writeText(item.name!); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* blocked */ } }}>{copied ? "Copied" : "Copy"}</button>
+              {item.generationId && <Link className="btn ghost" href={`/review/${item.generationId}`}>{item.review ? `Review · ${STATUS_LABEL[item.review.status] ?? item.review.status}${item.review.edited ? " · edited" : ""}` : "Review"}</Link>}
               {item.generationId && <Link className="btn ghost" href={`/history/${item.generationId}`}>Evidence</Link>}
               <button className="link" onClick={() => setEditing((x) => !x)}>{editing ? "Close" : "Change details"}</button>
             </div>
@@ -384,6 +403,45 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: Pr
 }
 
 /** What Google will make of the brand's file: errors it rejects products for, then recommendations. Nothing is changed for them. */
+/** "About 4 minutes", "about 40 seconds". */
+function timeLeft(s: number) {
+  if (s < 60) return `${Math.max(10, Math.round(s / 10) * 10)} seconds`;
+  const m = Math.round(s / 60);
+  return m < 90 ? `${m} ${m === 1 ? "minute" : "minutes"}` : `${Math.round(m / 60)} hours`;
+}
+
+type ReportRow = { product: string; skus: string; level: "Error" | "Warning"; where: string; problem: string };
+/** Problems across the whole range, loaded when opened (it checks every piece), with the report and summary to download. */
+function CatalogueCheck({ rangeId }: { rangeId: string }) {
+  const [rows, setRows] = useState<ReportRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  async function load() {
+    setLoading(true);
+    const res = await fetch(`/api/ranges/${rangeId}/report?format=json`, { cache: "no-store" });
+    setRows(res.ok ? (await res.json()).rows : []);
+    setLoading(false);
+  }
+  const errors = rows?.filter((r) => r.level === "Error") ?? [], warnings = rows?.filter((r) => r.level === "Warning") ?? [];
+  return (
+    <details className="card catalogue-check" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open && !rows && !loading) void load(); }}>
+      <summary><strong>Check the whole range</strong> <span className="muted">Problems across every piece: the file, photos, names, product data and Google&apos;s rules</span></summary>
+      {loading && <p className="muted">Checking every piece…</p>}
+      {rows && (
+        <>
+          <p>{rows.length === 0 ? "Nothing to fix." : `${errors.length} ${errors.length === 1 ? "error" : "errors"} (Google may reject these) and ${warnings.length} ${warnings.length === 1 ? "warning" : "warnings"}.`}</p>
+          {rows.length > 0 && (
+            <ul className="report-list">
+              {rows.slice(0, 40).map((r, k) => <li key={k} className={r.level === "Error" ? "bad" : "warn"}><b>{r.product}</b> · {r.where}: {r.problem}</li>)}
+              {rows.length > 40 && <li className="muted">and {rows.length - 40} more in the report</li>}
+            </ul>
+          )}
+          <p className="btns"><a className="btn ghost" href={`/api/ranges/${rangeId}/report`}>Download the problems</a> <a className="btn ghost" href={`/api/ranges/${rangeId}/summary`}>Download the summary</a> <button className="link" onClick={load}>Check again</button></p>
+        </>
+      )}
+    </details>
+  );
+}
+
 function FileChecks({ check }: { check: FileCheck }) {
   const errors = check.issues.filter((i) => i.level === "error"), warnings = check.issues.filter((i) => i.level === "warning"), info = check.issues.filter((i) => i.level === "info");
   const rows = (r: number[]) => (r.length ? ` (row${r.length === 1 ? "" : "s"} ${r.slice(0, 8).join(", ")}${r.length > 8 ? ` and ${r.length - 8} more` : ""})` : "");

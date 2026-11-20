@@ -1,7 +1,8 @@
 import type { Generation, Prisma } from "@prisma/client";
 import { objectPosition } from "../frame";
 import { db } from "../db";
-import { HttpError, hasRole } from "../auth/guards";
+import { HttpError } from "../auth/guards";
+import { seesWholeBrand } from "../review/permissions";
 import type { SessionUser } from "../auth/session";
 
 /** A generation plus whether the buyer added a photo (the photo itself is served separately). */
@@ -10,7 +11,7 @@ export type LoadedGeneration = Generation & { photo?: { generationId: string; fo
 /** buyers: their own; brand admins: their brand's; owner: everything. 404 (not 403) so ids can't be probed. */
 export async function loadGenerationFor(user: SessionUser, id: string): Promise<LoadedGeneration> {
   const g = await db.generation.findUnique({ where: { id }, include: { photo: { select: { generationId: true, focus: true } } } });
-  const allowed = g && (user.role === "owner" || (g.brandId === user.brandId && (g.userId === user.id || hasRole(user, "admin"))));
+  const allowed = g && (user.role === "owner" || (g.brandId === user.brandId && (g.userId === user.id || seesWholeBrand(user))));
   if (!g || !allowed) throw new HttpError(404, "We couldn't find that.");
   return g;
 }

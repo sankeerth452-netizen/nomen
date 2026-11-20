@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
+import { requireCapability } from "@/lib/review/guard";
 import { errorResponse, requireUser } from "@/lib/auth/guards";
 import { loadRangeFor, rangeItems } from "@/lib/batch/ranges";
+import { rangeProgress } from "@/lib/batch/report";
 import { kick } from "@/lib/batch/worker";
 
 export const dynamic = "force-dynamic";
@@ -17,13 +19,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const at = new Date().toISOString();
     const since = Date.parse(new URL(req.url).searchParams.get("since") ?? "");
     if (Number.isFinite(since)) {
-      const [changed, ids] = await Promise.all([
+      const [changed, ids, progress] = await Promise.all([
         rangeItems(b.id, new Date(since - OVERLAP_MS)),
         db.batchItem.findMany({ where: { batchId: b.id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }, { id: "asc" }], select: { id: true } }),
+        rangeProgress(b.id),
       ]);
-      return Response.json({ id: b.id, title: b.title, at, changed, ids: ids.map((i) => i.id) });
+      return Response.json({ id: b.id, title: b.title, at, changed, ids: ids.map((i) => i.id), progress });
     }
-    return Response.json({ id: b.id, title: b.title, createdAt: b.createdAt, at, items: await rangeItems(b.id) });
+    const [items, progress] = await Promise.all([rangeItems(b.id), rangeProgress(b.id)]);
+    return Response.json({ id: b.id, title: b.title, createdAt: b.createdAt, at, items, progress });
   } catch (e) {
     return errorResponse(e);
   }
@@ -34,6 +38,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   try {
     const user = await requireUser("buyer");
     const b = await loadRangeFor(user, (await params).id);
+    await requireCapability(user, "edit", b.brandId);
     const body = (await req.json().catch(() => ({}))) as { title?: unknown };
     const title = typeof body.title === "string" ? body.title.trim().slice(0, 80) : "";
     if (title) await db.batch.update({ where: { id: b.id }, data: { title } });

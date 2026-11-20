@@ -1,10 +1,11 @@
 import type { Prisma } from "@prisma/client";
+import { requireCapability } from "@/lib/review/guard";
 import { db } from "@/lib/db";
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
 import { loadRangeFor } from "@/lib/batch/ranges";
 import { kick } from "@/lib/batch/worker";
 import { isReady } from "@/lib/batch/shared";
-import { detectFormat, importFeed, suggestFeedMapping } from "@/lib/feed/import";
+import { detectFormat, importFeed, norm, suggestFeedMapping } from "@/lib/feed/import";
 import { FEED_TARGETS, type FeedTarget } from "@/lib/feed/shared";
 import { openFile } from "@/lib/keywords/readers";
 import { rateLimit } from "@/lib/rateLimit";
@@ -23,6 +24,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const user = await requireUser("buyer");
     const b = await loadRangeFor(user, (await params).id);
+    await requireCapability(user, "edit", b.brandId);
     if (!rateLimit(`rangefile:${user.id}`, 20, 3_600_000)) throw new HttpError(429, "That's a lot of uploads this hour. Please try again a little later.");
     const form = await req.formData();
     const file = form.get("file");
@@ -36,7 +38,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!raw) {
       const preview: Record<string, unknown>[] = [];
       for await (const r of source.rows) { preview.push(r.cells); if (preview.length >= 3) break; }
-      return Response.json({ headers: source.headers.filter(Boolean), suggestedMapping: suggestFeedMapping(source.headers), preview, format: detectFormat(source.headers) });
+      // The brand's own choices from earlier files come first.
+      const saved = await db.feedColumn.findMany({ where: { brandId: b.brandId, header: { in: source.headers.filter(Boolean).map(norm) } } });
+      const remembered = new Map(saved.map((c) => [c.header, c.target as FeedTarget]));
+      const headers = source.headers.filter(Boolean);
+      return Response.json({ headers, suggestedMapping: suggestFeedMapping(source.headers, remembered), remembered: headers.filter((h) => remembered.has(norm(h))), preview, format: detectFormat(source.headers) });
     }
 
     let mapping: Record<string, FeedTarget>;
@@ -59,6 +65,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         })),
       }),
       db.batch.update({ where: { id: b.id }, data: { source: "file", fileName: file.name.slice(0, 160), fileCheck: json(check) } }),
+      // Remember what each column is, for this brand's next file.
+      ...Object.entries(mapping).filter(([h]) => h.trim()).map(([h, target]) => db.feedColumn.upsert({
+        where: { brandId_header: { brandId: b.brandId, header: norm(h) } }, create: { brandId: b.brandId, header: norm(h), target }, update: { target },
+      })),
     ]);
     kick();
     return Response.json({ check, ready: pieces.filter((p) => !p.imageUrl && isReady(p.details)).length }, { status: 201 });

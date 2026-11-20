@@ -10,7 +10,20 @@ datasource db {
 enum Role {
   owner // platform operator: manages all brands and users
   admin // brand admin: datasets, brand settings, history
-  buyer
+  buyer // names and edits products (the same as editor; kept for existing logins)
+  editor // names and edits products, sends them for approval
+  reviewer // approves or rejects products, comments
+}
+
+/// Where a named product stands before it goes to the website or Google.
+enum ReviewStatus {
+  pending
+  ai_generated
+  needs_review
+  approved
+  rejected
+  ready_to_export
+  published
 }
 
 enum DatasetStatus {
@@ -46,6 +59,8 @@ model Brand {
   generations   Generation[]
   auditEvents   AuditEvent[]
   batches       Batch[]
+  feedColumns   FeedColumn[]
+  reviews       ProductReview[]
 }
 
 model User {
@@ -70,6 +85,8 @@ model User {
   feedback    Feedback[]
   auditEvents AuditEvent[]
   batches     Batch[]
+  revisions   ReviewRevision[]
+  comments    ReviewComment[]
 
   @@index([brandId])
 }
@@ -147,6 +164,7 @@ model Generation {
   feedback  Feedback[]
   photo     GenerationPhoto?
   batchItem BatchItem?
+  review    ProductReview?
 
   @@index([brandId, createdAt])
   @@index([userId, createdAt])
@@ -223,6 +241,84 @@ model DatasetRejection {
   @@index([datasetId])
 }
 
+/// A named product's review: its status, the values people changed (the AI's own stay in Generation.result), and
+/// which fields have been approved or rejected.
+model ProductReview {
+  id           String       @id @default(uuid())
+  generationId String       @unique
+  brandId      String
+  status       ReviewStatus @default(ai_generated)
+  /// Field -> the value a person set; a field not here shows what the AI wrote
+  edits        Json         @default("{}")
+  /// Field -> "approved" | "rejected"
+  fieldStatus  Json         @default("{}")
+  approvedById String?
+  approvedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  generation Generation       @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  brand      Brand            @relation(fields: [brandId], references: [id])
+  revisions  ReviewRevision[]
+  comments   ReviewComment[]
+
+  @@index([brandId, status, updatedAt])
+}
+
+/// Every change to a reviewed product, for its history and to restore: a field's new value (or "status"), who, when.
+model ReviewRevision {
+  id        String   @id @default(uuid())
+  reviewId  String
+  field     String
+  /// "human" (a person's edit), "restore" (an earlier value brought back) or "status"
+  source    String
+  value     Json
+  userId    String?
+  createdAt DateTime @default(now())
+
+  review ProductReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User?         @relation(fields: [userId], references: [id])
+
+  @@index([reviewId, field, createdAt])
+}
+
+/// A reviewer's or editor's note on a product (or one field of it). `flag` marks the AI as wrong, for improving it.
+model ReviewComment {
+  id        String   @id @default(uuid())
+  reviewId  String
+  userId    String
+  field     String?
+  body      String
+  flag      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  review ProductReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id])
+
+  @@index([reviewId, createdAt])
+}
+
+/// Google's product categories (taxonomy-with-ids.en-AU.txt). Loaded from the copy in prisma/data on deploy, and
+/// updatable from Google by the owner, so checks never rely on an out-of-date list in the code.
+model GoogleCategory {
+  id        Int      @id
+  path      String
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+/// What one column in a brand's product files is (as the buyer confirmed it), remembered for the brand's next upload.
+model FeedColumn {
+  brandId   String
+  /// The header, normalised ("product code", "item colour")
+  header    String
+  target    String
+  updatedAt DateTime @updatedAt
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@id([brandId, header])
+}
+
 /// A range: many product photos a buyer names together.
 model Batch {
   id        String   @id @default(uuid())
@@ -259,6 +355,8 @@ model BatchItem {
   /// A product-file piece's rows from the brand's file (one per size or SKU), passed through untouched
   feed         Json?
   readImage    Bytes? // the larger copy Claude reads (1568px); cleared once read
+  /// What reading the photo cost (model and tokens), so a range's cost includes it
+  readUsage    Json?
   readType     String?
   details      Json? // the form fields the photo filled in, as the buyer has checked them
   focus        Json?

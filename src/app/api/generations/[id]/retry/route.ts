@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { requireCapability } from "@/lib/review/guard";
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
 import { loadGenerationFor } from "@/lib/pipeline/access";
 import { runPipeline } from "@/lib/pipeline/run";
@@ -10,6 +11,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     const user = await requireUser("buyer");
     const { id } = await params;
     const g = await loadGenerationFor(user, id);
+    await requireCapability(user, "edit", g.brandId);
     if (g.status !== "failed") throw new HttpError(409, "This one doesn't need trying again.");
     if (!rateLimit(`retry:${user.id}`, 20, 3_600_000)) throw new HttpError(429, "That's a lot of tries this hour. Take a short break and try again.");
     // Atomic claim: a double-click can't start two runs.

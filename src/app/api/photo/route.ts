@@ -1,4 +1,5 @@
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
+import { requireCapability } from "@/lib/review/guard";
 import { COPY } from "@/lib/copy";
 import { env } from "@/lib/env";
 import { MAX_READ_BYTES, focusFractions, imageSize, parsePhoto } from "@/lib/photo";
@@ -11,6 +12,7 @@ import { rateLimit } from "@/lib/rateLimit";
 export async function POST(req: Request) {
   try {
     const user = await requireUser("buyer");
+    await requireCapability(user, "edit", user.brandId);
     if (!rateLimit(`photo:${user.id}`, 60, 3_600_000)) throw new HttpError(429, COPY.photo.tooMany);
     const body = (await req.json().catch(() => null)) as { image?: unknown; productType?: unknown } | null;
     const image = parsePhoto(body?.image, MAX_READ_BYTES);

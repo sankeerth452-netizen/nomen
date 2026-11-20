@@ -3,7 +3,7 @@ import type { SessionUser } from "@/lib/auth/session";
 import SignOut from "@/app/SignOut";
 import { Lockup, PRODUCT_NAME } from "@/components/Logo";
 
-type Section = "create" | "ranges" | "history" | "datasets" | "users" | "credits";
+type Section = "create" | "ranges" | "history" | "review" | "datasets" | "users" | "credits";
 
 export default function Header({ user, active }: { user: SessionUser; active?: Section }) {
   const item = (href: string, section: Section, label: string) => (
@@ -19,11 +19,12 @@ export default function Header({ user, active }: { user: SessionUser; active?: S
             <Lockup height={16} thread={false} />
           </Link>
           <nav className="mainnav" aria-label="Main">
-            {item("/", "create", "Create")}
+            {user.role !== "reviewer" && item("/", "create", "Create")}
             {item("/ranges", "ranges", "Ranges")}
             {item("/history", "history", "History")}
-            {user.role !== "buyer" && item("/admin/datasets", "datasets", "Keywords")}
-            {user.role === "owner" && item("/admin/users", "users", "Logins")}
+            {item("/review", "review", "Review")}
+            {(user.role === "admin" || user.role === "owner") && item("/admin/datasets", "datasets", "Keywords")}
+            {(user.role === "admin" || user.role === "owner") && item("/admin/users", "users", "Logins")}
           </nav>
           <div className="account">
             {user.brandName && <span className="brand-chip">{user.brandName}</span>}

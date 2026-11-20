@@ -15,6 +15,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:check": "prisma migrate diff --from-url \"$DATABASE_URL\" --to-schema-datamodel prisma/schema.prisma --exit-code",
     "user:create": "tsx scripts/user.ts create",
     "user:reset": "tsx scripts/user.ts reset",
     "user:disable": "tsx scripts/user.ts disable",

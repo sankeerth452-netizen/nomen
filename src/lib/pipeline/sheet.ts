@@ -35,6 +35,8 @@ export type ProductSheet = {
   season: Season | null;
   care: string | null;
   imageAlt: string | null;
+  /** "The model is 176cm and wears a size 10" or "true to size": only from the retailer's own words, never a photo. */
+  sizeFit?: string | null;
   searchQueries: { phrase: string; volume: number | null; fromGoogle?: boolean }[];
   /** Things a person should look at before this goes live, in plain words. */
   checks: string[];
@@ -90,9 +92,19 @@ export function fitText(text: string, max: number): string {
   return end > max * 0.5 ? cut.slice(0, end + 1) : `${cut.slice(0, max - 1).replace(/\s+\S*$/, "")}…`;
 }
 
+// Size and fit notes the retailer wrote: how the model wears it, how it fits. Never read from a photo.
+const SIZE_FIT = [/\bmodel\b[^.\n]*\b(wears?|wearing|size|is \d|height)\b/i, /\b(true to size|runs? (small|large|big)|size (up|down)|fits? (true|small|large|big))\b/i,
+  /\b(relaxed|regular|oversized|slim|loose|fitted|boxy|tailored|true) fit\b/i, /^size and fit:/i];
+export function sizeFitFrom(retailerText: string): string | null {
+  const sentences = retailerText.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
+  const hits = [...new Set(sentences.filter((s) => SIZE_FIT.some((re) => re.test(s))).map((s) => s.replace(/^size and fit:\s*/i, "").replace(/^fit and sizing\s+/i, "")))];
+  const out = hits.slice(0, 3).join(" ");
+  return out ? fitText(out, 240) : null;
+}
+
 /** The finished sheet from Claude's (checked) draft plus everything the rules decide. Pure: no database, so it's tested directly. */
 export function assembleSheet(d: SheetDraft, check: ReturnType<typeof checkSheet>, ctx: Ctx & {
-  volumes: Map<string, number> | null; bundle: EvidenceBundle | null; cited: string[]; inputText: string;
+  volumes: Map<string, number> | null; bundle: EvidenceBundle | null; cited: string[]; inputText: string; retailerText?: string;
 }): ProductSheet {
   const { facts } = ctx;
   const checks: string[] = [];
@@ -151,6 +163,7 @@ export function assembleSheet(d: SheetDraft, check: ReturnType<typeof checkSheet
     idealFor: { live, review, sentence },
     season, care: check.badCare ? null : d.care?.trim() || null,
     imageAlt: check.badAlt ? null : fitText(d.image_alt, ALT_MAX),
+    sizeFit: sizeFitFrom(ctx.retailerText ?? ""),
     searchQueries, checks,
   };
 }
@@ -221,6 +234,7 @@ export async function writeSheet(id: string, opts: { providers?: Providers } = {
     if (tally.calls) await addUsage(id, { serpCalls: tally.calls, serpCostUsd: tally.costUsd, notes: [`Product data: live occasion figures (DataForSEO Labs), ${tally.calls} request`] });
     const sheet = assembleSheet(r.sheet, check, {
       ...ctx, volumes, bundle: g.candidateEvidence as EvidenceBundle | null, inputText,
+      retailerText: [input.freeText, input.extra].filter((v): v is string => typeof v === "string").join("\n"), // typed or supplied, never the photo-filled fields
       cited: [result.recommendation.primary_keyword ?? "", ...result.recommendation.supporting_keywords].filter(Boolean),
     });
     const dropped = [...sheet.idealFor.live, ...sheet.idealFor.review].length < r.sheet.ideal_for.length;

@@ -2,7 +2,8 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import sharp from "sharp";
 import { db } from "@/lib/db";
 import { openCsv } from "@/lib/keywords/readers";
-import { checkFeed, detectFormat, groupProducts, importFeed, productNoun, stripHtml, suggestFeedMapping } from "@/lib/feed/import";
+import { checkFeed, detectFormat, groupProducts, importFeed, productNoun, saleDates, stripHtml, suggestFeedMapping } from "@/lib/feed/import";
+import { sizeFitFrom } from "@/lib/pipeline/sheet";
 import { feedRows, supplementalFeed } from "@/lib/feed/export";
 import { downloadImage, ImageFetchError, isPrivateAddress, photoCopies, type ImageFetcher } from "@/lib/feed/image";
 import { priceBand, type FeedRow } from "@/lib/feed/shared";
@@ -79,6 +80,43 @@ describe("reading the brand's product file", () => {
     expect(productNoun("The Ivy", "Women > Tops > Blouses")).toBe("blouse");
     expect(stripHtml("<ul><li>Cotton</li><li>Model wears AU 8</li></ul>&amp; more")).toBe("• Cotton\n• Model wears AU 8\n& more");
     expect(groupProducts([{ row: 2, attrs: { title: "Tee", color: "Red" } }, { row: 3, attrs: { title: "tee", color: "red" } }]).length).toBe(1);
+  });
+});
+
+describe("real retailers' column names", () => {
+  it("matches columns by the words in them when the name isn't Google's or Shopify's", () => {
+    const m = suggestFeedMapping(["Product Code", "Style Number", "Web Description", "Item Colour", "Fabric Composition", "Care Instructions", "Size & Fit",
+      "RRP", "Now Price", "Sale Start/End Dates", "Barcode", "Main Image URL", "Additional Image 2", "Product URL", "Category", "Stock Status", "Size", "Brand Name", "Style Name"]);
+    expect(m).toMatchObject({
+      "Product Code": "id", "Style Number": "item_group_id", "Web Description": "description", "Item Colour": "color", "Fabric Composition": "material",
+      "Care Instructions": "metadata", "Size & Fit": "size_fit", "RRP": "price", "Now Price": "sale_price", "Sale Start/End Dates": "sale_price_effective_date",
+      "Barcode": "gtin", "Main Image URL": "image_link", "Additional Image 2": "additional_image_link", "Product URL": "link", "Category": "product_type",
+      "Stock Status": "availability", "Size": "size", "Brand Name": "brand", "Style Name": "title",
+    });
+  });
+
+  it("uses the brand's own choices from its last file first, and never gives one role to two columns", () => {
+    const remembered = new Map([["item colour", "metadata" as const], ["shade", "color" as const]]);
+    const m = suggestFeedMapping(["SKU", "Item Colour", "Shade", "Colour"], remembered);
+    expect(m).toMatchObject({ "SKU": "id", "Item Colour": "metadata", "Shade": "color", "Colour": "ignore" });
+  });
+
+  it("checks sale dates: readable, in order, not already over, and only with a sale price", () => {
+    expect(saleDates("2026-11-20T00:00+1100/2026-11-30T23:59+1100")).not.toBe("unreadable");
+    expect(saleDates("20/11/2026 to 30/11/2026")).toBe("unreadable");
+    const row = (attrs: FeedRow["attrs"], n = 2): FeedRow => ({ row: n, attrs: { id: `S${n}`, link: "https://x.com/p", image_link: "https://x.com/i.jpg", availability: "in_stock", price: "100.00 AUD", brand: "B", condition: "new", gtin: "1", ...attrs } });
+    const kinds = (r: FeedRow) => checkFeed([r]).issues.map((i) => i.kind);
+    expect(kinds(row({ sale_price: "80.00 AUD", sale_price_effective_date: "next week" }))).toContain("bad_sale_dates");
+    expect(kinds(row({ sale_price: "80.00 AUD", sale_price_effective_date: "2026-12-30T00:00+11:00/2026-12-01T00:00+11:00" }))).toContain("sale_dates_backwards");
+    expect(kinds(row({ sale_price: "80.00 AUD", sale_price_effective_date: "2020-01-01T00:00+11:00/2020-01-31T00:00+11:00" }))).toContain("sale_ended");
+    expect(kinds(row({ sale_price_effective_date: "2099-01-01T00:00+11:00/2099-01-31T00:00+11:00" }))).toContain("sale_dates_no_price");
+    expect(kinds(row({ sale_price: "80.00 AUD", sale_price_effective_date: "2099-01-01T00:00+11:00/2099-01-31T00:00+11:00" }))).toEqual([]);
+  });
+
+  it("takes size and fit notes only from the retailer's words", () => {
+    expect(sizeFitFrom("Fit and Sizing The model is 176cm and wears a size 10/S. Available in sizes 4 to 18.")).toBe("The model is 176cm and wears a size 10/S.");
+    expect(sizeFitFrom("A relaxed fit linen shirt. Runs small, so size up.")).toBe("A relaxed fit linen shirt. Runs small, so size up.");
+    expect(sizeFitFrom("black satin slip dress")).toBeNull();
   });
 });
 

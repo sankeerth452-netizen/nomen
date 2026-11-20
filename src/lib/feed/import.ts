@@ -7,7 +7,7 @@ import { plainColour } from "../sheet/catalog";
 import type { ItemDetails } from "../batch/shared";
 import { AVAILABILITY, REQUIRED, type FeedIssue, type FeedRow, type FeedTarget, type FileCheck } from "./shared";
 
-const norm = (h: string) => h.toLowerCase().replace(/^google shopping\s*\/\s*/, "").replace(/[_\-()]+/g, " ").replace(/\s+/g, " ").trim();
+export const norm = (h: string) => h.toLowerCase().replace(/^google shopping\s*\/\s*/, "").replace(/[_\-()]+/g, " ").replace(/\s+/g, " ").trim();
 
 // Header (normalised) -> Google attribute. Google's own names, Shopify's export names and common spreadsheet names.
 const ALIASES: Record<string, FeedTarget> = {
@@ -32,14 +32,59 @@ const ALIASES: Record<string, FeedTarget> = {
   "excluded destination": "excluded_destination", "canonical link": "canonical_link", "mobile link": "mobile_link", "expiration date": "expiration_date",
 };
 
-/** Our best guess of what each column is. Shopify's option, inventory and compare-at columns are read by name, not mapped. */
-export function suggestFeedMapping(headers: string[]): Record<string, FeedTarget> {
+// Retailers name the same column many ways ("Product Code", "Item Colour", "Web Description"). When no exact name
+// matches, the words in the header decide, in this order (the first rule that fits wins).
+const BY_WORDS: [RegExp, FeedTarget][] = [
+  [/\bcare\b|\bwash/, "metadata"],
+  [/\bsize (and|&) fit\b|\bfit (notes?|details?|guide)\b|\bmodel (wears|is|size|height)\b/, "size_fit"],
+  [/\bgoogle\b.*\bcategor/, "google_product_category"],
+  [/\b(parent|group)\b|\bstyle (code|number|no|id)\b/, "item_group_id"],
+  [/\b(additional|other|extra|more|alt)\b.*\b(image|img|photo)|\b(image|img|photo)s?\b.*\b([2-9]|additional|other|extra|more)\b/, "additional_image_link"],
+  [/\b(image|img|photo|picture)\b/, "image_link"],
+  [/\b(sale|special|promo|discount)\b.*\b(date|dates|start|end|from|until|period)\b/, "sale_price_effective_date"],
+  [/\b(sale|special|promo|discount|now)\b.*\bprice\b|\bprice\b.*\b(sale|now)\b/, "sale_price"],
+  [/\bprice\b|\brrp\b/, "price"],
+  [/\b(barcode|gtin|ean|upc)\b/, "gtin"],
+  [/\bmpn\b|\bmanufacturer part\b/, "mpn"],
+  [/\bsku\b|\b(product|item|article|style|variant) (code|number|no|id)\b|^code$/, "id"],
+  [/\b(colou?r|shade)\b/, "color"],
+  [/\b(fabric|material|composition|fibre|fiber)\b/, "material"],
+  [/\b(pattern|print)\b/, "pattern"],
+  [/\bsize\b/, "size"],
+  [/\b(brand|vendor|label|designer)\b/, "brand"],
+  [/\b(description|desc|copy|details|body)\b/, "description"],
+  [/\b(title|name)\b/, "title"],
+  [/\b(url|link|permalink|web address)\b/, "link"],
+  [/\b(stock|availability|in stock)\b/, "availability"],
+  [/\bcondition\b/, "condition"],
+  [/\b(gender|sex)\b/, "gender"],
+  [/\bage\b/, "age_group"],
+  [/\b(category|department|collection|type)\b/, "product_type"],
+];
+export const guessColumn = (header: string): FeedTarget | undefined => {
+  const n = norm(header);
+  return ALIASES[n] ?? BY_WORDS.find(([re]) => re.test(n))?.[1];
+};
+
+/**
+ * Our best guess of what each column is: the brand's own choice from an earlier file first (`remembered`, by
+ * normalised header), then Google's and Shopify's names, then the words in the header. Shopify's option, inventory and
+ * compare-at columns are read by name, not mapped.
+ */
+export function suggestFeedMapping(headers: string[], remembered: Map<string, FeedTarget> = new Map()): Record<string, FeedTarget> {
   const m: Record<string, FeedTarget> = {};
   const taken = new Set<FeedTarget>();
+  const single = (t: FeedTarget) => t !== "metadata" && t !== "ignore";
+  // The brand's own choices take their columns first, so a guess never claims a role the brand gave elsewhere.
   for (const h of headers) {
-    if (!h) continue;
-    const t = ALIASES[norm(h)];
-    if (t && !taken.has(t)) { m[h] = t; taken.add(t); } else m[h] = /^option\d (name|value)$|variant inventory qty|variant compare at price/i.test(h) ? "metadata" : t ? "ignore" : "metadata";
+    const t = h ? remembered.get(norm(h)) : undefined;
+    if (t && (!single(t) || !taken.has(t))) { m[h] = t; if (single(t)) taken.add(t); }
+  }
+  for (const h of headers) {
+    if (!h || m[h]) continue;
+    if (/^option\d (name|value)$|variant inventory qty|variant compare at price/i.test(h)) { m[h] = "metadata"; continue; }
+    const t = guessColumn(h);
+    m[h] = t && single(t) && !taken.has(t) ? (taken.add(t), t) : t && single(t) ? "ignore" : t ?? "metadata";
   }
   return m;
 }
@@ -116,6 +161,14 @@ export async function readFeed(source: RowSource, mapping: Record<string, FeedTa
   return { rows, skipped, currencyAssumed };
 }
 
+/** Google's sale_price_effective_date: two ISO 8601 date-times joined by "/". */
+export function saleDates(v: string): { start: number; end: number } | "unreadable" {
+  const parts = v.split("/").map((p) => p.trim());
+  if (parts.length !== 2) return "unreadable";
+  const [start, end] = parts.map((p) => (/^\d{4}-\d{2}-\d{2}/.test(p) ? Date.parse(p.replace(/([+-]\d{2})(\d{2})$/, "$1:$2")) : NaN));
+  return Number.isNaN(start) || Number.isNaN(end) ? "unreadable" : { start, end };
+}
+
 const isUrl = (v: string | undefined) => !!v && /^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(v);
 const amount = (v: string | undefined) => (v ? Number((v.match(/\d+(?:\.\d+)?/) ?? [""])[0]) : NaN);
 const LABEL: Partial<Record<FeedTarget, string>> = { id: "ID (SKU)", link: "product link", image_link: "image link", availability: "availability", price: "price", brand: "brand", condition: "condition" };
@@ -138,6 +191,13 @@ export function checkFeed(rows: FeedRow[]): { issues: FeedIssue[]; byRow: Map<nu
     if (a.availability && !AVAILABILITY.includes(a.availability)) add("bad_availability", "error", `Availability Google doesn't accept (use ${AVAILABILITY.join(", ")})`, row, `Availability "${a.availability}" isn't one Google accepts`);
     if (a.price && (Number.isNaN(amount(a.price)) || !/[A-Z]{3}/.test(a.price))) add("bad_price", "error", "Price Google can't read (it needs a number and a currency, like 59.95 AUD)", row, `Price "${a.price}" can't be read`);
     if (a.sale_price && a.price && amount(a.sale_price) >= amount(a.price)) add("sale_not_lower", "error", "Sale price isn't lower than the price", row);
+    if (a.sale_price_effective_date) {
+      const sale = saleDates(a.sale_price_effective_date);
+      if (sale === "unreadable") add("bad_sale_dates", "error", "Sale dates Google can't read (it wants start/end, like 2026-11-20T00:00+11:00/2026-11-30T23:59+11:00)", row, `Sale dates "${a.sale_price_effective_date}" can't be read`);
+      else if (sale.end <= sale.start) add("sale_dates_backwards", "error", "The sale ends before it starts", row);
+      else if (sale.end < Date.now()) add("sale_ended", "warning", "The sale dates have already passed, so Google won't show the sale price", row, "The sale has already ended");
+      if (!a.sale_price) add("sale_dates_no_price", "warning", "Sale dates with no sale price", row);
+    }
     if (a.link && !isUrl(a.link)) add("bad_link", "error", "Product link isn't a full web address", row);
     if (a.image_link && !isUrl(a.image_link)) add("bad_image_link", "error", "Image link isn't a full web address", row);
     if (a.condition && !["new", "refurbished", "used"].includes(a.condition.toLowerCase())) add("bad_condition", "error", "Condition must be new, refurbished or used", row);
@@ -215,7 +275,7 @@ export function detailsFromFeed(rows: FeedRow[]): ItemDetails {
   put("pattern", a.pattern);
   put("audience", audienceFrom(a.gender, a.age_group));
   if (a.size_type && /maternity|petite|plus|tall/i.test(a.size_type)) put("fit", a.size_type.toLowerCase());
-  put("extra", a.description, 2000);
+  put("extra", [a.description, a.size_fit ? `Size and fit: ${a.size_fit}` : ""].filter(Boolean).join("\n"), 2000);
   return { fields, fromPhoto: [], unsure: [] };
 }
 

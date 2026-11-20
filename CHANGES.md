@@ -433,3 +433,61 @@ The files were named web-01 to web-12, so Nomen had only the photos to go on. Co
 **Not changed yet:** for the swimsuit, "black one piece swimsuit" has 1,900 searches a month against 600 for "black swimsuit", but Nomen couldn't use "One Piece", because only words from the facts are allowed in a name. Treating it as the same thing as "swimsuit" (and similar pairs like tee/t-shirt) means changing the name instructions, which needs a full re-test first.
 
 181 tests pass.
+
+## Milestone 1: production readiness (20–21 Nov 2026)
+
+- **Reliability:**
+  - range work restarts on server start (`src/instrumentation.ts`);
+  - CI runs `npm run db:check`, so the schema and the database must agree;
+  - storage use is shown on the Keyword lists page.
+- **Product files:**
+  - columns are matched by the words in them ("Product Code", "Item Colour", "Web Description", "Style Number", "RRP", "Now Price"…);
+  - each brand's confirmed column choices are remembered (`FeedColumn` table);
+  - sale-date checks;
+  - a new "Size & fit notes" column, used only from the retailer's text, never from a photo; a size & fit field in product data and the review sheet.
+- **Ranges:**
+  - "Try the failed again" re-reads or renames only the failed pieces;
+  - time left is shown while working;
+  - photo reading cost is recorded (`BatchItem.readUsage`);
+  - a "Check the whole range" panel, plus problems and summary downloads (counts, confidence, Claude and DataForSEO cost at list prices).
+- **Validation:**
+  - Google's full category list (5,427) is stored (`GoogleCategory`), seeded on deploy from `prisma/data`, and the owner can update it from Google;
+  - a catalogue checker finds duplicate web addresses, the same thing named two ways, missing descriptions or alt text, mixed size systems, and every attribute against Google's rules (`src/lib/catalogue`), including the brand's own Google category.
+- **Approval workflow:**
+  - roles `editor` and `reviewer`;
+  - statuses AI generated, Needs review, Approved, Rejected and Ready to export;
+  - the Review queue (`/review`) and a review page per product: every field editable, approval per field, history with restore, comments with an "AI mistake" flag;
+  - reviewers see the whole brand, editors their own;
+  - brand admins manage their brand's logins;
+  - people's edits flow into the range screen, review sheet and Google feed;
+  - the brand switch "Only export approved products" is off by default, so behaviour is unchanged until it's switched on;
+  - a corrections download;
+  - permissions are configurable per brand (`settings.permissions`).
+- **Database:** four additive migrations (`20261120120000` to `20261120150000`). The new role values can't be removed from Postgres if rolled back.
+- **Tests:** 200 pass (was 181), plus type check and lint.
+- **Checked in a browser** on a local copy with the stand-in AI:
+  - Review queue, editing a field, history, approve all, and a comment flagged as an AI mistake.
+  - A reviewer: sees the whole brand, can approve, can't edit or create (403), lands on Review.
+  - An editor: sees only their own work, can edit and send for review, can't approve.
+  - A product file with retailer column names: all 17 matched, and remembered on the next upload.
+  - Broken image, expired sale and mixed sizes caught; the whole-range check and its problems and summary downloads work.
+  - The Google feed with approval off, with approval on (refused until something is approved), and with one product approved.
+  - Keyword lists (storage, Google category update) and Logins (new roles).
+- **Fixed during the browser check:**
+  - The start-up file pulled the image library into the edge build, which broke every page. The server-only import is now inside the Node.js check, as Next.js documents (`src/instrumentation-node.ts`).
+  - Reviewers no longer see a Create link.
+  - Only real problems (below High, a missing Google category or colour, a too-short description, a failed part) start a product as "Needs review"; routine notes don't.
+  - Original details are listed in a fixed order, and checkboxes have labels.
+  - "Already up to date" no longer claims an update.
+- **The production build (`next build`) succeeds.**
+
+**Deployment checklist:**
+
+1. Push to main. Render runs `npm run db:migrate` (four additive updates) and `npm run db:seed`, which loads Google's 5,427 categories.
+2. Nothing to configure: no new settings. Approval is off for every brand until a brand admin ticks "Only export approved products" on the Review page.
+3. After the deploy, check:
+   - `/api/health`;
+   - the Review page lists earlier products (they're added on first open);
+   - the Keyword lists page shows the category count;
+   - a range's "Check the whole range" panel opens.
+4. Logins: existing buyers keep working as editors. Create reviewer logins on the Logins page; brand admins can now do this for their own brand.

@@ -6,7 +6,7 @@ export type FeedTarget =
   | "brand" | "condition" | "gtin" | "mpn" | "item_group_id" | "color" | "size" | "gender" | "age_group" | "material" | "pattern" | "size_type" | "size_system"
   | "product_type" | "google_product_category" | "custom_label_0" | "custom_label_1" | "custom_label_2" | "custom_label_3" | "custom_label_4"
   | "shipping" | "shipping_weight" | "is_bundle" | "multipack" | "adult" | "excluded_destination" | "canonical_link" | "mobile_link" | "expiration_date"
-  | "metadata" | "ignore";
+  | "size_fit" | "metadata" | "ignore";
 
 /** Column roles a buyer can pick when matching their file's columns, in Google's own words with a plain label. */
 export const FEED_TARGETS: [FeedTarget, string][] = [
@@ -19,14 +19,13 @@ export const FEED_TARGETS: [FeedTarget, string][] = [
   ["custom_label_3", "Custom label 3"], ["custom_label_4", "Custom label 4"], ["shipping", "Shipping"], ["shipping_weight", "Shipping weight"],
   ["is_bundle", "Is bundle"], ["multipack", "Multipack"], ["adult", "Adult"], ["excluded_destination", "Excluded destination"],
   ["canonical_link", "Canonical link"], ["mobile_link", "Mobile link"], ["expiration_date", "Expiration date"],
-  ["metadata", "Keep as extra info"], ["ignore", "Don't use"],
+  ["size_fit", "Size & fit notes"], ["metadata", "Keep as extra info"], ["ignore", "Don't use"],
 ];
 
 /** Google rejects a product without these (Nitin's list). */
 export const REQUIRED: FeedTarget[] = ["id", "link", "image_link", "availability", "price", "brand", "condition"];
 export const AVAILABILITY = ["in_stock", "out_of_stock", "preorder", "backorder"];
 
-/** At most this many products (size and colour groups) in one range, so a whole catalogue can't run up a surprise bill. */
 
 /** One row of the brand's file (one SKU), in Google's attribute names, exactly as the brand gave it. */
 export type FeedRow = { row: number; attrs: Partial<Record<FeedTarget, string>> };
