@@ -4,6 +4,7 @@ import { env } from "../env";
 import { parseBrandSettings } from "../brand";
 import { keywordEvidenceFor } from "../keywords/evidence";
 import { liveCandidates, newTally } from "../keywords/live";
+import { LIVE_KEYWORDS_BUDGET_MS, SEARCH_BUDGET_MS, within } from "./budget";
 import type { RawCandidate } from "../keywords/retrieve";
 import { attributeTerms } from "../keywords/retrieve";
 import { FILLER_WORDS, categoryForType } from "../vocab/fashion";
@@ -100,7 +101,10 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
       const known = facts; // settled above (a closure doesn't keep the narrowing)
       const ev = await keywordEvidenceFor(g.brandId, known, {
         keep: 30,
-        ...(kd ? { live: (found: RawCandidate[]) => liveCandidates(known, found, kd, tally).catch((e) => { liveError = e instanceof Error ? e.message : String(e); return []; }) } : {}),
+        ...(kd ? { live: (found: RawCandidate[]) => within(
+          liveCandidates(known, found, kd, tally).catch((e) => { liveError = e instanceof Error ? e.message : String(e); return []; }),
+          LIVE_KEYWORDS_BUDGET_MS(), () => { liveError = "took too long (the figures are kept for next time when they arrive)"; return []; },
+        ) } : {}),
       });
       if (kd) await addUsage(id, { serpCalls: tally.calls, serpCached: tally.cached, serpCostUsd: tally.costUsd, notes: [liveError ? `Live keyword figures failed (named from the list alone): ${liveError.slice(0, 200)}` : `Live keyword figures (DataForSEO Labs): ${tally.calls} request${tally.calls === 1 ? "" : "s"}, ${tally.cached} from cache, ${ev.liveCount} phrase${ev.liveCount === 1 ? "" : "s"} added`] });
       if (categoryForType(facts.product_type) === null && ev.rawCount === 0 && ev.datasetId) {
@@ -121,7 +125,14 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
       const max = Math.min(brand.maxSerpQueries, env().MAX_SERP_QUERIES_PER_GENERATION);
       const queries = planQueries(facts, ev.limited ? [] : keywords, order, max);
       const settings = { ...brand.serp, depth: 10 };
-      const fetched = await Promise.all(queries.map((q) => fetchSerp(providers.serp, q.query, settings, env().SERP_CACHE_TTL_DAYS)));
+      const fetched = await Promise.all(queries.map((q) => {
+        const search = fetchSerp(providers.serp, q.query, settings, env().SERP_CACHE_TTL_DAYS);
+        return within(search, SEARCH_BUDGET_MS(), () => {
+          // Too slow for this name. It still finishes in the background and is cached; its cost is recorded when it does.
+          void search.then((f) => "error" in f ? undefined : addUsage(id, { serpCalls: f.calls, serpCostUsd: f.response.costUsd ?? 0, notes: [`Google search for "${q.query}" came back after the name was written; kept for next time`] })).catch(() => undefined);
+          return { error: "took too long", query: q.query, calls: 0 };
+        });
+      }));
       const serp: SerpEvidenceItem[] = [];
       let failed = 0, cachedN = 0, calls = 0, cost = 0;
       const searchErrors: string[] = [];
@@ -134,7 +145,8 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
         }
       });
       await addUsage(id, { serpCalls: calls, serpCached: cachedN, serpCostUsd: cost, notes: searchErrors }); // calls already excludes cache hits
-      const serpStatus: EvidenceBundle["serpStatus"] = !queries.length ? "skipped" : failed === queries.length ? "unavailable" : failed ? "partial" : "ok";
+      // One search out of three missing still leaves plenty of Google evidence; "partial" means most of it is missing.
+      const serpStatus: EvidenceBundle["serpStatus"] = !queries.length ? "skipped" : failed === queries.length ? "unavailable" : failed * 2 > queries.length ? "partial" : "ok";
 
       // ── Stage 6: SERP patterns + best-case word order from both sources ──
       const patterns = serp.length ? derivePatterns(serp, facts, attrs) : null;

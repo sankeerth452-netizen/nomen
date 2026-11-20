@@ -115,9 +115,12 @@ model Keyword {
 
   dataset KeywordDataset @relation(fields: [datasetId], references: [id], onDelete: Cascade)
 
-  // GIN full-text and trigram indexes are created in raw SQL migrations (Prisma can't express them)
+  // The full-text index is an expression index made in raw SQL (Prisma can't express it, and leaves it alone).
+  // The trigram index must be declared here: left out, a schema-generated migration drops it (20261005123050 did,
+  // and every keyword search then read the whole table: names took 60-85 s once Nitin's 238k-row list was in).
   @@unique([datasetId, normalizedKeyword, country, language])
   @@index([datasetId])
+  @@index([normalizedKeyword(ops: raw("gin_trgm_ops"))], type: Gin, map: "Keyword_trgm_idx")
 }
 
 model Generation {

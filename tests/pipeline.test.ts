@@ -91,6 +91,35 @@ describe("fallbacks", () => {
     expect(["medium", "low"]).toContain(r.recommendation.confidence);
   });
 
+  // Seen 18-20 Nov: a single slow DataForSEO search held names up for over a minute.
+  it("a slow Google search doesn't hold up the name; it still lands in the cache for next time", async () => {
+    process.env.SEARCH_BUDGET_MS = "300";
+    try {
+      const { brand, user } = await seedBrand();
+      const { serp, providers } = fresh();
+      const slowQuery = { value: "" };
+      const search = serp.search.bind(serp);
+      serp.search = async (o) => {
+        if (!slowQuery.value) slowQuery.value = o.query; // the first search planned is the slow one
+        if (o.query === slowQuery.value) await new Promise((r) => setTimeout(r, 1500));
+        return search(o);
+      };
+      const t0 = Date.now();
+      const g = await run(user, brand.id, dress, providers);
+      expect(Date.now() - t0).toBeLessThan(1500); // didn't wait for it
+      expect(g.status).toBe("completed");
+      const r = g.result as { recommendation: { confidence: string }; meta: { serpStatus: string } };
+      expect(r.meta.serpStatus).toBe("ok"); // one search out of two or three missing isn't "partial"
+      expect((g.usage as { notes: string[] }).notes.join(" ")).toMatch(/Live search for ".+" failed: took too long/);
+      await new Promise((r) => setTimeout(r, 1700));
+      expect(await db.serpCache.count({ where: { query: slowQuery.value } })).toBe(1); // kept for the next piece
+      const after = await db.generation.findUniqueOrThrow({ where: { id: g.id } });
+      expect((after.usage as { notes: string[] }).notes.join(" ")).toMatch(/came back after the name was written; kept for next time/);
+    } finally {
+      delete process.env.SEARCH_BUDGET_MS;
+    }
+  }, 15_000);
+
   it("Claude outage -> failed generation keeps evidence; retry reuses it with NO new SERP calls", async () => {
     const { brand, user } = await seedBrand();
     const { serp, recommender, providers } = fresh();

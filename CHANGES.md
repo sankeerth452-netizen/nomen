@@ -373,3 +373,24 @@ Bulk status changes ("Name all", restart recovery) now also update each piece's 
 Checked locally with the stand-in AI: a 75-photo range was added, read and named, the screen kept up through the changed-only checks, and it ended on "75 named". A 150-piece range is covered by a test. Naming runs 3 pieces at a time (about 6 a minute with the real AI) and carries on with the screen closed.
 
 175 tests pass.
+
+## Naming was taking about a minute: a lost search index (20 Nov 2026)
+
+On the live site every name took 57–85 seconds from 15 November, even when every Google search was already saved. On 14 November it was 15–21 seconds. Timing one live name stage by stage: reading the details took 3 s, **matching against the keyword list 35.6 s**, the (saved) Google searches under 1 s.
+
+The cause is the index behind the keyword list's spelling and word-order searches. Migration `20261005123050_dataset_rejections` dropped it by accident (it wasn't declared in the schema, so the schema-generated migration removed it). Since then each of those searches has read the whole keyword table. Nobody noticed until Nitin's 237,928-phrase list went live on 15 November, on Render's smallest database (256 MB of memory).
+
+- **The index is back** (`20261120090000_restore_keyword_trigram_index`) and is now declared in `prisma/schema.prisma`, so no future migration can drop it. A drift check against the schema is clean.
+- **Spelling searches:** they use a 0.5 closeness bar, which gives the same top matches as the default 0.3 at about a sixth of the reads, and singular forms only, because the plural finds the same phrases.
+- **The bogus "dresss" searches are gone.** Search phrases are made with real plurals ("dresses").
+- Locally the keyword step went from about 3.9 s of database work to 0.26 s for a dress (0.01–0.15 s for other pieces).
+
+**Slow outside services can't hold a name up any more:**
+
+- Each DataForSEO try waits at most 10 s instead of 25, with 2 tries instead of 3; a normal reply takes about 4 s.
+- The Google-search step has a 15-second limit, and the live keyword figures a 10-second one. A search still out after that is left out of this name. It keeps running and is saved, so the next piece that needs it gets it at once, and its cost is recorded when it lands.
+- One missing search out of three no longer counts as "partial" Google evidence, which capped the name at Medium. Most of them missing still does.
+
+**Colours show as circles.** In the product data's Google Shopping section and on range cards, each colour is a filled circle: gold and silver look metallic, and multicolour is a colour wheel. Its name shows on hover and is read out by screen readers. Google still gets the colour's name, and that's what's copied.
+
+178 tests pass.

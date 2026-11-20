@@ -3,8 +3,8 @@ import { SerpProviderError, taskError } from "./dataforseo";
 
 const BASE = "https://api.dataforseo.com/v3/dataforseo_labs/google";
 const AUSTRALIA = { location_code: 2036, language_code: "en" };
-const TIMEOUT_MS = 25_000;
-const MAX_ATTEMPTS = 3;
+const TIMEOUT_MS = 10_000; // a normal reply takes about 4 seconds
+const MAX_ATTEMPTS = 2;
 
 type Task = { status_code?: number; status_message?: string; cost?: number; result?: { items?: { keyword?: string; keyword_info?: { search_volume?: number | null } }[] }[] | null };
 

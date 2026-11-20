@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import { ColourSwatches } from "@/components/ColourSwatches";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COPY } from "@/lib/copy";
@@ -343,7 +344,7 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: Pr
             {item.sheet?.status === "ready" && (
               <details className="piece-alts piece-page"><summary>Product data{item.sheet.checks.length ? ` · ${item.sheet.checks.length} to check` : ""}</summary>
                 <p><b>Google category</b> {item.sheet.google.category?.path.split(" > ").pop() ?? "Not set"}</p>
-                <p><b>Colour</b> {item.sheet.google.colour ?? "Not given"}</p>
+                <p><b>Colour</b> {item.sheet.google.colour ? <ColourSwatches value={item.sheet.google.colour} small /> : "Not given"}</p>
                 <p><b>Ideal for</b> {item.sheet.idealFor.live.map((v) => v.label).join(", ") || "Nothing certain"}{item.sheet.idealFor.review.length ? ` (to check: ${item.sheet.idealFor.review.map((v) => v.label).join(", ")})` : ""}</p>
                 {item.sheet.highlights.length > 0 && <ul>{item.sheet.highlights.map((h) => <li key={h}>{h}</li>)}</ul>}
                 {item.sheet.checks.length > 0 && <p className="piece-hint">{item.sheet.checks.join(" ")}</p>}

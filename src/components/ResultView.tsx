@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { photoForType } from "@/lib/photos";
 import { anatomy } from "@/lib/nameParts";
+import { ColourSwatches } from "./ColourSwatches";
 import { plain, plainList } from "@/lib/copy";
 
 type Kw = { id: string; keyword: string; searchVolume: number | null; category: string | null; source?: "google" };
@@ -370,7 +371,7 @@ function ProductData({ genId, title, slug, sheet, onChange }: { genId: string; t
         {head("Google Shopping", "Worked out from your details, never guessed")}
         <dl className="data-grid">
           {grid.map(([label, value, hint]) => (
-            <div key={label}><dt>{label}</dt><dd className={value ? "" : "empty"}>{value ?? "Not given"}</dd>{hint && <span className="muted">{hint}</span>}</div>
+            <div key={label}><dt>{label}</dt><dd className={value ? "" : "empty"}>{label === "Colour" && value ? <ColourSwatches value={value} /> : value ?? "Not given"}</dd>{hint && <span className="muted">{hint}</span>}</div>
           ))}
         </dl>
         <p className="data-copy-all"><button className="ghost" onClick={() => copy("all", tsv)}>{copied === "all" ? "Copied" : "Copy all for a spreadsheet"}</button></p>

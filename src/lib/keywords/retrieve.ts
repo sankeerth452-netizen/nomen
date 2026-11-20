@@ -28,9 +28,13 @@ export function searchVariants(f: ProductFacts): string[] {
   const parts = (...xs: (string | undefined)[]) => xs.filter(Boolean).join(" ");
   const v = new Set<string>([t, parts(colour, t), parts(length, t), parts(feat, t), parts(mat, t), parts(colour, length, t), parts(colour, feat, t), parts(feat, length, t), parts(colour, feat, length, t), parts(colour, mat, t)]);
   const out = new Set<string>();
-  for (const x of v) { out.add(x); out.add(x.replace(new RegExp(`${t}$`), singular(t) + "s")); out.add(x.replace(new RegExp(`${t}$`), singular(t))); }
+  const one = singular(t);
+  const many = /(s|x|z|ch|sh)$/.test(one) ? `${one}es` : /[^aeiou]y$/.test(one) ? `${one.slice(0, -1)}ies` : `${one}s`; // dress -> dresses, never "dresss"
+  for (const x of v) { out.add(x); out.add(x.replace(new RegExp(`${t}$`), many)); out.add(x.replace(new RegExp(`${t}$`), one)); }
   return [...out].filter(Boolean);
 }
+
+const TRIGRAM_THRESHOLD = 0.5;
 
 // tsquery-safe lexeme: letters/digits only
 const lex = (w: string) => w.replace(/[^a-z0-9]/gi, "");
@@ -84,16 +88,21 @@ export async function retrieveCandidates(datasetId: string, facts: ProductFacts,
       ).then((r) => add(r, "fts_single")),
     );
   }
-  // 4. trigram: word-order and spelling variation against the best variants
+  // 4. trigram: word-order and spelling variation against the best variants. Singular forms only (the plural finds
+  // the same phrases), and a 0.5 closeness bar: the same top matches as the default 0.3, at a fraction of the reads.
   if (variants.length) {
-    const top = variants.filter((v) => v.includes(" ")).slice(0, 4);
+    const one = singular(facts.product_type!.toLowerCase().split(/\s+/).pop()!);
+    const top = variants.filter((v) => v.includes(" ") && v.endsWith(` ${one}`)).slice(0, 3);
     for (const v of top) {
       jobs.push(
-        db.$queryRawUnsafe<Omit<RawCandidate, "source">[]>(
-          `SELECT ${cols} FROM "Keyword" WHERE "datasetId" = $1 AND "normalizedKeyword" % $2
-           ORDER BY similarity("normalizedKeyword", $2) DESC LIMIT 30`,
-          datasetId, v,
-        ).then((r) => add(r, "trigram")),
+        db.$transaction([
+          db.$executeRawUnsafe(`SET LOCAL pg_trgm.similarity_threshold = ${TRIGRAM_THRESHOLD}`),
+          db.$queryRawUnsafe<Omit<RawCandidate, "source">[]>(
+            `SELECT ${cols} FROM "Keyword" WHERE "datasetId" = $1 AND "normalizedKeyword" % $2
+             ORDER BY similarity("normalizedKeyword", $2) DESC LIMIT 30`,
+            datasetId, v,
+          ),
+        ]).then(([, r]) => add(r, "trigram")),
       );
     }
   }
