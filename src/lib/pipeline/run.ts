@@ -61,7 +61,7 @@ export async function createGeneration(user: { id: string; brandId: string | nul
  * The explicit, observable pipeline (brief section 6). Safe to call again on a failed generation: it resumes from
  * whatever evidence was already stored, so a Claude retry never repeats keyword retrieval or paid SERP calls.
  */
-export async function runPipeline(id: string, injected?: Providers): Promise<void> {
+export async function runPipeline(id: string, injected?: Providers, opts: { background?: boolean } = {}): Promise<void> {
   const t0 = Date.now();
   try {
     // Resolved INSIDE the guard: a missing/misnamed API setting must fail the generation visibly, never leave it "pending".
@@ -103,7 +103,7 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
         keep: 30,
         ...(kd ? { live: (found: RawCandidate[]) => within(
           liveCandidates(known, found, kd, tally).catch((e) => { liveError = e instanceof Error ? e.message : String(e); return []; }),
-          LIVE_KEYWORDS_BUDGET_MS(), () => { liveError = "took too long (the figures are kept for next time when they arrive)"; return []; },
+          LIVE_KEYWORDS_BUDGET_MS(opts.background), () => { liveError = "took too long (the figures are kept for next time when they arrive)"; return []; },
         ) } : {}),
       });
       if (kd) await addUsage(id, { serpCalls: tally.calls, serpCached: tally.cached, serpCostUsd: tally.costUsd, notes: [liveError ? `Live keyword figures failed (named from the list alone): ${liveError.slice(0, 200)}` : `Live keyword figures (DataForSEO Labs): ${tally.calls} request${tally.calls === 1 ? "" : "s"}, ${tally.cached} from cache, ${ev.liveCount} phrase${ev.liveCount === 1 ? "" : "s"} added`] });
@@ -127,7 +127,7 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
       const settings = { ...brand.serp, depth: 10 };
       const fetched = await Promise.all(queries.map((q) => {
         const search = fetchSerp(providers.serp, q.query, settings, env().SERP_CACHE_TTL_DAYS);
-        return within(search, SEARCH_BUDGET_MS(), () => {
+        return within(search, SEARCH_BUDGET_MS(opts.background), () => {
           // Too slow for this name. It still finishes in the background and is cached; its cost is recorded when it does.
           void search.then((f) => "error" in f ? undefined : addUsage(id, { serpCalls: f.calls, serpCostUsd: f.response.costUsd ?? 0, notes: [`Google search for "${q.query}" came back after the name was written; kept for next time`] })).catch(() => undefined);
           return { error: "took too long", query: q.query, calls: 0 };
@@ -192,9 +192,12 @@ export async function runPipeline(id: string, injected?: Providers): Promise<voi
     else if (bundle.serpStatus === "partial") { cap("medium"); warnings.push(COPY.googlePartial); }
     else if (bundle.serpStatus === "skipped") cap("medium");
     if (bundle.limitedKeywordEvidence) { cap("low"); warnings.push(COPY.noMatchingSearches); }
-    if (bundle.patterns?.intent === "mixed") warnings.push(COPY.mixedIntent);
+    // A mix of shops and articles is the norm for fashion searches: the evidence panel says so; as a warning it was on almost every name.
     const wantsLength = ["Dresses", "Skirts", "Pants", "Shorts", "Jeans & Denim", "Coats & Jackets"].includes(categoryForType(facts.product_type) ?? "");
-    for (const k of ["colour", "material", "length"] as const) if (!facts[k].length && (k !== "length" || wantsLength)) warnings.push(COPY.missing[k]);
+    const kind = categoryForType(facts.product_type) ?? "";
+    const accessory = ["Bags", "Shoes"].includes(kind) || /\b(belts?|hats?|caps?|beanies?|sunglasses|watch(es)?|clips?|claws?|headbands?|scrunchies?)\b/i.test(facts.product_type ?? "");
+    const materialWord = kind === "Jewellery" ? COPY.missing.materialJewellery : accessory ? COPY.missing.materialAccessory : COPY.missing.material;
+    for (const k of ["colour", "material", "length"] as const) if (!facts[k].length && (k !== "length" || wantsLength)) warnings.push(k === "material" ? materialWord : COPY.missing[k]);
 
     const result = { recommendation: { ...rec, confidence, warnings: [...new Set(warnings)] }, meta: { serpStatus: bundle.serpStatus, limitedKeywordEvidence: bundle.limitedKeywordEvidence, datasetId: bundle.datasetId, orderFinal: bundle.order.final } };
     await setStage(id, "completed", { result: json(result), confidence, durationMs: Date.now() - t0 });

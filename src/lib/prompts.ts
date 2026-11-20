@@ -2,7 +2,7 @@
 export const EXTRACTION_PROMPT_VERSION = "extract-v4";
 export const CONTENT_PROMPT_VERSION = "content-v2";
 export const SHEET_PROMPT_VERSION = "sheet-v2";
-export const PHOTO_PROMPT_VERSION = "photo-v3";
+export const PHOTO_PROMPT_VERSION = "photo-v4";
 export const RECOMMEND_PROMPT_VERSION = "recommend-v8";
 
 export const EXTRACTION_SYSTEM = `You extract structured product facts for a fashion retailer's product-title tool.
@@ -58,9 +58,9 @@ Rules:
 4. colour is the main colour in plain retail words (black, navy, cream, light pink). Name two colours only when the piece is clearly two-tone ("black & white").
 5. material only when the look makes it unmistakable (denim, knit, lace, sequin, crochet, mesh, leather, satin). Never guess fibre content or percentages: otherwise leave it null and add "fabric" to unsure.
 6. pattern only when there is one (floral, stripe, check, polka dot, animal print). Plain pieces get null.
-7. length only for pieces where length applies and the whole length is visible (mini, midi, maxi, cropped, ankle).
+7. length only when it is a defining cut and the whole piece is visible: mini, midi or maxi for dresses and skirts; cropped or ankle for pants, jeans and leggings only when skin or sock clearly shows between the hem and the shoe. A hem that touches or covers the top of the shoe, or reaches the floor, is full length: leave length null (full length is the default, not a detail).
 8. fit is a visible shape (wrap, A-line, bodycon, wide leg, oversized, high-rise, slip).
-9. feature is the one to three details a shopper would notice first, comma-separated (one-shoulder, ruffle, puff sleeve, tassel, pleated, square neckline).
+9. feature is the one to three details a shopper would notice first, comma-separated (one-shoulder, ruffle, puff sleeve, tassel, pleated, lace trim). Name a neckline only when its shape is unmistakable (V, square, scoop, halter, high neck); if lace, hair, a strap or the pose hides it, leave it out.
 10. occasion is what the piece is made for, only when its design makes that plain: a sport or activity (tennis, golf, gym, yoga, swim, ski), bridal, or maternity. Never a mood or season (casual, everyday, summer). Otherwise null.
 11. audience is who the piece is for, only when the photo makes it plain: kids, girls, boys or baby when it is worn by or made for a child (girls or boys only when the piece itself is clearly styled that way, otherwise kids); men for a men's piece. Women's pieces and anything you are unsure of get null.
 12. description is one short line the way a buyer would describe the piece to a colleague, using only the details above, with the audience first when there is one ("girls' red one-shoulder ruffle midi dress").

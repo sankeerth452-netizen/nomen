@@ -2,7 +2,7 @@ import type { SerpProvider, SerpResponse, SerpResult } from "./types";
 import { classifyPage } from "../serp/reduce";
 
 const ENDPOINT = "https://api.dataforseo.com/v3/serp/google/organic/live/advanced";
-const TIMEOUT_MS = 10_000; // a normal reply takes about 4 seconds
+const TIMEOUT_MS = 20_000; // a normal reply takes about 4 seconds, but under load it can take 10-20
 const MAX_ATTEMPTS = 2;
 
 export class SerpProviderError extends Error {

@@ -91,6 +91,20 @@ describe("fallbacks", () => {
     expect(["medium", "low"]).toContain(r.recommendation.confidence);
   });
 
+  it("asks about the metal or material for jewellery, not the fabric, and doesn't repeat the 'mix of shops' note", async () => {
+    const { brand, user } = await seedBrand();
+    const { providers } = fresh();
+    const g = await run(user, brand.id, { freeText: "gold chunky oval hoop earrings", productType: "earrings", colour: "gold", feature: "chunky" }, providers);
+    const warnings = (g.result as { recommendation: { warnings: string[] } }).recommendation.warnings;
+    expect(warnings).toContain("You didn't mention the metal or material. Adding it can help shoppers find the piece.");
+    expect(warnings.join(" ")).not.toMatch(/fabric|mix of shops/);
+  });
+
+  it("gives a range piece longer to wait for slow searches than a piece someone is watching", async () => {
+    const { SEARCH_BUDGET_MS } = await import("@/lib/pipeline/budget");
+    expect(SEARCH_BUDGET_MS(true)).toBeGreaterThan(SEARCH_BUDGET_MS(false));
+  });
+
   // Seen 18-20 Nov: a single slow DataForSEO search held names up for over a minute.
   it("a slow Google search doesn't hold up the name; it still lands in the cache for next time", async () => {
     process.env.SEARCH_BUDGET_MS = "300";

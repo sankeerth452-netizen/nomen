@@ -141,6 +141,16 @@ describe("query planning", () => {
     expect(planQueries(facts, [kw("black midi dress")], order, 1)).toHaveLength(1);
   });
 
+  it("never spends a search on a near-duplicate or a doubled word (seen 20 Nov: 'white leather sneaker', 'swim swimsuit')", () => {
+    const sneakers = { ...emptyFacts, product_type: "sneakers", colour: ["white"], material: ["leather"] };
+    const o = { keywordOrder: [], serpOrder: null, final: ["white", "leather"], suggestedTitle: "" };
+    const q = planQueries(sneakers, [kw("white leather sneakers", 1100), kw("white leather sneaker", 1100), kw("leather sneakers", 1200)], o, 3).map((x) => x.query);
+    expect(q.filter((x) => /^white leather sneakers?$/.test(x))).toHaveLength(1);
+    const swim = { ...emptyFacts, product_type: "swimsuit", colour: ["black"], occasion_or_style: ["swim"] };
+    const sq = planQueries(swim, [], { keywordOrder: [], serpOrder: null, final: ["black"], suggestedTitle: "" }, 3).map((x) => x.query);
+    expect(sq.some((x) => /swim swimsuit/.test(x))).toBe(false);
+  });
+
   it("leads the Google searches with who it's for and what it's made for", () => {
     const kids = { ...emptyFacts, product_type: "dress", colour: ["burgundy"], fit_or_silhouette: ["a-line"], features: ["white contrast trim", "half zip"], occasion_or_style: ["tennis"], audience: "girls" };
     const kidsOrder = { keywordOrder: [], serpOrder: null, final: ["burgundy", "white contrast trim", "a-line", "half zip", "tennis"], suggestedTitle: "" };

@@ -394,3 +394,42 @@ The cause is the index behind the keyword list's spelling and word-order searche
 **Colours show as circles.** In the product data's Google Shopping section and on range cards, each colour is a filled circle: gold and silver look metallic, and multicolour is a colour wheel. Its name shows on hover and is read out by screen readers. Google still gets the colour's name, and that's what's copied.
 
 178 tests pass.
+
+## Tested with 12 real product photos from Google (20 Nov 2026)
+
+Twelve product photos from Australian online stores (found through Google Images) went into a test range on the live site, as if a buyer had dropped them in:
+
+- two black slip dresses;
+- wide-leg jeans;
+- two chunky cardigans;
+- a one-piece swimsuit;
+- leather sneakers;
+- a crossbody bag;
+- gold hoop earrings;
+- leggings;
+- a pleated midi skirt;
+- a girls' tulle dress.
+
+The files were named web-01 to web-12, so Nomen had only the photos to go on. Cost about US$1.60.
+
+**What went well:**
+
+- Every photo was read as the right kind of piece, in the right colour, with its defining details: slip, lace trim, patch pockets, chunky knit, side cut-outs, side zip, zip flap, tie belt, tulle skirt.
+- Things that weren't the product were left out (the floral dress behind the bag, the bra top worn with the leggings).
+- 9 of 12 names were High confidence.
+- The product data was right throughout. Categories included Swimwear, Shoes, Handbags and Earrings, and the girls' dress came out as Female/Kids under "Girls > Dresses". Occasions were sensible (Cocktail and Date night for the slip dresses, Beach and Holiday for the swimsuit), and so were the custom labels.
+
+**Mistakes found, and fixed:**
+
+| Mistake | Fix |
+| --- | --- |
+| Full-length jeans were read as "ankle" length, and it spread to a highlight, the product details, the meta description and an alternative name | The photo reader leaves length out for full-length pants, jeans and leggings: cropped or ankle only when skin or sock shows between hem and shoe (`photo-v4`). Re-read: the jeans have no length (and "mid blue", as the store calls it); the leggings, which do stop above the sock, keep "ankle" |
+| A lace V neckline was read as "square" (the instructions' own example listed "square neckline") | A neckline is named only when its shape is unmistakable, and the example no longer suggests one. Re-read: the lace dress and the girls' dress now say "neckline: not sure" |
+| 6 of 36 Google searches were cut off in the range, which held 2 pieces at Medium. With three pieces named at once DataForSEO answers more slowly, and the new 10-second limit per try was too short | Each try waits up to 20 s. A range piece, which no one is waiting on, gives the search step 45 s (30 s for keyword figures); a piece named on its own gives 20 s (12 s) |
+| Searches wasted on near-duplicates ("white leather sneaker" after "white leather sneakers") and doubled words ("swim swimsuit") | Duplicate checks compare singular forms, and a use word already in the product noun isn't repeated |
+| Earrings were told "You didn't mention the fabric" | Clothing says fabric; bags, shoes and accessories say material; jewellery says metal or material |
+| "Google shows a mix of shops and articles…" was a warning on 10 of 12 names | Dropped as a warning: that's normal for fashion searches, and the evidence panel already says what Google shows |
+
+**Not changed yet:** for the swimsuit, "black one piece swimsuit" has 1,900 searches a month against 600 for "black swimsuit", but Nomen couldn't use "One Piece", because only words from the facts are allowed in a name. Treating it as the same thing as "swimsuit" (and similar pairs like tee/t-shirt) means changing the name instructions, which needs a full re-test first.
+
+181 tests pass.

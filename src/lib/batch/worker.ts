@@ -100,7 +100,7 @@ export async function nameItem(item: BatchItem, providers?: Providers): Promise<
       note: batch.source === "file" ? `Named from the product file "${batch.fileName ?? batch.title}" (SKUs ${skus.slice(0, 12).join(", ")}${skus.length > 12 ? "…" : ""})` : `Named as part of the range "${batch.title}"`,
     });
     await db.batchItem.update({ where: { id: item.id }, data: { generationId: genId } });
-    await runPipeline(genId, providers);
+    await runPipeline(genId, providers, { background: true }); // a range: longer waits for slow searches
     const g = await db.generation.findUnique({ where: { id: genId }, select: { status: true } });
     await db.batchItem.update({ where: { id: item.id }, data: { status: settled(g?.status), claimedAt: null } });
   } catch (e) {

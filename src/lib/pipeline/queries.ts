@@ -2,13 +2,14 @@ import type { ProductFacts } from "../providers/types";
 import type { KeywordEvidenceItem, OrderGuidance } from "./types";
 import { normalizeKeyword } from "../keywords/normalize";
 import { COPY } from "../copy";
-import { isDefaultAudience, isUseWord } from "../vocab/fashion";
+import { isDefaultAudience, isUseWord, singular } from "../vocab/fashion";
 
 export type PlannedQuery = { query: string; reason: string };
 const MAX_WORDS = 6; // real shopper phrasing, not a sentence
 
+// Word overlap on singular forms, so "white leather sneaker" counts as the same search as "white leather sneakers".
 const jaccard = (a: string, b: string) => {
-  const A = new Set(a.split(" ")), B = new Set(b.split(" "));
+  const A = new Set(a.split(" ").map(singular)), B = new Set(b.split(" ").map(singular));
   return [...A].filter((x) => B.has(x)).length / new Set([...A, ...B]).size;
 };
 
@@ -37,7 +38,7 @@ export function planQueries(facts: ProductFacts, keywords: KeywordEvidenceItem[]
   const use = facts.occasion_or_style.map((o) => o.trim().toLowerCase()).find(isUseWord) ?? null;
   // Shoppers search "viscose", never "73% viscose": percentages come out of the searches (the fibre word stays).
   const attrs = [...new Set(order.final.filter((a) => a.toLowerCase() !== use).map((a) => a.replace(/\d+(?:\.\d+)?\s*%\s*/g, "").trim()).filter(Boolean))];
-  const head = who ? [who] : [], tail = [...(use ? [use] : []), noun];
+  const head = who ? [who] : [], tail = [...(use && !noun.includes(use) ? [use] : []), noun]; // never "swim swimsuit"
   const words = (parts: string[]) => parts.join(" ").split(" ").length;
   const mid: string[] = [];
   for (const a of attrs.slice(0, 3)) if (words([...head, ...mid, a, ...tail]) <= MAX_WORDS) mid.push(a);
