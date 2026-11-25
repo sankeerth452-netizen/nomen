@@ -6,6 +6,7 @@ import { db } from "../db";
 import type { KeywordDataProvider, ProductFacts } from "../providers/types";
 import { categoryForType, isDefaultAudience, singular } from "../vocab/fashion";
 import { normalizeKeyword } from "./normalize";
+import type { MonthlyPoint } from "./seasonal";
 import { attributeTerms, searchVariants, type RawCandidate } from "./retrieve";
 
 const TTL_DAYS = 30; // Google's figures are monthly
@@ -21,14 +22,25 @@ const cacheRow = (key: string, query: string, reducedResponse: unknown) => ({
   cacheKey: key, query, location: "Australia", language: "English", device: "labs", expiresAt: new Date(Date.now() + TTL_DAYS * 86_400_000), reducedResponse: json(reducedResponse), providerStatus: "ok",
 });
 
-/** Monthly searches for phrases: cached figures first, one request for the rest. null = Google has no figure. */
-export async function liveVolumes(provider: KeywordDataProvider, phrases: string[], tally: LiveTally): Promise<Map<string, number | null>> {
+type CachedVolume = { volume: number | null; monthly?: MonthlyPoint[] };
+const volumeKey = (provider: KeywordDataProvider, p: string) => `${provider.cacheNamespace}:labs-volume:${p}`;
+
+/**
+ * Monthly searches for phrases: cached figures first, one request for the rest. null = Google has no figure.
+ * Each reply's monthly history is kept with the figure; `needMonthly` phrases cached before history was kept are
+ * asked for again (same request, a fraction of a cent each).
+ */
+export async function liveVolumes(provider: KeywordDataProvider, phrases: string[], tally: LiveTally, opts: { needMonthly?: string[] } = {}): Promise<Map<string, number | null>> {
   const ps = [...new Set(phrases.map(normalizeKeyword).filter(Boolean))];
-  const key = (p: string) => `${provider.cacheNamespace}:labs-volume:${p}`;
+  const wantMonthly = new Set((opts.needMonthly ?? []).map(normalizeKeyword));
   const out = new Map<string, number | null>();
-  const hits = await db.serpCache.findMany({ where: { cacheKey: { in: ps.map(key) }, expiresAt: { gt: new Date() } }, select: { query: true, reducedResponse: true } });
-  for (const h of hits) out.set(h.query, (h.reducedResponse as { volume: number | null }).volume);
-  tally.cached += hits.length;
+  const hits = await db.serpCache.findMany({ where: { cacheKey: { in: ps.map((p) => volumeKey(provider, p)) }, expiresAt: { gt: new Date() } }, select: { query: true, reducedResponse: true } });
+  for (const h of hits) {
+    const c = h.reducedResponse as CachedVolume;
+    if (wantMonthly.has(h.query) && !c.monthly && c.volume) continue; // a figure without its history: ask again
+    out.set(h.query, c.volume);
+    tally.cached++;
+  }
   const misses = ps.filter((p) => !out.has(p));
   if (!misses.length) return out;
   const r = await provider.volumes(misses);
@@ -36,10 +48,17 @@ export async function liveVolumes(provider: KeywordDataProvider, phrases: string
   await db.$transaction(misses.map((p) => {
     const v = r.volumes[p] ?? null;
     out.set(p, v);
-    const row = cacheRow(key(p), p, { volume: v });
+    const row = cacheRow(volumeKey(provider, p), p, { volume: v, ...(r.monthly?.[p]?.length ? { monthly: r.monthly[p] } : {}) });
     return db.serpCache.upsert({ where: { cacheKey: row.cacheKey }, create: row, update: { fetchedAt: new Date(), expiresAt: row.expiresAt, reducedResponse: row.reducedResponse } });
   }));
   return out;
+}
+
+/** The monthly history kept with phrases' figures (no request): phrase -> history, for phrases that have one. */
+export async function cachedMonthly(provider: KeywordDataProvider, phrases: string[]): Promise<Map<string, MonthlyPoint[]>> {
+  const ps = [...new Set(phrases.map(normalizeKeyword).filter(Boolean))];
+  const rows = ps.length ? await db.serpCache.findMany({ where: { cacheKey: { in: ps.map((p) => volumeKey(provider, p)) } }, select: { query: true, reducedResponse: true, fetchedAt: true } }) : [];
+  return new Map(rows.filter((r) => (r.reducedResponse as CachedVolume).monthly?.length).map((r) => [r.query, (r.reducedResponse as CachedVolume).monthly!]));
 }
 
 /** Searched phrases containing the seed, most searched first, cached for a month. */

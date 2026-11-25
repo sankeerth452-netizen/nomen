@@ -7,6 +7,7 @@ import { anatomy } from "@/lib/nameParts";
 import { ColourSwatches } from "./ColourSwatches";
 import { plain, plainList } from "@/lib/copy";
 import { VIEW_LABEL, type PhotoInfo } from "@/lib/images/info";
+import { MonthBars } from "./MonthBars";
 
 type Kw = { id: string; keyword: string; searchVolume: number | null; category: string | null; source?: "google" };
 type Serp = { id: string; query: string; rank: number; title: string; domain: string; pageClass: string; checkedAt: string; cached: boolean };
@@ -24,7 +25,7 @@ type Sheet = { status: "writing" | "failed" } | {
   highlights: string[]; details: { section: string; name: string; value: string }[]; shortDescription: string | null;
   idealFor: { live: Verdict[]; review: Verdict[]; sentence: string | null };
   season: { value: string; confidence: "high" | "low"; reason: string } | null; care: string | null; imageAlt: string | null; sizeFit?: string | null;
-  searchQueries: { phrase: string; volume: number | null; fromGoogle?: boolean }[]; checks: string[];
+  searchQueries: { phrase: string; volume: number | null; fromGoogle?: boolean; months?: number[]; season?: string }[]; checks: string[];
 };
 
 export type Gen = {
@@ -419,7 +420,13 @@ function ProductData({ genId, title, slug, sheet, onChange }: { genId: string; t
       {sheet.searchQueries.length > 0 && (
         <div className="page-field">
           {head("Search queries to target", "What the name is built to be found for", sheet.searchQueries.map((q) => q.phrase).join("\n"))}
-          <ul className="data-list">{sheet.searchQueries.map((q) => <li key={q.phrase}>{q.phrase}<span className="muted"> · {vol(q.volume)}{q.fromGoogle ? " · from Google" : ""}</span></li>)}</ul>
+          <ul className="data-list">{sheet.searchQueries.map((q) => (
+            <li key={q.phrase}>{q.phrase}<span className="muted"> · {vol(q.volume)}{q.fromGoogle ? " · from Google" : ""}</span>
+              {q.months && <MonthBars months={q.months} label={`Google searches for ${q.phrase} by month`} />}
+              {q.season && <span className="season-note">{q.season}</span>}
+            </li>
+          ))}</ul>
+          {sheet.searchQueries.some((q) => q.months) && <p className="muted small">Bars: Google&apos;s searches in Australia for each month, January to December, averaged over the last three years.</p>}
         </div>
       )}
 

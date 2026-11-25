@@ -131,12 +131,12 @@ export async function writeContent(id: string, opts: { title?: string; providers
       limits: { meta_title_max_characters: META_TITLE_MAX, meta_description_max_characters: META_DESCRIPTION_MAX, description_words: DESCRIPTION_WORDS },
     };
     let r = await providers.content.write(payload);
-    await addUsage(id, { ai: r.usage });
+    await addUsage(id, { ai: r.usage, op: "page" });
     let check = checkContent(r.content, allowed, `${sourceText}\n${brandWords.join(" \n ")}`, brand, kind);
     if (check.problems.length) {
       await addUsage(id, { notes: check.problems.map((p) => `Product page (first draft): ${p}`) });
       r = await providers.content.write(payload, { errors: check.problems, previous: r.content });
-      await addUsage(id, { ai: r.usage });
+      await addUsage(id, { ai: r.usage, op: "page" });
       check = checkContent(r.content, allowed, `${sourceText}\n${brandWords.join(" \n ")}`, brand, kind);
     }
     if (check.invented.length) {

@@ -1,10 +1,19 @@
 import type { AiUsage } from "../providers/types";
 import { updateGeneration } from "./store";
+import { generationWho, recordClaude, recordGoogle, type UsageOp } from "../usage/ledger";
 
-/** Usage and technical notes for engineers. Stored with the generation, never shown on screen. */
-export async function addUsage(id: string, add: { ai?: AiUsage; serpCalls?: number; serpCached?: number; serpCostUsd?: number; errorMessage?: string; notes?: string[] }) {
+/**
+ * Usage and technical notes for engineers. Stored with the generation, never shown on screen. A paid call also goes
+ * into the spend ledger under its step (`op`), for the dashboard.
+ */
+export async function addUsage(id: string, add: { ai?: AiUsage; serpCalls?: number; serpCached?: number; serpCostUsd?: number; errorMessage?: string; notes?: string[]; op?: UsageOp }) {
   // Under the row lock: the product page and product data add usage at the same time.
   await updateGeneration(id, (g) => ({ usage: tally(g.usage, add) }));
+  if (add.ai || (add.serpCostUsd ?? 0) > 0) {
+    const who = await generationWho(id).catch(() => ({ generationId: id }));
+    if (add.ai) await recordClaude(who, add.op ?? "other", add.ai);
+    if ((add.serpCostUsd ?? 0) > 0) await recordGoogle(who, add.op ?? "other", add.serpCostUsd!);
+  }
 }
 
 function tally(usage: unknown, add: Parameters<typeof addUsage>[1]) {

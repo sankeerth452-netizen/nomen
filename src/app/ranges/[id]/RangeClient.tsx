@@ -32,7 +32,13 @@ type Filter = "all" | "check" | "named" | "attention";
 
 const needsAttention = (i: PresentedItem) => ["needs_input", "failed", "not_product", "read_failed"].includes(i.status) || (i.status === "review" && !isReady(i.details));
 
-export default function RangeClient({ id, initialTitle, initialItems, loadedAt = null, brandName, source = "photos", fileName = null, fileCheck = null }: { id: string; initialTitle: string; initialItems: PresentedItem[]; loadedAt?: string | null; brandName: string | null; source?: "photos" | "file"; fileName?: string | null; fileCheck?: FileCheck | null }) {
+export default function RangeClient({ id, initialTitle, initialItems, loadedAt = null, brandName, source = "photos", fileName = null, fileCheck = null, isTest = false, canMarkTest = false }: { id: string; initialTitle: string; initialItems: PresentedItem[]; loadedAt?: string | null; brandName: string | null; source?: "photos" | "file"; fileName?: string | null; fileCheck?: FileCheck | null; isTest?: boolean; canMarkTest?: boolean }) {
+  const [test, setTest] = useState(isTest);
+  async function markTest(v: boolean) {
+    setTest(v);
+    const res = await fetch(`/api/ranges/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ isTest: v }) });
+    if (!res.ok) setTest(!v);
+  }
   const [items, setItems] = useState(initialItems);
   const lastCheck = useRef<string | null>(loadedAt); // only pieces changed since then are fetched
   const [title, setTitle] = useState(initialTitle);
@@ -202,6 +208,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
             {" "}· {counts.named} named{counts.check ? ` · ${counts.check} to check` : ""}{brandName ? ` · ${brandName}` : ""}
             {busy && progress?.etaSeconds ? ` · about ${timeLeft(progress.etaSeconds)} left` : ""}
           </p>
+          {canMarkTest && <label className="check test-mark"><input type="checkbox" checked={test} onChange={(e) => void markTest(e.target.checked)} /> A test range (left out of the dashboard)</label>}
         </div>
         <div className="range-actions">
           {source === "photos" && <button className="ghost" onClick={() => picker.current?.click()} >Add photos</button>}

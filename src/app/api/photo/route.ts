@@ -5,6 +5,7 @@ import { env } from "@/lib/env";
 import { MAX_READ_BYTES, focusFractions, imageSize, parsePhoto, type Photo } from "@/lib/photo";
 import { MAX_PHOTOS, photoInfo } from "@/lib/images/info";
 import { imageStats, photoProblems } from "@/lib/images/quality";
+import { recordClaude } from "@/lib/usage/ledger";
 import { PHOTO_PROMPT_VERSION } from "@/lib/prompts";
 import { getProviders } from "@/lib/providers";
 import { rateLimit } from "@/lib/rateLimit";
@@ -35,6 +36,7 @@ export async function POST(req: Request) {
     try {
       const { details, usage } = await getProviders().photo.read({ image, extras, productType });
       // Engineers only: there's no generation yet to store usage on.
+      await recordClaude({ brandId: user.brandId, userId: user.id }, "photo_read", usage);
       console.info("photo read", { user: user.id, prompt: PHOTO_PROMPT_VERSION, model: usage.model, photos: 1 + extras.length, bytes: image.data.length, input: usage.inputTokens, output: usage.outputTokens });
       const all = [image, ...extras];
       const stats = await Promise.all(all.map((p) => imageStats(p.data).catch(() => null)));

@@ -3,7 +3,7 @@ import type { SessionUser } from "@/lib/auth/session";
 import SignOut from "@/app/SignOut";
 import { Lockup, PRODUCT_NAME } from "@/components/Logo";
 
-type Section = "create" | "ranges" | "history" | "review" | "datasets" | "users" | "brand" | "credits";
+type Section = "create" | "ranges" | "history" | "review" | "dashboard" | "datasets" | "users" | "brand" | "credits";
 
 export default function Header({ user, active }: { user: SessionUser; active?: Section }) {
   const item = (href: string, section: Section, label: string) => (
@@ -23,6 +23,7 @@ export default function Header({ user, active }: { user: SessionUser; active?: S
             {item("/ranges", "ranges", "Ranges")}
             {item("/history", "history", "History")}
             {item("/review", "review", "Review")}
+            {(user.role === "admin" || user.role === "owner") && item("/dashboard", "dashboard", "Dashboard")}
             {(user.role === "admin" || user.role === "owner") && item("/admin/datasets", "datasets", "Keywords")}
             {(user.role === "admin" || user.role === "owner") && item("/admin/brand", "brand", "Brand")}
             {(user.role === "admin" || user.role === "owner") && item("/admin/users", "users", "Logins")}

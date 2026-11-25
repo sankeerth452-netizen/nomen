@@ -1,6 +1,7 @@
 import { db } from "../src/lib/db";
 import { createUser, UserError } from "../src/lib/users";
 import { seedTaxonomy } from "../src/lib/sheet/taxonomy";
+import { backfillUsage } from "../src/lib/usage/ledger";
 
 // Sensible defaults from brief section 19. Everything here is editable in brand settings later.
 const SPORTSGIRL_SETTINGS = {
@@ -28,6 +29,13 @@ async function main() {
   // Google's category list, from the copy that ships with the code (only new or renamed categories are written).
   const t = await seedTaxonomy();
   console.log(`Google categories: ${t.total} (${t.added} added, ${t.renamed} renamed).`);
+
+  // Spend for products and range photos from before the spend ledger (one row each, marked as backfilled).
+  const u = await backfillUsage();
+  if (u.generations || u.readings) console.log(`Spend ledger: ${u.generations} earlier products and ${u.readings} range photo readings added.`);
+  // Ranges whose title says they're a test (like "TEST · 12 web photos") are counted as tests on the dashboard.
+  const tests = await db.batch.updateMany({ where: { isTest: false, title: { startsWith: "TEST" } }, data: { isTest: true } });
+  if (tests.count) console.log(`Marked ${tests.count} range(s) titled "TEST..." as tests.`);
 
   // First owner login from the host's settings (OWNER_USERNAME + OWNER_PASSWORD), so a fresh deploy can be signed
   // into without a shell. Only ever creates: an existing login is never changed here (reset passwords in the app).

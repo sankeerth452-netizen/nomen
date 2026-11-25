@@ -49,7 +49,8 @@ export async function presentReview(g: Awaited<ReturnType<typeof loadGenerationF
     warnings: result.recommendation?.warnings ?? [], checks: result.sheet?.status === "ready" ? result.sheet.checks : [],
     revisions: revisions.map((r) => ({ id: r.id, field: r.field, source: r.source, value: r.value, by: who(r.user), at: r.createdAt })),
     comments: comments.map((c) => ({ id: c.id, field: c.field, body: c.body, flag: c.flag, by: who(c.user), at: c.createdAt })),
-    can: { edit: can(user, "edit", settings), approve: can(user, "approve", settings), comment: can(user, "comment", settings) },
+    can: { edit: can(user, "edit", settings), approve: can(user, "approve", settings), comment: can(user, "comment", settings), manage: user.role === "owner" || can(user, "manageBrand", settings) },
+    isTest: g.isTest,
     approvalRequired: settings?.approvalRequired ?? false,
   };
 }

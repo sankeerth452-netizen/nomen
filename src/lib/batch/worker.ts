@@ -7,6 +7,7 @@ import { getProviders, type Providers } from "../providers";
 import { focusFractions, imageSize, type Photo, type PhotoType } from "../photo";
 import { imageStats, photoProblems } from "../images/quality";
 import { MAX_PHOTOS, photoInfo } from "../images/info";
+import { recordClaude } from "../usage/ledger";
 import { createGeneration, runPipeline } from "../pipeline/run";
 import { asBox, asDetails, detailsFromPhoto, isReady } from "./ranges";
 import { mergePhotoDetails } from "./shared";
@@ -92,6 +93,8 @@ export async function readItem(item: BatchItem, providers: Providers, fetchImage
     const extras = await loadExtraPhotos(item.id, fetchImage);
     // A file piece's product type is known: say so, or a photo of jeans worn with a jumper gets read as the jumper.
     const { details, usage } = await providers.photo.read({ image, extras: extras.loaded.map((x) => x.photo), ...(fromFile?.fields.productType ? { productType: fromFile.fields.productType } : {}) });
+    const batch = await db.batch.findUnique({ where: { id: item.batchId }, select: { brandId: true, userId: true } });
+    await recordClaude({ brandId: batch?.brandId, userId: batch?.userId, batchId: item.batchId }, "photo_read", usage);
     console.info("range photo read", { item: item.id, photos: 1 + extras.loaded.length, model: usage.model, input: usage.inputTokens, output: usage.outputTokens });
     const kept = keep ? { photo: new Uint8Array(keep.data), photoType: keep.mediaType } : {};
     const all = [{ photo: image, size: mainSize }, ...extras.loaded];

@@ -87,7 +87,7 @@ export async function runPipeline(id: string, injected?: Providers, opts: { back
       await setStage(id, "extracting");
       const fields = { productType: input.productType, colour: input.colour, material: input.material, pattern: input.pattern, fit: input.fit, length: input.length, feature: input.feature, occasion: input.occasion, audience: input.audience, extra: input.extra };
       const ex = await providers.extractor.extract({ freeText: input.freeText, fields });
-      await addUsage(id, { ai: ex.usage });
+      await addUsage(id, { ai: ex.usage, op: "details" });
       const grounded = groundFacts(ex.facts, input);
       facts = grounded.facts;
       if (grounded.dropped.length) notes.push(COPY.ignoredDetails(grounded.dropped));
@@ -111,7 +111,7 @@ export async function runPipeline(id: string, injected?: Providers, opts: { back
           LIVE_KEYWORDS_BUDGET_MS(opts.background), () => { liveError = "took too long (the figures are kept for next time when they arrive)"; return []; },
         ) } : {}),
       });
-      if (kd) await addUsage(id, { serpCalls: tally.calls, serpCached: tally.cached, serpCostUsd: tally.costUsd, notes: [liveError ? `Live keyword figures failed (named from the list alone): ${liveError.slice(0, 200)}` : `Live keyword figures (DataForSEO Labs): ${tally.calls} request${tally.calls === 1 ? "" : "s"}, ${tally.cached} from cache, ${ev.liveCount} phrase${ev.liveCount === 1 ? "" : "s"} added`] });
+      if (kd) await addUsage(id, { op: "keyword_figures", serpCalls: tally.calls, serpCached: tally.cached, serpCostUsd: tally.costUsd, notes: [liveError ? `Live keyword figures failed (named from the list alone): ${liveError.slice(0, 200)}` : `Live keyword figures (DataForSEO Labs): ${tally.calls} request${tally.calls === 1 ? "" : "s"}, ${tally.cached} from cache, ${ev.liveCount} phrase${ev.liveCount === 1 ? "" : "s"} added`] });
       if (categoryForType(facts.product_type) === null && ev.rawCount === 0 && ev.datasetId) {
         await setStage(id, "needs_input", { result: json({ needs: "product_type", message: COPY.unknownType(facts.product_type ?? "") }), durationMs: Date.now() - t0 });
         return; // before any paid call
@@ -134,7 +134,7 @@ export async function runPipeline(id: string, injected?: Providers, opts: { back
         const search = fetchSerp(providers.serp, q.query, settings, env().SERP_CACHE_TTL_DAYS);
         return within(search, SEARCH_BUDGET_MS(opts.background), () => {
           // Too slow for this name. It still finishes in the background and is cached; its cost is recorded when it does.
-          void search.then((f) => "error" in f ? undefined : addUsage(id, { serpCalls: f.calls, serpCostUsd: f.response.costUsd ?? 0, notes: [`Google search for "${q.query}" came back after the name was written; kept for next time`] })).catch(() => undefined);
+          void search.then((f) => "error" in f ? undefined : addUsage(id, { op: "google_results", serpCalls: f.calls, serpCostUsd: f.response.costUsd ?? 0, notes: [`Google search for "${q.query}" came back after the name was written; kept for next time`] })).catch(() => undefined);
           return { error: "took too long", query: q.query, calls: 0 };
         });
       }));
@@ -149,7 +149,7 @@ export async function runPipeline(id: string, injected?: Providers, opts: { back
           serp.push({ id: `S${serp.length + 1}`, query: f.response.query, rank: r.rank, title: r.title, domain: r.domain, pageClass: r.pageClass, snippet: r.snippet, checkedAt: f.response.checkedAt, cached: f.cached });
         }
       });
-      await addUsage(id, { serpCalls: calls, serpCached: cachedN, serpCostUsd: cost, notes: searchErrors }); // calls already excludes cache hits
+      await addUsage(id, { op: "google_results", serpCalls: calls, serpCached: cachedN, serpCostUsd: cost, notes: searchErrors }); // calls already excludes cache hits
       // One search out of three missing still leaves plenty of Google evidence; "partial" means most of it is missing.
       const serpStatus: EvidenceBundle["serpStatus"] = !queries.length ? "skipped" : failed === queries.length ? "unavailable" : failed * 2 > queries.length ? "partial" : "ok";
 
@@ -169,12 +169,12 @@ export async function runPipeline(id: string, injected?: Providers, opts: { back
     const payload = buildPayload(facts, brand, bundle);
     let rec: Recommendation;
     let r = await providers.recommender.recommend(payload);
-    await addUsage(id, { ai: r.usage });
+    await addUsage(id, { ai: r.usage, op: "name" });
     let v = validateRecommendation(r.recommendation, facts, bundle, brand);
     if (v.errors.length) await addUsage(id, { notes: v.errors.map((e) => `Validation (first answer): ${e}`) });
     if (v.errors.length) {
       r = await providers.recommender.recommend(payload, { errors: v.errors, previous: r.recommendation });
-      await addUsage(id, { ai: r.usage });
+      await addUsage(id, { ai: r.usage, op: "name" });
       v = validateRecommendation(r.recommendation, facts, bundle, brand);
       if (v.errors.length) {
         const salvaged = dropBadAlternatives(v, r.recommendation, facts, bundle, brand);

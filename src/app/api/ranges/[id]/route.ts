@@ -33,13 +33,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-// Rename the range.
+// Rename the range, or (brand admins) count it as a test, which leaves its pieces out of the dashboard.
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUser("buyer");
     const b = await loadRangeFor(user, (await params).id);
+    const body = (await req.json().catch(() => ({}))) as { title?: unknown; isTest?: unknown };
+    if (typeof body.isTest === "boolean") {
+      await requireCapability(user, "manageBrand", b.brandId);
+      await db.$transaction([
+        db.batch.update({ where: { id: b.id }, data: { isTest: body.isTest } }),
+        db.auditEvent.create({ data: { brandId: b.brandId, userId: user.id, eventType: "range.test_marked", metadata: { batchId: b.id, isTest: body.isTest } } }),
+      ]);
+      return Response.json({ isTest: body.isTest });
+    }
     await requireCapability(user, "edit", b.brandId);
-    const body = (await req.json().catch(() => ({}))) as { title?: unknown };
     const title = typeof body.title === "string" ? body.title.trim().slice(0, 80) : "";
     if (title) await db.batch.update({ where: { id: b.id }, data: { title } });
     return Response.json({ title: title || b.title });

@@ -57,10 +57,14 @@ em, .italic { font-style: italic; }
 .mainnav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink); }
 .account { justify-self: end; display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--muted); }
 .account .brand-chip { font: 500 10.5px/1 var(--text); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--line-strong); padding: 7px 10px; }
-@media (max-width: 860px) {
+/* Brand admins have up to eight menu items: below 1100px the menu takes its own row, so it never crowds the logo or account. */
+@media (max-width: 1100px) {
   .masthead-in { grid-template-columns: 1fr auto; }
-  .mainnav { grid-column: 1 / -1; grid-row: 2; gap: 14px; overflow-x: auto; }
-  .mainnav a { letter-spacing: .12em; }
+  .mainnav { grid-column: 1 / -1; grid-row: 2; gap: 18px; overflow-x: auto; }
+  .mainnav a { letter-spacing: .12em; white-space: nowrap; }
+}
+@media (max-width: 860px) {
+  .mainnav { gap: 14px; }
   .account .who { display: none; }
 }
 
@@ -611,3 +615,37 @@ p.ok { color: var(--sage); }
 .proposal-facts dd { margin: 0; }
 .proposal .btns { display: flex; gap: 10px; flex-wrap: wrap; }
 .proposal-list label, .brand-profile label.check { text-transform: none; letter-spacing: normal; font-size: 13.5px; line-height: 1.5; color: var(--ink); font-weight: 400; margin: 0; }
+label.check.test-mark { display: flex; flex-direction: row; align-items: center; gap: 8px; text-transform: none; letter-spacing: normal; font-size: 12.5px; color: var(--muted); margin: 6px 0 0; font-weight: 400; }
+.month-bars { display: inline-block; width: 60px; height: 16px; margin-left: 10px; vertical-align: middle; }
+.month-bars rect { fill: var(--sage); opacity: .75; }
+.season-note { display: block; font-size: 12.5px; color: var(--ochre); }
+
+/* Milestone 3: dashboard */
+.dashboard .dash-section { margin: 34px 0; }
+.dashboard .dash-section h2 { font-size: 26px; margin-bottom: 12px; }
+.dash-filters { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin: 8px 0 12px; }
+.dash-filters label { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 160px; }
+.dash-filters label.check { flex-direction: row; align-items: center; gap: 8px; text-transform: none; letter-spacing: normal; font-size: 13px; color: var(--ink); min-width: 0; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 10px; }
+.stat { background: var(--card); border: 1px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.stat-n { font-family: var(--display); font-size: 30px; line-height: 1.1; }
+.stat-l { font-size: 12px; color: var(--muted); }
+.dash-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.dash-table { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--card); border: 1px solid var(--line); }
+.dash-table th, .dash-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.dash-table th { font-weight: 500; color: var(--muted); font-size: 12px; }
+.bar-list { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; }
+.bar-list li { display: grid; grid-template-columns: minmax(140px, 220px) 1fr 90px; gap: 10px; align-items: center; }
+.bar-list .bar { height: 8px; background: var(--paper-deep); position: relative; }
+.bar-list .bar span { position: absolute; inset: 0 auto 0 0; background: var(--sage); }
+.day-bars { display: flex; align-items: flex-end; gap: 3px; height: 70px; margin: 14px 0; padding: 0 2px; border-bottom: 1px solid var(--line); }
+.day-bars span { flex: 1; max-width: 18px; background: var(--rouge); opacity: .7; }
+.small-head { font-family: var(--text); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); margin: 16px 0 8px; }
+.season-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.gap-card { margin-bottom: 14px; }
+.gap-card h3 { font-size: 20px; }
+.gap-list { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; }
+.dash-foot { margin-top: 40px; }
+@media (max-width: 640px) { .bar-list li { grid-template-columns: 1fr 70px; } .bar-list .bar { grid-column: 1 / -1; grid-row: 2; } .dash-table { font-size: 12px; } .dash-table th, .dash-table td { padding: 6px; } }
+.dash-filters label.check { white-space: nowrap; }
+.table-wrap { overflow-x: auto; max-width: 100%; }

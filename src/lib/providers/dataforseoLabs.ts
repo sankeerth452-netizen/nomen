@@ -1,4 +1,5 @@
 import type { KeywordDataProvider } from "./types";
+import type { MonthlyPoint } from "../keywords/seasonal";
 import { SerpProviderError, taskError } from "./dataforseo";
 
 const BASE = "https://api.dataforseo.com/v3/dataforseo_labs/google";
@@ -6,7 +7,7 @@ const AUSTRALIA = { location_code: 2036, language_code: "en" };
 const TIMEOUT_MS = 20_000; // a normal reply takes about 4 seconds, but under load it can take 10-20
 const MAX_ATTEMPTS = 2;
 
-type Task = { status_code?: number; status_message?: string; cost?: number; result?: { items?: { keyword?: string; keyword_info?: { search_volume?: number | null } }[] }[] | null };
+type Task = { status_code?: number; status_message?: string; cost?: number; result?: { items?: { keyword?: string; keyword_info?: { search_volume?: number | null; monthly_searches?: { year: number; month: number; search_volume: number | null }[] | null } }[] }[] | null };
 
 /** DataForSEO Labs, Google Australia: search volumes (keyword_overview) and suggestions (keyword_suggestions). Checked live 15 Nov 2026. */
 export class DataForSeoLabs implements KeywordDataProvider {
@@ -38,10 +39,17 @@ export class DataForSeoLabs implements KeywordDataProvider {
   async volumes(phrases: string[]) {
     const keywords = [...new Set(phrases.map((p) => p.toLowerCase().trim()).filter((p) => p && p.length <= 80 && p.split(/\s+/).length <= 10))].slice(0, 700);
     const volumes: Record<string, number | null> = Object.fromEntries(keywords.map((k) => [k, null]));
-    if (!keywords.length) return { volumes, costUsd: 0 };
+    const monthly: Record<string, MonthlyPoint[]> = {};
+    if (!keywords.length) return { volumes, monthly, costUsd: 0 };
     const t = await this.call("keyword_overview/live", { keywords });
-    for (const it of t.result?.[0]?.items ?? []) if (it.keyword) volumes[it.keyword.toLowerCase()] = it.keyword_info?.search_volume ?? null;
-    return { volumes, costUsd: t.cost ?? 0 };
+    for (const it of t.result?.[0]?.items ?? []) {
+      if (!it.keyword) continue;
+      volumes[it.keyword.toLowerCase()] = it.keyword_info?.search_volume ?? null;
+      // The same reply carries years of monthly figures (checked live 25 Nov 2026): the last three years are kept.
+      const m = (it.keyword_info?.monthly_searches ?? []).filter((p) => typeof p.search_volume === "number").slice(0, 36).map((p) => ({ year: p.year, month: p.month, volume: p.search_volume! }));
+      if (m.length) monthly[it.keyword.toLowerCase()] = m;
+    }
+    return { volumes, monthly, costUsd: t.cost ?? 0 };
   }
 
   async suggestions(seed: string, limit: number) {

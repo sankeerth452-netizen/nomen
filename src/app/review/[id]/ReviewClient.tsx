@@ -59,6 +59,11 @@ export default function ReviewClient({ initial }: { initial: ReviewPayload }) {
   const original = Object.entries(p.original.input ?? {}).filter(([k, v]) => typeof v === "string" && v.trim() && ORIGINAL_LABELS[k]).sort(byOrder);
   const fileRow = p.original.file ? Object.entries(p.original.file).filter(([k, v]) => v && ORIGINAL_LABELS[k]).sort(byOrder) : [];
   const canExport = p.status === "approved" || p.status === "ready_to_export";
+  async function markTest(v: boolean) {
+    setP((x) => ({ ...x, isTest: v }));
+    const res = await fetch(`/api/generations/${p.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ isTest: v }) });
+    if (!res.ok) { setP((x) => ({ ...x, isTest: !v })); setError("That didn't save. Please try again."); }
+  }
 
   return (
     <div className="review">
@@ -74,6 +79,7 @@ export default function ReviewClient({ initial }: { initial: ReviewPayload }) {
             {" "}· <Link href={`/history/${p.id}`}>Evidence</Link>
           </p>
           {p.approvalRequired && <p className="muted small">Your brand exports approved products only.</p>}
+          {p.can.manage && <label className="check test-mark"><input type="checkbox" checked={p.isTest} onChange={(e) => void markTest(e.target.checked)} /> A test (left out of the dashboard)</label>}
         </div>
         <div className="review-actions">
           {p.can.edit && ["ai_generated", "rejected"].includes(p.status) && <button disabled={busy} onClick={() => act("submit")}>Send for review</button>}

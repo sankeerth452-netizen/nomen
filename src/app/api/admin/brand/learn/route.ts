@@ -9,6 +9,7 @@ import { getProviders } from "@/lib/providers";
 import { STYLE_PROMPT_VERSION } from "@/lib/prompts";
 import { readUsd } from "@/lib/pricing";
 import { env } from "@/lib/env";
+import { recordClaude } from "@/lib/usage/ledger";
 
 const MAX_BYTES = 30 * 1024 * 1024;
 const MAX_ROWS = 5000;
@@ -55,6 +56,7 @@ export async function POST(req: Request) {
         const { voice, usage } = await style.describe(sample);
         proposal.voice = { tone: voice.tone.slice(0, 300), audience: voice.audience.slice(0, 300), descriptionStyle: voice.description_style.slice(0, 600) };
         costUsd = readUsd(usage); // one call, priced like a photo read
+        await recordClaude({ brandId, userId: user.id }, "brand_voice", usage);
         console.info("brand voice read", { brandId, prompt: STYLE_PROMPT_VERSION, model: usage.model, input: usage.inputTokens, output: usage.outputTokens, costUsd });
       } catch (e) {
         console.error("brand voice read failed", e instanceof Error ? e.message : e); // the rest of the proposal stands

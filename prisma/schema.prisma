@@ -159,6 +159,8 @@ model Generation {
   usage             Json?
   /// What each of the piece's photos shows, its alt text and any problems found ([{ position, view, alt, problems }])
   photos            Json?
+  /// A test, not real work: left out of the dashboard unless tests are asked for
+  isTest            Boolean  @default(false)
   createdAt         DateTime @default(now())
 
   brand     Brand            @relation(fields: [brandId], references: [id])
@@ -333,6 +335,8 @@ model Batch {
   fileName  String?
   /// Checks on the brand's product file: required fields, stock and price values, variants ({ rows, products, issues })
   fileCheck Json?
+  /// A test range, not real work: its pieces are left out of the dashboard unless tests are asked for
+  isTest    Boolean  @default(false)
   createdAt DateTime @default(now())
 
   brand Brand       @relation(fields: [brandId], references: [id])
@@ -401,4 +405,31 @@ model ProductImage {
 
   @@index([batchItemId, position])
   @@index([generationId, position])
+}
+
+/// Every paid call, one row each, so spend can be shown by day, brand, range and step. Prices are the providers' list
+/// prices at the time (Claude per token; DataForSEO as charged). `backfilled`: a product named before this ledger
+/// existed, recorded as one total ("all_steps") from what it had stored.
+model UsageEvent {
+  id           String   @id @default(uuid())
+  brandId      String?
+  userId       String?
+  generationId String?
+  batchId      String?
+  /// details, name, page, data, google_results, keyword_figures, photo_read, brand_voice, seasonal_figures, all_steps
+  operation    String
+  /// claude or dataforseo
+  provider     String
+  model        String?
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  cacheRead    Int      @default(0)
+  cacheWrite   Int      @default(0)
+  costUsd      Float    @default(0)
+  backfilled   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([brandId, createdAt])
+  @@index([generationId])
+  @@index([batchId])
 }

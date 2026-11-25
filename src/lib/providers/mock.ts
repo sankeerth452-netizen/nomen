@@ -154,7 +154,8 @@ export class MockKeywordData implements KeywordDataProvider {
   constructor(private table: Record<string, number> = { "girls maxi dress": 590, "girls dress": 2400, "girls cream dress": 90, "girls party dress": 880, "black slip dress": 1900, "black satin slip dress": 260 }) {}
   async volumes(phrases: string[]) {
     this.calls++;
-    return { volumes: Object.fromEntries(phrases.map((p) => [p.toLowerCase(), this.table[p.toLowerCase()] ?? null])), costUsd: 0 };
+    const volumes = Object.fromEntries(phrases.map((p) => [p.toLowerCase(), this.table[p.toLowerCase()] ?? MOCK_SEASONAL_BASE[p.toLowerCase()] ?? null]));
+    return { volumes, monthly: Object.fromEntries(phrases.map((p) => [p.toLowerCase(), mockHistory(p.toLowerCase(), volumes[p.toLowerCase()] ?? 0)])), costUsd: 0 };
   }
   async suggestions(seed: string, limit: number) {
     this.calls++;
@@ -165,6 +166,19 @@ export class MockKeywordData implements KeywordDataProvider {
   }
 }
 
+
+// Example search history: summer phrases peak in Dec-Jan, winter ones in Jun-Jul, Christmas in Nov-Dec, races in Oct-Nov.
+const MOCK_SEASONAL_BASE: Record<string, number> = { "christmas dress": 9900, "christmas party dress": 2400, "one piece swimsuit": 22200, "bikini": 18100, "puffer jacket": 14800, "races dress": 1300, "summer dress": 12100, "boots": 33100, "jeans": 40500 };
+function mockHistory(phrase: string, base: number) {
+  const peak = /christmas|new years|party|sequin/.test(phrase) ? [10, 11] : /race|spring racing/.test(phrase) ? [9, 10] : /swim|bikini|summer|linen|resort|kaftan|shorts/.test(phrase) ? [11, 0] : /puffer|winter|coat|boots|knit|jumper/.test(phrase) ? [5, 6] : [];
+  const out = [];
+  for (let back = 0; back < 36; back++) {
+    const d = new Date(Date.UTC(2026, 9 - back, 1));
+    const m = d.getUTCMonth();
+    out.push({ year: d.getUTCFullYear(), month: m + 1, volume: Math.round(Math.max(base, 100) * (peak.includes(m) ? 3 : peak.length ? 0.6 : 1)) });
+  }
+  return out;
+}
 
 /** Example words about a brand's voice. MOCK, not AI: lets "learn from your catalogue" run without paid keys (the screen says so). */
 export class MockStyleReader implements StyleReader {
