@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { decryptToken, encryptToken } from "@/lib/google/crypto";
-import { authUrl, readState, signState, GOOGLE_SCOPES } from "@/lib/google/oauth";
+import { authUrl, publicOrigin, readState, redirectTo, signState, GOOGLE_SCOPES } from "@/lib/google/oauth";
 import { LiveGoogleData, normaliseUrl, pathOf } from "@/lib/google/data";
 import { EXAMPLE_TOKEN, linkedPieces, syncBrand } from "@/lib/google/sync";
 import { performanceData } from "@/lib/insights/performance";
@@ -27,6 +27,13 @@ describe("connecting Google safely", () => {
     expect(u.searchParams.get("access_type")).toBe("offline");
     expect(u.searchParams.get("scope")!.split(" ")).toEqual(GOOGLE_SCOPES);
     expect(GOOGLE_SCOPES.filter((s) => s.includes("readonly"))).toHaveLength(2);
+  });
+
+  it("tells Google the site's public https address, even behind Render's proxy", () => {
+    const req = new Request("http://localhost:10000/api/google/connect", { headers: { host: "localhost:10000", "x-forwarded-proto": "https", "x-forwarded-host": "nomen-s0t8.onrender.com" } });
+    expect(publicOrigin(req)).toBe("https://nomen-s0t8.onrender.com");
+    expect(publicOrigin(new Request("http://localhost:3013/x"))).toBe("http://localhost:3013");
+    expect(redirectTo("/admin/brand?google=connected#google").headers.get("location")).toBe("/admin/brand?google=connected#google");
   });
 
   it("matches page addresses the way Google reports them", () => {

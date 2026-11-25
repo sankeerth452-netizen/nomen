@@ -15,6 +15,20 @@ export class GoogleError extends Error {
 }
 
 export const googleConfigured = () => !!(env().GOOGLE_CLIENT_ID && env().GOOGLE_CLIENT_SECRET);
+
+/**
+ * The site's public address as the browser sees it. Behind Render's proxy the request itself says http and an
+ * internal host, so the forwarded headers decide (Google must get back exactly the address it was given).
+ */
+export function publicOrigin(req: Request): string {
+  const u = new URL(req.url);
+  const proto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || u.protocol.replace(":", "");
+  const host = req.headers.get("x-forwarded-host")?.split(",")[0]?.trim() || req.headers.get("host") || u.host;
+  return `${proto}://${host}`;
+}
+
+/** A redirect within the site, by path: the browser keeps its own https address. */
+export const redirectTo = (path: string) => new Response(null, { status: 303, headers: { location: path } });
 export const redirectUri = (origin: string) => env().GOOGLE_REDIRECT_URI ?? `${origin}/api/google/callback`;
 
 const stateKey = () => new TextEncoder().encode(`google-state:${authSecret()}`);
