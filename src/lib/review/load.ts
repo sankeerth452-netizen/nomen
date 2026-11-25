@@ -1,3 +1,4 @@
+import { sumRows } from "../insights/performance";
 import { asPhotoInfo } from "../images/info";
 import type { ItemDetails } from "../batch/shared";
 // Loading a product's review with access checked, and the shape the review screen gets.
@@ -25,6 +26,12 @@ export async function presentReview(g: Awaited<ReturnType<typeof loadGenerationF
   const result = (g.result ?? {}) as ResultLike & { recommendation?: { warnings?: string[] } };
   const edits = (review.edits ?? {}) as Edits;
   const fs = (review.fieldStatus ?? {}) as Record<string, string>;
+  const since28 = new Date(Date.now() - 29 * 86_400_000);
+  const [metrics, queries, shop] = await Promise.all([
+    db.pageMetric.findMany({ where: { generationId: g.id, date: { gte: since28 } } }),
+    db.pageQuery.findMany({ where: { generationId: g.id }, orderBy: { impressions: "desc" }, take: 5 }),
+    db.merchantStatus.findUnique({ where: { generationId: g.id } }),
+  ]);
   const [revisions, comments, item, approver] = await Promise.all([
     db.reviewRevision.findMany({ where: { reviewId: review.id }, orderBy: { createdAt: "desc" }, take: 300, include: { user: { select: { displayName: true, username: true } } } }),
     db.reviewComment.findMany({ where: { reviewId: review.id }, orderBy: { createdAt: "asc" }, include: { user: { select: { displayName: true, username: true } } } }),
@@ -51,6 +58,12 @@ export async function presentReview(g: Awaited<ReturnType<typeof loadGenerationF
     comments: comments.map((c) => ({ id: c.id, field: c.field, body: c.body, flag: c.flag, by: who(c.user), at: c.createdAt })),
     can: { edit: can(user, "edit", settings), approve: can(user, "approve", settings), comment: can(user, "comment", settings), manage: user.role === "owner" || can(user, "manageBrand", settings) },
     isTest: g.isTest,
+    // Where it lives on the brand's site, and how it's doing in Google there (last 28 days).
+    live: { url: g.liveUrl, since: g.liveSince ? g.liveSince.toISOString().slice(0, 10) : null, previousTitle: g.previousTitle },
+    google: metrics.length || queries.length || shop ? {
+      last28: sumRows(metrics), queries: queries.map((q) => ({ query: q.query, impressions: q.impressions, clicks: q.clicks })),
+      shopping: shop ? { status: shop.status, issues: ((shop.issues as { description?: string }[]) ?? []).map((i) => i.description ?? "").filter(Boolean).slice(0, 3) } : null,
+    } : null,
     approvalRequired: settings?.approvalRequired ?? false,
   };
 }

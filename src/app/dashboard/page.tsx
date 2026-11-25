@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { workspaceBrandId } from "@/lib/auth/workspace";
 import { requirePageUser } from "@/lib/auth/guards";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -8,6 +9,9 @@ import { namingGaps } from "@/lib/insights/competitors";
 import { MonthBars } from "@/components/MonthBars";
 import DashboardFilters from "./DashboardFilters";
 import SeasonalCalendar from "./SeasonalCalendar";
+import SearchPerformance from "./SearchPerformance";
+import { performanceData } from "@/lib/insights/performance";
+import { syncIfStale } from "@/lib/google/sync";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Dashboard" };
@@ -26,12 +30,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const q = await searchParams;
   const period = (q.period && q.period in PERIODS ? q.period : "30d") as Period;
   const brands = user.role === "owner" ? await db.brand.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }) : [];
-  const brandIds = user.role === "owner" ? (q.brand && brands.some((b) => b.id === q.brand) ? [q.brand] : null) : [user.brandId!];
+  // The owner: the brand picked here, else their workspace, else every brand ("all" picks every brand explicitly).
+  const pick = q.brand === "all" ? null : q.brand && brands.some((b) => b.id === q.brand) ? q.brand : workspaceBrandId(user);
+  const brandIds = user.role === "owner" ? (pick ? [pick] : null) : [user.brandId!];
   const includeTests = q.tests === "1";
   const category = q.category || "all";
   const d = await dashboardData({ brandIds, period, category, includeTests });
   const gaps = await namingGaps({ brandIds, from: PERIODS[period] ? new Date(Date.now() - PERIODS[period]! * 86_400_000) : new Date(0), includeTests });
   const shownGaps = category === "all" ? gaps : gaps.filter((g) => g.category === category);
+  const from = PERIODS[period] ? new Date(Date.now() - PERIODS[period]! * 86_400_000) : new Date(0);
+  const connections = await db.googleConnection.findMany({ where: brandIds ? { brandId: { in: brandIds } } : {}, select: { brandId: true, lastSyncAt: true, lastSyncError: true, searchConsoleSite: true, analyticsProperty: true, merchantAccount: true } });
+  for (const c of connections) void syncIfStale(c.brandId); // figures come in once a day, when someone looks
+  const perf = await performanceData({ brandIds, from, category, includeTests });
   const maxDay = Math.max(0.0001, ...d.spend.byDay.map((x) => x.usd));
   const maxOp = Math.max(0.0001, ...d.spend.byOperation.map((x) => x.usd));
   const w = d.work;
@@ -47,7 +57,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <p>What&apos;s been named, how good it is and what it cost, over {PERIOD_LABEL[period]}{category !== "all" ? `, for ${category.toLowerCase()}` : ""}. Every figure comes from real records.</p>
           </div>
         </div>
-        <DashboardFilters period={period} category={category} categories={d.categories} includeTests={includeTests} brands={brands} brand={q.brand ?? ""} />
+        <DashboardFilters period={period} category={category} categories={d.categories} includeTests={includeTests} brands={brands} brand={pick ?? "all"} />
         {d.testsLeftOut > 0 && <p className="muted small">{d.testsLeftOut} {d.testsLeftOut === 1 ? "piece marked as a test is" : "pieces marked as tests are"} left out.</p>}
 
         <section className="dash-section">
@@ -134,10 +144,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <p className="muted small">At the providers&apos; list prices: Claude per word read and written, Google figures and results as charged.{d.spend.backfilledShare > 0 ? ` ${pct(d.spend.backfilledShare)} of this is from pieces named before spend was split by step, shown as "Earlier products".` : ""}</p>
         </section>
 
-        <section className="dash-section">
-          <h2>Search performance</h2>
-          <p className="muted">Clicks, impressions, position and sales per product appear here once Google Search Console and Google Analytics are connected (the next milestone).</p>
-        </section>
+        <SearchPerformance perf={perf} connections={connections} period={PERIOD_LABEL[period]} />
 
         <SeasonalCalendar />
 

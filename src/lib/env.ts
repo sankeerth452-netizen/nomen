@@ -25,6 +25,13 @@ const schema = z.object({
   DATAFORSEO_PASSWORD: z.string().optional(),
   SERP_CACHE_TTL_DAYS: z.coerce.number().int().min(0).default(7),
   MAX_SERP_QUERIES_PER_GENERATION: z.coerce.number().int().min(0).max(10).default(3),
+  // Google sign-in for a brand's own Search Console, Analytics and Merchant Center (read-only). Without the client ID
+  // and secret, "Connect Google" says it isn't set up yet. The redirect defaults to <site>/api/google/callback.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().optional(),
+  // Encrypts stored Google refresh tokens (32 bytes, base64). Optional: derived from AUTH_SECRET when unset.
+  GOOGLE_TOKEN_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof schema>;

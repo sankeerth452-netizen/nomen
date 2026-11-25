@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { seesWholeBrand } from "@/lib/review/permissions";
 import Link from "next/link";
+import { ownerScope } from "@/lib/auth/workspace";
 import { requirePageUser, hasRole } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import Header from "@/components/Header";
@@ -27,7 +28,7 @@ function badge(status: string, outcome: string | undefined): { text: string; cls
 export default async function History({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const user = await requirePageUser();
   const page = Math.max(1, Number((await searchParams).page) || 1);
-  const where = user.role === "owner" ? {} : seesWholeBrand(user) ? { brandId: user.brandId! } : { userId: user.id };
+  const where = user.role === "owner" ? ownerScope(user) : seesWholeBrand(user) ? { brandId: user.brandId! } : { userId: user.id };
   await failStaleGenerations(where);
   const [rows, total] = await Promise.all([
     db.generation.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * PAGE, take: PAGE, include: { user: { select: { displayName: true } }, feedback: { orderBy: { createdAt: "desc" }, take: 1 }, photo: { select: { generationId: true, focus: true } } } }),

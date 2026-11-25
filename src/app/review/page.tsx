@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Prisma, ReviewStatus } from "@prisma/client";
+import { ownerScope } from "@/lib/auth/workspace";
 import { requirePageUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import Header from "@/components/Header";
@@ -29,7 +30,7 @@ export default async function ReviewQueue({ searchParams }: { searchParams: Prom
   const { tab: tabKey } = await searchParams;
   const tab = TABS.find((t) => t.key === tabKey) ?? TABS[0];
   // Reviewers and admins see the whole brand; editors their own pieces.
-  const genWhere: Prisma.GenerationWhereInput = user.role === "owner" ? {} : seesWholeBrand(user) ? { brandId: user.brandId! } : { userId: user.id };
+  const genWhere: Prisma.GenerationWhereInput = user.role === "owner" ? ownerScope(user) : seesWholeBrand(user) ? { brandId: user.brandId! } : { userId: user.id };
   await backfillReviews(genWhere);
   const where: Prisma.ProductReviewWhereInput = { generation: genWhere };
   const [rows, counts, settings] = await Promise.all([

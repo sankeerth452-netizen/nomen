@@ -649,3 +649,19 @@ label.check.test-mark { display: flex; flex-direction: row; align-items: center;
 @media (max-width: 640px) { .bar-list li { grid-template-columns: 1fr 70px; } .bar-list .bar { grid-column: 1 / -1; grid-row: 2; } .dash-table { font-size: 12px; } .dash-table th, .dash-table td { padding: 6px; } }
 .dash-filters label.check { white-space: nowrap; }
 .table-wrap { overflow-x: auto; max-width: 100%; }
+.workspace { margin: 0; text-transform: none; letter-spacing: normal; }
+.workspace select { font: 500 10.5px/1 var(--text); letter-spacing: .14em; text-transform: uppercase; border: 1px solid var(--line-strong); padding: 6px 8px; background: transparent; color: var(--ink); max-width: 160px; }
+.google-card { margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.google-card h2 { font-size: 22px; }
+.google-card .row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; width: 100%; }
+.google-card .row3 label { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+.google-card .btns { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+@media (max-width: 760px) { .google-card .row3 { grid-template-columns: 1fr; } }
+.live-card { display: flex; flex-direction: column; gap: 8px; }
+.live-card label { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.live-card p { margin: 0; }
+.live-card button { align-self: flex-start; }
+.ba-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.ba-list li { display: flex; flex-direction: column; gap: 4px; }
+.ba-list p { margin: 0; }
+.google-wrap { margin-top: 28px; scroll-margin-top: 90px; }

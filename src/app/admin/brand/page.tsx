@@ -1,3 +1,4 @@
+import { workspaceBrandId } from "@/lib/auth/workspace";
 import { requirePageUser } from "@/lib/auth/guards";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -5,17 +6,18 @@ import { db } from "@/lib/db";
 import { parseBrandSettings } from "@/lib/brand";
 import { can } from "@/lib/review/permissions";
 import BrandProfileClient from "./BrandProfileClient";
+import GoogleCard from "./GoogleCard";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Brand profile" };
 
 // How a brand writes: who it's for, its voice, its own words and how its names are built. Brand admins edit their own
 // brand's; the owner picks a brand.
-export default async function BrandPage({ searchParams }: { searchParams: Promise<{ brand?: string }> }) {
+export default async function BrandPage({ searchParams }: { searchParams: Promise<{ brand?: string; google?: string }> }) {
   const user = await requirePageUser("admin");
-  const { brand: asked } = await searchParams;
+  const { brand: asked, google } = await searchParams;
   const brands = await db.brand.findMany({ where: user.role === "owner" ? {} : { id: user.brandId! }, orderBy: { name: "asc" }, select: { id: true, name: true, settings: true } });
-  const brand = brands.find((b) => b.id === asked) ?? brands[0];
+  const brand = brands.find((b) => b.id === asked) ?? brands.find((b) => b.id === workspaceBrandId(user)) ?? brands[0];
   const settings = brand ? parseBrandSettings(brand.settings) : null;
   const canManage = !!settings && (user.role === "owner" || can(user, "manageBrand", settings));
   return (
@@ -41,6 +43,7 @@ export default async function BrandPage({ searchParams }: { searchParams: Promis
             }}
           />
         )}
+        {brand && canManage && <div id="google" className="google-wrap"><GoogleCard brandId={brand.id} back={google ?? null} /></div>}
       </main>
       <Footer />
     </>

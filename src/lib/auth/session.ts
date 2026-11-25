@@ -5,6 +5,8 @@ import { db } from "../db";
 import { authSecret } from "../env";
 
 export const SESSION_COOKIE = "pno_session";
+/** The owner's chosen brand ("workspace"): what Create, Ranges, History, Review and the Dashboard show by default. */
+export const WORKSPACE_COOKIE = "pno_workspace";
 const SESSION_HOURS = 12;
 
 export type SessionUser = {
@@ -14,6 +16,9 @@ export type SessionUser = {
   role: Role;
   brandId: string | null;
   brandName: string | null;
+  /** Owner only: the brand they're working in, or null for every brand. Never widens access: other roles have their own brand. */
+  workspaceId?: string | null;
+  workspaceName?: string | null;
 };
 
 const key = () => new TextEncoder().encode(authSecret());
@@ -54,6 +59,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     const user = await db.user.findUnique({ where: { id: payload.sub }, include: { brand: true } });
     if (!user || !user.active || user.sessionVersion !== payload.sv) return null;
     if (user.brand && !user.brand.active) return null;
+    let workspace: { id: string; name: string } | null = null;
+    if (user.role === "owner") {
+      const ws = (await cookies()).get(WORKSPACE_COOKIE)?.value;
+      if (ws) workspace = await db.brand.findFirst({ where: { id: ws, active: true }, select: { id: true, name: true } });
+    }
     return {
       id: user.id,
       username: user.username,
@@ -61,6 +71,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       role: user.role,
       brandId: user.brandId,
       brandName: user.brand?.name ?? null,
+      ...(user.role === "owner" ? { workspaceId: workspace?.id ?? null, workspaceName: workspace?.name ?? null } : {}),
     };
   } catch {
     return null;

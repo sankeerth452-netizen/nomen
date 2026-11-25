@@ -136,6 +136,9 @@ export async function nameItem(item: BatchItem, providers?: Providers): Promise<
     const genId = await createGeneration(batch.user, batch.brandId, { ...details.fields }, {
       ...(item.photo && item.photoType ? { photo: { mediaType: item.photoType as PhotoType, data: Buffer.from(item.photo) } } : {}),
       focus: asBox(item.focus), fromPhoto: details.fromPhoto, photos: details.photos,
+      // A product-file piece already has a page on the brand's site: its link and its current title, for Google's figures.
+      liveUrl: (item.feed as PieceFeed | null)?.rows.find((r) => r.attrs.link)?.attrs.link ?? null,
+      previousTitle: (item.feed as PieceFeed | null)?.rows.find((r) => r.attrs.title)?.attrs.title ?? null,
       note: batch.source === "file" ? `Named from the product file "${batch.fileName ?? batch.title}" (SKUs ${skus.slice(0, 12).join(", ")}${skus.length > 12 ? "…" : ""})` : `Named as part of the range "${batch.title}"`,
     });
     await db.batchItem.update({ where: { id: item.id }, data: { generationId: genId } });

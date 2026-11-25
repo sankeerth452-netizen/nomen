@@ -1,3 +1,4 @@
+import { workspaceFirst } from "@/lib/auth/workspace";
 import { requirePageUser } from "@/lib/auth/guards";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -11,7 +12,7 @@ export const metadata = { title: "Keyword lists" };
 
 export default async function DatasetsPage() {
   const user = await requirePageUser("admin");
-  const brands = await db.brand.findMany({ where: user.role === "owner" ? {} : { id: user.brandId! }, orderBy: { name: "asc" } });
+  const brands = workspaceFirst(user, await db.brand.findMany({ where: user.role === "owner" ? {} : { id: user.brandId! }, orderBy: { name: "asc" } }));
   const datasets = await db.keywordDataset.findMany({
     where: { brandId: { in: brands.map((b) => b.id) } },
     orderBy: { createdAt: "desc" },

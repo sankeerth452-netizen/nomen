@@ -161,6 +161,12 @@ model Generation {
   photos            Json?
   /// A test, not real work: left out of the dashboard unless tests are asked for
   isTest            Boolean  @default(false)
+  /// The piece's page on the brand's site (from its product file, or entered on Review), for Google's figures
+  liveUrl           String?
+  /// When the new name went live on that page: the line between "before" and "after"
+  liveSince         DateTime?
+  /// The name the page had before (from the product file, or entered), to show beside the new one
+  previousTitle     String?
   createdAt         DateTime @default(now())
 
   brand     Brand            @relation(fields: [brandId], references: [id])
@@ -170,6 +176,9 @@ model Generation {
   batchItem BatchItem?
   review    ProductReview?
   images    ProductImage[]
+  metrics   PageMetric[]
+  queries   PageQuery[]
+  merchant  MerchantStatus?
 
   @@index([brandId, createdAt])
   @@index([userId, createdAt])
@@ -432,4 +441,70 @@ model UsageEvent {
   @@index([brandId, createdAt])
   @@index([generationId])
   @@index([batchId])
+}
+
+/// A brand's read-only Google connection: Search Console, Analytics and Merchant Center. The refresh token is
+/// encrypted (AES-256-GCM); the brand chooses which site, property and account to read.
+model GoogleConnection {
+  brandId           String    @id
+  email             String?
+  scopes            String[]
+  /// Encrypted refresh token ("iv.tag.data", base64)
+  refreshToken      String
+  /// e.g. "sc-domain:sportsgirl.com.au" or "https://www.sportsgirl.com.au/"
+  searchConsoleSite String?
+  /// e.g. "properties/123456789"
+  analyticsProperty String?
+  /// e.g. "accounts/123456789"
+  merchantAccount   String?
+  connectedById     String?
+  lastSyncAt        DateTime?
+  lastSyncError     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+/// One day of Google's figures for a named piece's live page, from one source (search_console, analytics, merchant).
+model PageMetric {
+  id           String     @id @default(uuid())
+  brandId      String
+  generationId String
+  date         DateTime   @db.Date
+  source       String
+  impressions  Int        @default(0)
+  clicks       Int        @default(0)
+  /// Average position that day (Search Console); weighted by impressions when combined
+  position     Float?
+  views        Int        @default(0)
+  sessions     Int        @default(0)
+  addToCarts   Int        @default(0)
+  purchases    Int        @default(0)
+  revenue      Float      @default(0)
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@unique([generationId, date, source])
+  @@index([brandId, date])
+}
+
+/// The searches a live page showed up for in Google (Search Console, the 28 days before the last sync).
+model PageQuery {
+  generationId String
+  query        String
+  impressions  Int
+  clicks       Int
+  position     Float?
+  syncedAt     DateTime   @default(now())
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@id([generationId, query])
+}
+
+/// Google Shopping's verdict on a piece's products (Merchant Center): approved, or the issues holding it back.
+model MerchantStatus {
+  generationId String     @id
+  /// approved, partly approved, disapproved or pending
+  status       String
+  issues       Json       @default("[]")
+  syncedAt     DateTime   @default(now())
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
 }

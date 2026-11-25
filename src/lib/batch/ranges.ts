@@ -3,6 +3,7 @@
 import type { Batch, BatchItem, Generation, Prisma } from "@prisma/client";
 import { applyReviewEdits, EXPORTABLE, STATUS_LABEL, type ResultLike } from "../review/fields";
 import type { FeedPiece } from "../feed/export";
+import { ownerScope } from "../auth/workspace";
 import { seesWholeBrand } from "../review/permissions";
 import { db } from "../db";
 import { HttpError, hasRole } from "../auth/guards";
@@ -71,7 +72,7 @@ export async function rangeItems(batchId: string, changedSince?: Date) {
 
 /** Who may see a range list: same rule as History. */
 export function rangeWhere(user: SessionUser): Prisma.BatchWhereInput {
-  return user.role === "owner" ? {} : seesWholeBrand(user) ? { brandId: user.brandId! } : { userId: user.id };
+  return user.role === "owner" ? ownerScope(user) : seesWholeBrand(user) ? { brandId: user.brandId! } : { userId: user.id };
 }
 
 // A cell starting with = + - @ (or a tab/CR) would run as a formula in Excel or Sheets: neutralise it.

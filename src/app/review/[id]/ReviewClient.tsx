@@ -113,6 +113,7 @@ export default function ReviewClient({ initial }: { initial: ReviewPayload }) {
               {p.photos.flatMap((x) => x.problems.map((m) => <p key={`${x.position}${m}`} className="photo-problem">{x.position === 0 ? "Main photo" : `Photo ${x.position + 1}`}: {m}</p>))}
             </div>
           )}
+          <LiveCard id={p.id} canEdit={p.can.edit} live={p.live} google={p.google} />
           <div className="card">
             <strong>What we were given</strong>
             <dl className="review-original">
@@ -241,5 +242,35 @@ function CommentForm({ fields, busy, onSend }: { fields: Field[]; busy: boolean;
         <button disabled={busy || !body.trim()}>Comment</button>
       </div>
     </form>
+  );
+}
+
+/** Where the piece lives on the brand's site (for Google's figures), and how it's doing in Google there. */
+function LiveCard({ id, canEdit, live, google }: { id: string; canEdit: boolean; live: ReviewPayload["live"]; google: ReviewPayload["google"] }) {
+  const [v, setV] = useState({ url: live.url ?? "", since: live.since ?? "", previousTitle: live.previousTitle ?? "" });
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true); setMsg(null);
+    const res = await fetch(`/api/generations/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ liveUrl: v.url, liveSince: v.since, previousTitle: v.previousTitle }) });
+    const d = await res.json().catch(() => ({}));
+    setBusy(false);
+    setMsg(res.ok ? { ok: true, text: "Saved. Google's figures for this page come in with the next daily update." } : { ok: false, text: d.error ?? "That didn't save." });
+  }
+  const t = google?.last28;
+  return (
+    <div className="card live-card">
+      <strong>Live on your site</strong>
+      <label>Page address<input type="url" placeholder="https://www.yourshop.com.au/product-page" value={v.url} disabled={!canEdit || busy} onChange={(e) => setV((x) => ({ ...x, url: e.target.value }))} /></label>
+      <label>New name live since<input type="date" value={v.since} disabled={!canEdit || busy} onChange={(e) => setV((x) => ({ ...x, since: e.target.value }))} /></label>
+      <label>Name before<input placeholder="The page's name before this one" value={v.previousTitle} disabled={!canEdit || busy} onChange={(e) => setV((x) => ({ ...x, previousTitle: e.target.value }))} /></label>
+      {canEdit && <button type="button" className="ghost small" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</button>}
+      {msg && <p className={msg.ok ? "ok small" : "err small"}>{msg.text}</p>}
+      {t && (
+        <p className="small"><span className="muted">Google, last 28 days:</span> {t.impressions.toLocaleString("en-AU")} times seen, {t.clicks.toLocaleString("en-AU")} clicks{t.ctr != null ? ` (${(t.ctr * 100).toFixed(1)}%)` : ""}{t.position != null ? `, average position ${t.position.toFixed(1)}` : ""}{t.views ? ` · ${t.views.toLocaleString("en-AU")} page views` : ""}{t.purchases ? ` · ${t.purchases.toLocaleString("en-AU")} sold` : ""}{t.shopClicks ? ` · ${t.shopClicks.toLocaleString("en-AU")} Shopping clicks` : ""}.</p>
+      )}
+      {google?.queries.length ? <p className="small"><span className="muted">Shows up for:</span> {google.queries.map((q) => `${q.query} (${q.impressions})`).join(", ")}</p> : null}
+      {google?.shopping && <p className={google.shopping.status === "approved" ? "small" : "small warn-text"}><span className="muted">Google Shopping:</span> {google.shopping.status}{google.shopping.issues.length ? `: ${google.shopping.issues.join("; ")}` : ""}</p>}
+    </div>
   );
 }

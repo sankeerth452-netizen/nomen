@@ -571,3 +571,42 @@ The files were named web-01 to web-12, so Nomen had only the photos to go on. Co
 
 1. Push to main. Render runs `npm run db:migrate` (one additive update) and `npm run db:seed`, which adds earlier products' spend to the ledger and marks "TEST…" ranges as tests.
 2. After the deploy: `/api/health`; the Dashboard opens for a brand admin, with earlier spend under "Earlier products"; the seasonal calendar loads (its first load asks Google once, about 1.5 cents).
+
+## Milestone 4: search performance and several retailers (25 Nov 2026, built and browser-tested locally with example figures; NOT committed or deployed)
+
+- **Several retailers (Phase 12):**
+  - The owner has a brand switcher in the header ("Every brand", or one brand). Create, Ranges, History, Review, Dashboard, Keyword lists and the Brand page then show that brand by default. It's remembered for 90 days, every switch is in the audit log, and it never widens anyone else's access: other roles always work in their own brand.
+  - Tenant checks in tests: another brand's products, ranges, reviews, spend, dashboard figures, naming gaps and Google figures can't be reached by any role.
+- **Google connection** (Brand page, "Google", brand admins and the owner):
+  - A brand connects its own Google account through Google's sign-in. Access is read-only (Search Console and Analytics read-only; Merchant Center's API has one scope, and Nomen only reads). The sign-in link is signed and short-lived, the person must still be signed in when Google sends them back, and the refresh token is stored encrypted (AES-256-GCM).
+  - The brand then chooses which Search Console site, Analytics property and Merchant Center account to read, from the lists Google returns. "Bring figures in now", and "Disconnect", which withdraws Google's access and deletes the token; figures already brought in stay. Each step is in the audit log.
+  - Merchant Center uses the current Merchant API (v1; request shapes checked against Google's documentation on 25 Nov). Its daily rows' date format isn't shown in the docs, so both forms are read; confirm on the first real connection.
+- **Live pages:**
+  - Pieces from a product file keep their link and their file title as the page's address and previous name.
+  - Any piece's page address, the date the new name went live, and the name before can be set on its Review page (editors, with an audit record). A web address that isn't one is refused.
+- **Daily sync** (`src/lib/google/sync.ts`): Search Console by page (impressions, clicks, position) and the searches each page shows for; Analytics by page (views, sessions) and by SKU (add-to-carts, purchases, revenue); Merchant Center by SKU (Shopping impressions and clicks, and approval with its issues). Only the brand's own named pieces are kept. The first sync reads 120 days; later ones re-read the last 10 days, which Google revises. It runs when the dashboard is opened and the last sync was over 20 hours ago, or with "Bring figures in now". A source that fails doesn't stop the others; the problem is shown in plain words.
+- **Dashboard, search performance** (the period, category and tests filters apply):
+  - Totals: seen in Google, clicks and click rate, average position, page views, sold (and share of visits), revenue, Shopping clicks. The most clicked pieces.
+  - Before and after the new name, for pieces live at least a week: the same number of days before and after, against what was likely to happen anyway, from how the brand's other pages of the same kind (not renamed then) changed, or else from Google's seasonal search figures for the piece's main phrase. It says which, notes a sale price or too few days, and never puts every change down to the name.
+  - Suggestions from the last 28 days: seen a lot but clicked little (under half the brand's usual click rate), losing visibility (30% fewer impressions), a search the page shows for that the name doesn't say (details and occasions only, never another brand), worth learning from (1.5 times the usual click rate), Google Shopping disapprovals.
+  - What works for your names (click rate by whether names start with the colour, their length, whether they say the material): only once 30 pieces have been seen 100 times or more in 90 days; until then it says how many there are.
+- **Review page:** a "Live on your site" card with the page address, live date and previous name, the last 28 days of Google figures, the searches the page shows for, and Google Shopping's status.
+- **Database:** one additive migration, `20261126090000_google_performance` (GoogleConnection, PageMetric, PageQuery, MerchantStatus; `Generation.liveUrl`, `liveSince`, `previousTitle`).
+- **Tests:** 281 pass (was 270): tenant isolation, token encryption, the signed sign-in link, reading each Google API's reply formats (including GA4's and Merchant Center's dates), the sync (no doubling on the next day), before and after against other pages, the missing-search suggestion, brand separation of Google figures.
+- **Checked in a browser** on a local copy with example figures, as the owner: the brand switcher narrows Review (47 to 1) and History and goes back; Connect Google, choosing a site and property, saving; linking five pieces to pages (a bad address refused); the sync matched 11 pieces with 1,920 days of figures and 15 searches; the dashboard's totals, most clicked, a before and after (72 more clicks than expected, marked early days), suggestions, and "what works" waiting for 30 pieces; the Review page's live card with its figures.
+- **Fixed during the browser check:** for the owner, the brand picker now sits at the top of the Brand page and the Google card at the bottom (people are sent straight to it after connecting); pieces with sales but no search figures no longer read "seen 0 times"; numbers on the live card have thousands separators.
+- **The production build (`next build`) succeeds.**
+
+**To connect Google for real (needs Nitin or whoever owns the Google accounts; Nomen can't do these):**
+
+1. In Google Cloud (console.cloud.google.com), with the account that will own the app: create a project ("Nomen") and enable the Google Search Console API, Google Analytics Data API, Google Analytics Admin API and Merchant API.
+2. Google Auth Platform: app name Nomen and a support email; Audience "External", left in Testing; add as Test users the Google email(s) that will connect (someone with access to Sportsgirl's Search Console, Analytics and Merchant Center). Data access: add the scopes `openid`, `email`, `.../auth/webmasters.readonly`, `.../auth/analytics.readonly`, `.../auth/content`.
+3. Clients: create an OAuth client, type "Web application", with the authorised redirect URI `https://nomen-s0t8.onrender.com/api/google/callback`.
+4. In Render, on the Nomen service's Environment: `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (and, optionally, `GOOGLE_TOKEN_KEY` from `openssl rand -base64 32`; without it the key is derived from `AUTH_SECRET`). Saving redeploys.
+5. In Nomen: Brand page, Google, "Connect Google", sign in with a test-user account, choose the site, property and account, Save, "Bring figures in now".
+6. While the app is in Testing, Google ends the connection after about 7 days, so it has to be connected again weekly. For a lasting connection, publish the app and complete Google's verification for these scopes, which can take weeks: worth starting early.
+
+**Deployment checklist:**
+
+1. Push to main. Render runs `npm run db:migrate` (one additive update). No new settings are required; without the Google ones, "Connect Google" says it isn't set up yet.
+2. After the deploy: `/api/health`; the owner's brand switcher in the header; the Brand page's Google card; the dashboard's search performance section, which says how to connect.

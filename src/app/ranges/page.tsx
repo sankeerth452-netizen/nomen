@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { workspaceFirst } from "@/lib/auth/workspace";
 import { requirePageUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { rangeWhere } from "@/lib/batch/ranges";
@@ -14,7 +15,7 @@ export const metadata = { title: "Ranges" };
 
 export default async function Ranges() {
   const user = await requirePageUser();
-  const brands = user.role === "owner" ? await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : [];
+  const brands = user.role === "owner" ? workspaceFirst(user, await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })) : [];
   const ranges = await db.batch.findMany({
     where: rangeWhere(user), orderBy: { createdAt: "desc" }, take: 40,
     include: { user: { select: { displayName: true } }, items: { orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { id: true, status: true, focus: true } } },

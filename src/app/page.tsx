@@ -2,6 +2,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { can } from "@/lib/review/permissions";
 import { brandSettings } from "@/lib/review/guard";
+import { workspaceFirst } from "@/lib/auth/workspace";
 import { requirePageUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import { PRODUCT_TYPE_CATEGORY } from "@/lib/vocab/fashion";
@@ -17,7 +18,7 @@ export default async function Home() {
   const user = await requirePageUser();
   // Reviewers check and approve; they don't name new pieces (unless their brand lets them).
   if (!can(user, "edit", await brandSettings(user.brandId))) redirect("/review");
-  const brands = user.role === "owner" ? await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : [];
+  const brands = user.role === "owner" ? workspaceFirst(user, await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })) : [];
   return (
     <>
       <Header user={user} active="create" />

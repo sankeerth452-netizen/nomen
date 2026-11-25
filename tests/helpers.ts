@@ -8,6 +8,7 @@ import { activateDataset } from "@/lib/keywords/versions";
 export async function resetDb() {
   await db.auditEvent.deleteMany();
   await db.usageEvent.deleteMany();
+  await db.googleConnection.deleteMany();
   await db.productImage.deleteMany();
   await db.reviewComment.deleteMany();
   await db.reviewRevision.deleteMany();

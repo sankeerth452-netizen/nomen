@@ -47,13 +47,14 @@ async function setStage(id: string, status: Stage, extra: Prisma.GenerationUpdat
  * `photo` is the buyer's display photo and `focus` where the piece sits in it; `fromPhoto` names the fields their photo
  * filled in and `note` says where the request came from (both engineers only).
  */
-export async function createGeneration(user: { id: string; brandId: string | null }, brandId: string, rawInput: unknown, extra: { photo?: Photo; morePhotos?: Photo[]; focus?: Box | null; fromPhoto?: string[]; note?: string; photos?: PhotoInfo[] } = {}) {
+export async function createGeneration(user: { id: string; brandId: string | null }, brandId: string, rawInput: unknown, extra: { photo?: Photo; morePhotos?: Photo[]; focus?: Box | null; fromPhoto?: string[]; note?: string; photos?: PhotoInfo[]; liveUrl?: string | null; previousTitle?: string | null } = {}) {
   const input = GenerationInput.parse(rawInput);
   const brand = await db.brand.findUniqueOrThrow({ where: { id: brandId } });
   const g = await db.generation.create({
     data: {
       brandId, userId: user.id, datasetId: brand.activeKeywordDatasetId, originalInput: json(input), status: "pending", promptVersions: { extraction: EXTRACTION_PROMPT_VERSION, recommend: RECOMMEND_PROMPT_VERSION },
       ...(extra.photos?.length ? { photos: json(extra.photos) } : {}),
+      ...(extra.liveUrl ? { liveUrl: extra.liveUrl.slice(0, 500) } : {}), ...(extra.previousTitle ? { previousTitle: extra.previousTitle.slice(0, 200) } : {}),
       ...(extra.photo && extra.morePhotos?.length ? { images: { create: extra.morePhotos.map((p, i) => ({ position: i + 1, photo: new Uint8Array(p.data), photoType: p.mediaType })) } } : {}),
       ...(extra.photo ? { photo: { create: { mediaType: extra.photo.mediaType, data: new Uint8Array(extra.photo.data), ...(extra.focus ? { focus: json(extra.focus) } : {}) } } } : {}),
       ...(extra.fromPhoto?.length || extra.note ? { usage: json({ notes: [...(extra.note ? [extra.note] : []), ...(extra.fromPhoto?.length ? [`Filled in from the buyer's photo, then checked by them: ${extra.fromPhoto.join(", ")}`] : [])] }) } : {}),

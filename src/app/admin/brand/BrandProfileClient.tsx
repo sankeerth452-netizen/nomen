@@ -60,13 +60,13 @@ export default function BrandProfileClient({ brands, brandId, brandName, canMana
 
   return (
     <>
+    {brands.length > 1 && (
+      <label className="brand-pick">Brand
+        <select value={brandId} onChange={(e) => router.push(`/admin/brand?brand=${e.target.value}`)}>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
+      </label>
+    )}
     {canManage && <LearnFromCatalogue brandId={brandId} onUse={useSuggestions} />}
     <form className="brand-profile" onSubmit={save}>
-      {brands.length > 1 && (
-        <label className="brand-pick">Brand
-          <select value={brandId} onChange={(e) => router.push(`/admin/brand?brand=${e.target.value}`)}>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>
-        </label>
-      )}
       {!canManage && <p className="muted">Only your brand admin can change this. You can see it here.</p>}
       <fieldset disabled={!canManage || busy}>
         <section className="card">

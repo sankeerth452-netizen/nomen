@@ -14,7 +14,7 @@ export default function DashboardFilters({ period, category, categories, include
   return (
     <div className="dash-filters">
       {brands.length > 0 && (
-        <label>Brand<select value={brand} onChange={(e) => go({ brand: e.target.value })}><option value="">Every brand</option>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+        <label>Brand<select value={brand} onChange={(e) => go({ brand: e.target.value })}><option value="all">Every brand</option>{brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
       )}
       <label>Period<select value={period} onChange={(e) => go({ period: e.target.value })}>{PERIODS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       <label>Category<select value={category} onChange={(e) => go({ category: e.target.value })}><option value="all">Every category</option>{[...new Set([...categories, ...(category !== "all" ? [category] : [])])].map((c) => <option key={c} value={c}>{c}</option>)}</select></label>

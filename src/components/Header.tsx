@@ -1,11 +1,15 @@
 import Link from "next/link";
 import type { SessionUser } from "@/lib/auth/session";
 import SignOut from "@/app/SignOut";
+import { db } from "@/lib/db";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 import { Lockup, PRODUCT_NAME } from "@/components/Logo";
 
 type Section = "create" | "ranges" | "history" | "review" | "dashboard" | "datasets" | "users" | "brand" | "credits";
 
-export default function Header({ user, active }: { user: SessionUser; active?: Section }) {
+export default async function Header({ user, active }: { user: SessionUser; active?: Section }) {
+  // The owner works in one brand at a time (or every brand); everyone else always sees their own.
+  const brands = user.role === "owner" ? await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : [];
   const item = (href: string, section: Section, label: string) => (
     <Link href={href} aria-current={active === section ? "page" : undefined}>{label}</Link>
   );
@@ -30,6 +34,7 @@ export default function Header({ user, active }: { user: SessionUser; active?: S
           </nav>
           <div className="account">
             {user.brandName && <span className="brand-chip">{user.brandName}</span>}
+            {user.role === "owner" && brands.length > 0 && <WorkspaceSwitcher brands={brands} current={user.workspaceId ?? null} />}
             <span className="who">{user.displayName}</span>
             <SignOut />
           </div>
