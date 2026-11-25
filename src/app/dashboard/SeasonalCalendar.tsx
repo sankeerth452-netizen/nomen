@@ -5,7 +5,7 @@ import { MONTHS } from "@/lib/keywords/seasonal";
 
 type Row = { phrase: string; average: number; months: number[]; season: string | null; rise: number };
 type Cal = { rows: Row[]; comingUp: Row[]; inSeason: Row[]; checkedAt: string | null; month: number; example: boolean };
-const times = (x: number) => (x > 10 ? "more than 10 times" : `${x} times`);
+const times = (x: number) => (x > 10 ? "more than 10 times" : `up to ${x} times`);
 
 /** When shoppers search for the season's pieces: what's rising in the next two months, and every phrase's year. */
 export default function SeasonalCalendar() {
@@ -31,7 +31,7 @@ export default function SeasonalCalendar() {
         <h3 className="small-head">Rising in {MONTHS[(cal.month + 1) % 12]} and {MONTHS[(cal.month + 2) % 12]}</h3>
         {cal.comingUp.length === 0 ? <p className="muted small">Nothing rises sharply in the next two months.</p> : (
           <ul className="season-list">
-            {cal.comingUp.map((r) => <li key={r.phrase}><b>{r.phrase}</b> <MonthBars months={r.months} label={`Searches for ${r.phrase} by month`} /> <span className="muted small">up to {times(r.rise)} this month&apos;s searches · {Math.max(r.months[(cal.month + 1) % 12], r.months[(cal.month + 2) % 12]).toLocaleString("en-AU")} at its coming peak</span></li>)}
+            {cal.comingUp.map((r) => <li key={r.phrase}><b>{r.phrase}</b> <MonthBars months={r.months} label={`Searches for ${r.phrase} by month`} /> <span className="muted small">{times(r.rise)} this month&apos;s searches · {Math.max(r.months[(cal.month + 1) % 12], r.months[(cal.month + 2) % 12]).toLocaleString("en-AU")} at its coming peak</span></li>)}
           </ul>
         )}
         <button className="link" onClick={() => setAll((a) => !a)} aria-expanded={all}>{all ? "Hide the full calendar" : `Show all ${cal.rows.length} phrases`}</button>
