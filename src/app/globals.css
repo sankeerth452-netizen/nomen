@@ -87,6 +87,8 @@ button.link:hover { color: var(--ink); background: none; }
 label { display: block; font: 500 10.5px/1.4 var(--text); letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin: 18px 0 6px; }
 input, select, textarea { font: 400 16px/1.4 var(--text); color: var(--ink); width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--line-strong); border-radius: 0; padding: 9px 0; outline: none; transition: border-color .2s var(--ease); }
 input::placeholder, textarea::placeholder { color: #b3a89c; }
+/* A tick box or round button beside its words stays its own size (the rule above would stretch it across the row). */
+label.check > input[type="checkbox"], label.check > input[type="radio"] { width: auto; flex: none; padding: 0; border: 0; }
 input:focus, select:focus, textarea:focus { border-bottom-color: var(--ink); }
 select { appearance: none; background: linear-gradient(45deg, transparent 50%, var(--ink) 50%) right 6px center / 5px 5px no-repeat, linear-gradient(-45deg, transparent 50%, var(--ink) 50%) right 1px center / 5px 5px no-repeat; padding-right: 22px; cursor: pointer; }
 input[type="file"] { border: 1px dashed var(--line-strong); padding: 18px; font-size: 14px; background: var(--card); }
@@ -395,6 +397,10 @@ details[open].more summary::before, details[open].why summary::before { content:
 .range-drop .muted { font-size: 14px; max-width: 460px; text-align: center; }
 .range-uploads { margin-top: 16px; font-size: 14px; }
 .range-uploads p { margin: 4px 0; }
+.grouping { margin-top: 20px; }
+.grouping > p { margin: 0 0 8px; font-size: 14.5px; }
+.grouping-list { margin: 0 0 12px; padding-left: 18px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.grouping .btns { margin: 14px 0 8px; }
 .range-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 26px 0 18px; }
 .range-filters .chip span { margin-left: 6px; color: var(--muted); }
 .range-filters .chip[aria-selected="true"] span { color: inherit; }

@@ -9,6 +9,7 @@ import { objectPosition } from "@/lib/frame";
 import { render } from "@/lib/shrink";
 import { BEFORE_NAMING, WORKING, duplicateNames, isReady, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
 import { MAX_PHOTOS, VIEW_LABEL } from "@/lib/images/info";
+import { anyGrouped, groupByFileName, type PhotoGroup } from "@/lib/images/grouping";
 import type { PresentedItem } from "@/lib/batch/ranges";
 import type { FileCheck } from "@/lib/feed/shared";
 import ProductFile from "./ProductFile";
@@ -27,7 +28,11 @@ const MORE: [Field, string, string][] = [
 ];
 const SHARED: [Field, string, string][] = [["audience", "Audience", "girls"], ["occasion", "Occasion or style", "resort"], ["material", "Material", "linen"], ["extra", "Extra product facts", "Made in Australia"]];
 
-type Upload = { key: string; name: string; state: "waiting" | "sending" | "error"; message?: string };
+type Upload = { key: string; name: string; photos: number; state: "waiting" | "sending" | "error"; message?: string };
+/** One piece to add: its main photo and, when file names grouped them, its other photos. */
+type ToAdd = { key: string; main: File; more: File[]; position: number };
+const pieceName = (p: { main: File; more: File[] }) => (p.more.length ? `${p.main.name} and ${p.more.length} more ${p.more.length === 1 ? "photo" : "photos"}` : p.main.name);
+const eachAlone = (files: File[]): PhotoGroup[] => files.map((_, i) => ({ base: "", main: i, more: [], leftOut: [] }));
 type Filter = "all" | "check" | "named" | "attention";
 
 const needsAttention = (i: PresentedItem) => ["needs_input", "failed", "not_product", "read_failed"].includes(i.status) || (i.status === "review" && !isReady(i.details));
@@ -43,6 +48,8 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
   const lastCheck = useRef<string | null>(loadedAt); // only pieces changed since then are fetched
   const [title, setTitle] = useState(initialTitle);
   const [uploads, setUploads] = useState<Upload[]>([]);
+  // Photos whose file names group them into pieces, waiting for the buyer to say how to add them.
+  const [grouping, setGrouping] = useState<{ files: File[]; groups: PhotoGroup[] } | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -113,24 +120,39 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
     if (source === "file") { setError("This range comes from your product file, so its photos come from the file's image links. Start a new range to add photos."); return; }
     const files = [...list].filter((f) => f.type.startsWith("image/"));
     if (!files.length) { setError(COPY.photo.notAPhoto); return; }
-    const queue = files.map((file) => ({ key: crypto.randomUUID(), file, position: nextPosition.current++ }));
-    setUploads((u) => [...u, ...queue.map((q) => ({ key: q.key, name: q.file.name, state: "waiting" as const }))]);
+    const groups = groupByFileName(files.map((f) => f.name));
+    // dress-1.jpg and dress-2.jpg look like one piece: ask first, since a name can only suggest it.
+    if (anyGrouped(groups)) { setGrouping({ files, groups }); return; }
+    await addPieces(files, groups);
+  }
+
+  async function addPieces(files: File[], groups: PhotoGroup[]) {
+    setGrouping(null);
+    const queue: ToAdd[] = groups.map((g) => ({ key: crypto.randomUUID(), main: files[g.main], more: g.more.map((i) => files[i]), position: nextPosition.current++ }));
+    setUploads((u) => [...u, ...queue.map((q) => ({ key: q.key, name: pieceName(q), photos: 1 + q.more.length, state: "waiting" as const }))]);
     let next = 0;
     const worker = async () => { while (next < queue.length) await send(queue[next++]); };
     await Promise.all(Array.from({ length: UPLOADS_AT_ONCE }, worker));
   }
 
-  async function send({ key, file, position }: { key: string; file: File; position: number }) {
+  // Two shrunk copies of a photo: one to keep and show, one for the AI to read.
+  async function copies(file: File, own: boolean) {
+    const which = own ? "" : `${file.name}: `;
+    if (file.size > MAX_FILE_BYTES) throw new Error(which + COPY.photo.tooLarge);
+    try {
+      const [photo, image] = await Promise.all([render(file, 900, 190_000), render(file, 1568, 2_800_000)]);
+      return { photo, image };
+    } catch (e) {
+      throw new Error(which + (e instanceof Error && e.message === "too_large" ? COPY.photo.tooLarge : COPY.photo.cantOpen));
+    }
+  }
+
+  async function send({ key, main, more, position }: ToAdd) {
     setUploads((u) => u.map((x) => (x.key === key ? { ...x, state: "sending" } : x)));
     try {
-      if (file.size > MAX_FILE_BYTES) throw new Error(COPY.photo.tooLarge);
-      let photo: string, image: string;
-      try {
-        [photo, image] = await Promise.all([render(file, 900, 190_000), render(file, 1568, 2_800_000)]);
-      } catch (e) {
-        throw new Error(e instanceof Error && e.message === "too_large" ? COPY.photo.tooLarge : COPY.photo.cantOpen);
-      }
-      const res = await fetch(`/api/ranges/${id}/items`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ filename: file.name, photo, image, position }) });
+      const first = await copies(main, true);
+      const others = await Promise.all(more.map((f) => copies(f, false)));
+      const res = await fetch(`/api/ranges/${id}/items`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ filename: main.name, ...first, more: others, position }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? COPY.photo.readFailed);
       setItems((list) => [...list, data as PresentedItem].sort((a, b) => a.position - b.position)); // stable: ties keep arrival order
@@ -204,7 +226,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
           <p className="muted range-count">
             {source === "file"
               ? <>{counts.all} {counts.all === 1 ? "product" : "products"} · {items.reduce((n, i) => n + (i.file?.skus.length ?? 0), 0)} SKUs from {fileName ?? "your file"}</>
-              : <>{counts.all} {counts.all === 1 ? "photo" : "photos"}</>}
+              : <>{counts.all} {counts.all === 1 ? "piece" : "pieces"}</>}
             {" "}· {counts.named} named{counts.check ? ` · ${counts.check} to check` : ""}{brandName ? ` · ${brandName}` : ""}
             {busy && progress?.etaSeconds ? ` · about ${timeLeft(progress.etaSeconds)} left` : ""}
           </p>
@@ -235,11 +257,12 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
       )}
 
       {(notice || error) && <p className={error ? "err range-msg" : "range-msg"} aria-live="polite">{error || notice}</p>}
+      {grouping && <GroupingAsk files={grouping.files} groups={grouping.groups} onGroup={() => void addPieces(grouping.files, grouping.groups)} onSeparate={() => void addPieces(grouping.files, eachAlone(grouping.files))} onCancel={() => setGrouping(null)} />}
 
       {fileCheck && <FileChecks check={fileCheck} />}
       {items.length > 0 && <CatalogueCheck rangeId={id} />}
 
-      {items.length === 0 && !sending ? (
+      {items.length === 0 && !sending && !grouping ? (
         <button className="range-drop" onClick={() => picker.current?.click()}>
           <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="7" y="11" width="34" height="26" fill="none" stroke="currentColor" strokeWidth="1.2" /><circle cx="24" cy="24" r="7" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M17 11l3-4h8l3 4" fill="none" stroke="currentColor" strokeWidth="1.2" /></svg>
           <span className="t">Drop the range&apos;s photos here</span>
@@ -247,12 +270,12 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
           <span className="btn ghost">Choose photos</span>
         </button>
       ) : null}
-      {items.length === 0 && !sending && <ProductFile rangeId={id} />}
+      {items.length === 0 && !sending && !grouping && <ProductFile rangeId={id} />}
       {items.length === 0 && !sending ? null : (
         <>
           {uploads.length > 0 && (
             <div className="range-uploads" aria-live="polite">
-              {sending && <p className="muted">Adding {uploads.filter((u) => u.state !== "error").length} {uploads.filter((u) => u.state !== "error").length === 1 ? "photo" : "photos"}…</p>}
+              {sending && <p className="muted">{addingText(uploads.filter((u) => u.state !== "error"))}</p>}
               {uploads.filter((u) => u.state === "error").map((u) => <p key={u.key} className="err">{u.name}: {u.message}</p>)}
               {uploads.some((u) => u.state === "error") && <button className="link" onClick={() => setUploads((x) => x.filter((u) => u.state !== "error"))}>Dismiss</button>}
             </div>
@@ -417,6 +440,40 @@ function timeLeft(s: number) {
   if (s < 60) return `${Math.max(10, Math.round(s / 10) * 10)} seconds`;
   const m = Math.round(s / 60);
   return m < 90 ? `${m} ${m === 1 ? "minute" : "minutes"}` : `${Math.round(m / 60)} hours`;
+}
+
+/** "Adding 3 photos…", or "Adding 3 pieces (8 photos)…" when file names grouped some. */
+function addingText(list: Upload[]) {
+  const pieces = list.length, photos = list.reduce((n, u) => n + u.photos, 0);
+  return photos === pieces ? `Adding ${photos} ${photos === 1 ? "photo" : "photos"}…` : `Adding ${pieces} ${pieces === 1 ? "piece" : "pieces"} (${photos} photos)…`;
+}
+
+const andList = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+const SHOW_GROUPS = 6;
+/** Dropped photos whose names look like several photos of one piece (dress-1.jpg, dress-2.jpg): group them or not. */
+function GroupingAsk({ files, groups, onGroup, onSeparate, onCancel }: { files: File[]; groups: PhotoGroup[]; onGroup: () => void; onSeparate: () => void; onCancel: () => void }) {
+  const together = groups.filter((g) => g.more.length > 0 || g.leftOut.length > 0);
+  const alone = groups.length - together.length;
+  const leftOut = groups.flatMap((g) => g.leftOut.map((i) => files[i].name));
+  return (
+    <div className="grouping card" aria-live="polite">
+      <p><b>These {files.length} photos look like {groups.length} {groups.length === 1 ? "piece" : "pieces"}</b>, going by their file names. Photos of one piece are read together and named once.</p>
+      <ul className="grouping-list">
+        {together.slice(0, SHOW_GROUPS).map((g) => (
+          <li key={g.main}><b>{files[g.main].name}</b> <span className="muted">with {g.more.map((i) => files[i].name).join(", ")}</span></li>
+        ))}
+        {together.length > SHOW_GROUPS && <li className="muted">and {together.length - SHOW_GROUPS} more {together.length - SHOW_GROUPS === 1 ? "piece" : "pieces"} with several photos</li>}
+        {alone > 0 && <li className="muted">{alone} other {alone === 1 ? "photo is a piece" : "photos are a piece each"}</li>}
+      </ul>
+      {leftOut.length > 0 && <p className="small warn-text">A piece can have up to {MAX_PHOTOS} photos, so {andList(leftOut)} won&apos;t be added.</p>}
+      <div className="btns">
+        <button onClick={onGroup}>Add as {groups.length} {groups.length === 1 ? "piece" : "pieces"}</button>
+        <button className="ghost" onClick={onSeparate}>Add each photo as its own piece ({files.length})</button>
+        <button className="link" onClick={onCancel}>Cancel</button>
+      </div>
+      <p className="muted small">The first photo of each piece is its main one. You can remove a photo from a piece on its card before naming.</p>
+    </div>
+  );
 }
 
 type ReportRow = { product: string; skus: string; level: "Error" | "Warning"; where: string; problem: string };

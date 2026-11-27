@@ -610,3 +610,22 @@ The files were named web-01 to web-12, so Nomen had only the photos to go on. Co
 
 1. Push to main. Render runs `npm run db:migrate` (one additive update). No new settings are required; without the Google ones, "Connect Google" says it isn't set up yet.
 2. After the deploy: `/api/health`; the owner's brand switcher in the header; the Brand page's Google card; the dashboard's search performance section, which says how to connect.
+
+## Photos grouped into pieces by file name (27 Nov 2026, built, browser-tested locally and pushed)
+
+- **Dropping photos on a range** now looks at their file names: `dress-1.jpg`, `dress-2.jpg` and `dress-back.jpg` are three photos of one dress (`src/lib/images/grouping.ts`). A name counts as one photo of a piece only when it ends in a separator and a short photo number (`-1`, `_02`, ` (2)`) or a view word (front, back, side, detail, close-up, fabric, worn, on model, flat lay...).
+- **Kept apart on purpose:** camera and phone names (`IMG_4512.jpg`, `IMG_4513.jpg`, `photo-1.jpg`), screenshots, names ending in a date, plain numbers (`1.jpg`), very short codes (`SG-12.jpg`, `SG-13.jpg`), and bikini tops and bottoms ("top" and "bottom" aren't view words).
+- **The main photo** is the one with no number (`dress.jpg`), then front, main or hero, then the lowest number. A piece keeps up to 6 photos; the screen names any left out.
+- **The buyer decides:** when any photos would be grouped, the range shows "These 8 photos look like 3 pieces" with each group, and "Add as 3 pieces", "Add each photo as its own piece" or "Cancel". Photos with nothing to group are added straight away, as before.
+- **Read once:** a grouped piece is sent with all its photos in one request and saved together (`addPhotoPiece` in `src/lib/batch/ranges.ts`), so the AI reads it once with every photo, not once alone and again with the rest.
+- The range's count now says pieces, not photos, and the upload line says "Adding 3 pieces (8 photos)…" when photos were grouped.
+- **Tests:** 286 pass (was 282): grouping rules, names kept apart, the photo limit, and a grouped piece read once with all three photos.
+- **Checked in a browser** on a local copy with the stand-in AI: five photos (dress-1, dress-2, dress-back, top, IMG_4512) became three pieces, the dress read once with its back and detail photos; "Add each photo as its own piece" and "Cancel" both work; eight coat photos named the two left out; the panel on a phone-sized screen with long file names, with no sideways scrolling; no console errors.
+- **The production build (`next build`) succeeds.** No database change and no new settings.
+
+## Brand page: the "Order of details" choices spilled out of the card (27 Nov 2026, fixed, browser-tested locally and pushed)
+
+- **Spotted by the user on the live Brand page:** the two round buttons under "Order of details in a name" sat far apart on the left while their words ("Learn it from your keyword list (recommended)", "Use our own order") were squeezed into a narrow column outside the card's right edge.
+- **Cause:** every input is styled to fill its row (`width: 100%`, for text boxes), and the round buttons inherited that, so each one stretched across the card and pushed its words out.
+- **Fix:** one rule in `src/app/globals.css` keeps a tick box or round button beside its words at its own size, everywhere a `label.check` is used.
+- **Checked in a browser:** the Brand page's two choices sit inside the card, and "Use our own order" shows its Up and Down list; every other tick box is still 13px wide and on one line (Dashboard "Include tests", a range's "A test range", the Review page's "Only export approved products", and a product's review page: "A test" and its "Ideal for" occasions).

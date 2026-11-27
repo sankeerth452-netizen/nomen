@@ -9,6 +9,7 @@ import { db } from "../db";
 import { HttpError, hasRole } from "../auth/guards";
 import type { SessionUser } from "../auth/session";
 import type { Box } from "../frame";
+import type { Photo } from "../photo";
 import { duplicateNames, slugFor, type ItemDetails, type ItemStatus } from "./shared";
 import type { StoredSheet } from "../pipeline/sheet";
 import type { PieceFeed } from "../feed/shared";
@@ -24,6 +25,22 @@ export async function loadRangeFor(user: SessionUser, id: string): Promise<Batch
   const allowed = b && (user.role === "owner" || (b.brandId === user.brandId && (b.userId === user.id || seesWholeBrand(user))));
   if (!b || !allowed) throw new HttpError(404, "We couldn't find that range.");
   return b;
+}
+
+/**
+ * Add a dropped piece to a range: its main photo and, when its file names grouped them, its other photos, all saved
+ * together so the piece is read once with every photo.
+ */
+export async function addPhotoPiece(batchId: string, p: { filename: string; position: number | null; photo: Photo; image: Photo; more?: { photo: Photo; image: Photo }[] }) {
+  const last = p.position === null ? await db.batchItem.aggregate({ where: { batchId }, _max: { position: true } }) : null;
+  return db.batchItem.create({
+    data: {
+      batchId, position: p.position ?? (last?._max.position ?? 0) + 1, filename: p.filename,
+      photo: new Uint8Array(p.photo.data), photoType: p.photo.mediaType, readImage: new Uint8Array(p.image.data), readType: p.image.mediaType,
+      images: p.more?.length ? { create: p.more.map((m, n) => ({ position: n + 1, photo: new Uint8Array(m.photo.data), photoType: m.photo.mediaType, readImage: new Uint8Array(m.image.data), readType: m.image.mediaType })) } : undefined,
+    },
+    include: { generation: { select: { id: true, status: true, result: true, confidence: true } }, images: { select: { position: true }, orderBy: { position: "asc" } } },
+  });
 }
 
 type ItemWithGen = BatchItem & { generation: (Pick<Generation, "id" | "status" | "result" | "confidence"> & { review?: { status: string; edits: unknown } | null }) | null; images?: { position: number }[] };
