@@ -35,7 +35,7 @@ export default function SheetUpload({ rangeId, onAdded, onClose }: { rangeId: st
   return (
     <div className="card sheet-upload">
       <strong>Add pieces from a spreadsheet<Hint text="A line sheet: one row per piece, with its photo pasted into the sheet (or a photo link) and what you know about it. Anything you write is used as written; the photo only fills in what you left blank." /></strong>
-      <p className="muted">One row per piece: paste each photo over its row, then add its category, description and material (occasion is optional). Excel (.xlsx) or CSV, up to 30MB. <a href="/api/ranges/template">Download the template</a> to see the columns.</p>
+      <p className="muted">One row per piece: paste each photo over its row, then add its category, description and material (occasion is optional). Excel (.xlsx) or CSV, up to 30MB. <a href={`/api/ranges/template`} download>Download the template</a> to see the columns.</p>
       <label htmlFor={`sheet-${rangeId}`}>Spreadsheet</label>
       <input id={`sheet-${rangeId}`} type="file" accept=".xlsx,.csv" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setError(""); }} />
       <div className="btns">
