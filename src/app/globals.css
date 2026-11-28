@@ -45,22 +45,27 @@ em, .italic { font-style: italic; }
 /* ── demo strip + header ── */
 .strip { background: var(--ink); color: var(--paper); text-align: center; font: 500 10.5px/1 var(--text); letter-spacing: .22em; text-transform: uppercase; padding: 9px var(--gutter); }
 .masthead { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--paper) 94%, transparent); backdrop-filter: saturate(1.2) blur(8px); border-bottom: 1px solid var(--line); }
-.masthead-in { max-width: var(--max); margin: 0 auto; padding: 14px var(--gutter); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; }
+/* Logo and account take what they need (so "Sign out" stays on one line: two lines put its underline through the second word)
+   and the menu sits centred in the space between them. */
+.masthead-in { max-width: var(--max); margin: 0 auto; padding: 14px var(--gutter); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; }
 .wordmark { text-decoration: none; display: inline-flex; align-items: center; line-height: 0; }
 .wordmark svg { display: block; }
 .signin-brand { display: flex; flex-direction: column; gap: 14px; }
 .sign-off { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .sign-off b { font-weight: 500; letter-spacing: .2em; text-transform: uppercase; font-size: 11px; color: var(--ink); }
-.mainnav { display: flex; gap: 28px; }
+.mainnav { display: flex; gap: 24px; justify-self: center; }
 .mainnav a { text-decoration: none; font: 500 11.5px/1 var(--text); letter-spacing: .18em; text-transform: uppercase; color: var(--ink-soft); padding: 6px 0; border-bottom: 1px solid transparent; }
 .mainnav a:hover { color: var(--ink); }
 .mainnav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--ink); }
 .account { justify-self: end; display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--muted); }
+.account > * { white-space: nowrap; }
 .account .brand-chip { font: 500 10.5px/1 var(--text); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); border: 1px solid var(--line-strong); padding: 7px 10px; }
-/* Brand admins have up to eight menu items: below 1100px the menu takes its own row, so it never crowds the logo or account. */
-@media (max-width: 1100px) {
+/* Brand admins have up to eight menu items: a little tighter below 1240px so they still share a row with the logo and account, */
+@media (max-width: 1240px) { .mainnav { gap: 18px; } .mainnav a { letter-spacing: .12em; } }
+/* and below 1140px the menu takes its own row, so it never crowds the logo or account. */
+@media (max-width: 1140px) {
   .masthead-in { grid-template-columns: 1fr auto; }
-  .mainnav { grid-column: 1 / -1; grid-row: 2; gap: 18px; overflow-x: auto; }
+  .mainnav { grid-column: 1 / -1; grid-row: 2; gap: 18px; overflow-x: auto; justify-self: stretch; }
   .mainnav a { letter-spacing: .12em; white-space: nowrap; }
 }
 @media (max-width: 860px) {
