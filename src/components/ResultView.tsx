@@ -251,7 +251,7 @@ export default function ResultView({ gen, brandName, canFeedback, onRetry }: { g
       )}
       {canFeedback && (
         <div className="feedback">
-          {sent ? <div><h3>Thank you</h3><p>{sent}. It helps the next name get better.</p></div> : (<>
+          {sent ? <div><h3>Thank you</h3><p>{sent}. It&apos;s kept with this name in History.</p></div> : (<>
             <div><h3>Did this name make the page?</h3><p>Your answer is saved with this name in History.</p></div>
             <div className="btns">
               <button onClick={() => feedback("used")}>Use this name</button>

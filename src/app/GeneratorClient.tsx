@@ -21,6 +21,9 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
   const [error, setError] = useState("");
   const [productType, setProductType] = useState("");
   const [brandId, setBrandId] = useState(brands[0]?.id ?? "");
+  // The brand you're working in comes first; when you switch it in the top menu, the choice here follows it.
+  const workspace = brands[0]?.id ?? "";
+  useEffect(() => { setBrandId(workspace); }, [workspace]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const out = useRef<HTMLDivElement>(null);
   const typeField = useRef<HTMLInputElement>(null);

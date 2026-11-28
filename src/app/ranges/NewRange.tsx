@@ -1,11 +1,14 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /** Start an empty range and open it. Owners, who aren't tied to one brand, choose the brand first. */
 export default function NewRange({ brands, label = "Start a new range" }: { brands: { id: string; name: string }[]; label?: string }) {
   const router = useRouter();
   const [brandId, setBrandId] = useState(brands[0]?.id ?? "");
+  // The brand you're working in comes first; when you switch it in the top menu, the choice here follows it.
+  const workspace = brands[0]?.id ?? "";
+  useEffect(() => { setBrandId(workspace); }, [workspace]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 

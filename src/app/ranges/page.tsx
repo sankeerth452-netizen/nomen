@@ -18,7 +18,7 @@ export default async function Ranges() {
   const brands = user.role === "owner" ? workspaceFirst(user, await db.brand.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } })) : [];
   const ranges = await db.batch.findMany({
     where: rangeWhere(user), orderBy: { createdAt: "desc" }, take: 40,
-    include: { user: { select: { displayName: true } }, items: { orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { id: true, status: true, focus: true } } },
+    include: { user: { select: { displayName: true } }, items: { orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { id: true, status: true, focus: true, photoType: true } } },
   });
   return (
     <>
@@ -47,13 +47,13 @@ export default async function Ranges() {
                 <Link key={r.id} href={`/ranges/${r.id}`} className="range-row">
                   <div className="range-strip" aria-hidden="true">
                     {r.items.slice(0, 5).map((i) => (
-                      <span key={i.id} className="range-thumb"><Image src={`/api/ranges/${r.id}/items/${i.id}/photo`} alt="" fill unoptimized style={{ objectPosition: objectPosition(i.focus as Box | null) }} /></span>
+                      <span key={i.id} className={`range-thumb${i.photoType ? "" : " empty"}`}>{i.photoType && <Image src={`/api/ranges/${r.id}/items/${i.id}/photo`} alt="" fill unoptimized style={{ objectPosition: objectPosition(i.focus as Box | null) }} />}</span>
                     ))}
                     {r.items.length === 0 && <span className="range-thumb empty" />}
                   </div>
                   <div>
                     <h3>{r.title}</h3>
-                    <span className="input">{r.items.length} {r.items.length === 1 ? "photo" : "photos"} · {named} named{toCheck ? ` · ${toCheck} to check` : ""}{user.role !== "buyer" ? ` · ${r.user.displayName}` : ""}</span>
+                    <span className="input">{r.items.length} {r.items.length === 1 ? "piece" : "pieces"} · {named} named{toCheck ? ` · ${toCheck} to check` : ""}{user.role !== "buyer" ? ` · ${r.user.displayName}` : ""}</span>
                   </div>
                   <span className="look-meta">{r.createdAt.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}</span>
                 </Link>

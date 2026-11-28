@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Brand = { id: string; name: string };
@@ -24,6 +24,9 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [brandId, setBrandId] = useState(brands[0]?.id ?? "");
+  // The brand you're working in comes first; when you switch it in the top menu, the choice here follows it.
+  const workspace = brands[0]?.id ?? "";
+  useEffect(() => { setBrandId(workspace); }, [workspace]);
   // The owner sees every brand's lists: each row says whose it is.
   const manyBrands = brands.length > 1;
   const brandName = new Map(brands.map((b) => [b.id, b.name]));

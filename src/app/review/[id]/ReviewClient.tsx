@@ -256,6 +256,7 @@ function LiveCard({ id, canEdit, live, google }: { id: string; canEdit: boolean;
     const d = await res.json().catch(() => ({}));
     setBusy(false);
     setMsg(res.ok ? { ok: true, text: "Saved. Google's figures for this page come in with the next daily update." } : { ok: false, text: d.error ?? "That didn't save." });
+    if (res.ok) setV({ url: d.liveUrl ?? "", since: d.liveSince ?? "", previousTitle: d.previousTitle ?? "" }); // shows a date filled in for you
   }
   const t = google?.last28;
   return (

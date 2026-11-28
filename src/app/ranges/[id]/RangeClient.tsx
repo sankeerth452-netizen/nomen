@@ -172,8 +172,13 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
     return () => window.removeEventListener("paste", onPaste);
   });
 
+  // Edits on their way to the server (each piece's boxes save when you leave them), so naming waits for them.
+  const saving = useRef(new Set<Promise<unknown>>());
+  const track = useCallback(<T,>(p: Promise<T>) => { saving.current.add(p); void p.finally(() => saving.current.delete(p)); return p; }, []);
+
   async function nameThese(itemIds?: string[]) {
     setError(""); setNotice(""); setNaming(true);
+    await Promise.allSettled([...saving.current]); // a piece's edit still on its way is saved before naming starts
     const res = await fetch(`/api/ranges/${id}/name`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(itemIds ? { itemIds } : {}) });
     const data = await res.json().catch(() => ({}));
     setNaming(false);
@@ -287,7 +292,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
           </div>
           <div className="pieces">
             {shown.map((i) => (
-              <Piece key={i.id} item={i} sameAs={dupes.get(i.id)} rangeId={id} onUpdate={update} onRemove={(gone) => setItems((list) => list.filter((x) => x.id !== gone))} onName={(one) => nameThese([one])} />
+              <Piece key={i.id} item={i} sameAs={dupes.get(i.id)} rangeId={id} onUpdate={update} onRemove={(gone) => setItems((list) => list.filter((x) => x.id !== gone))} onName={(one) => nameThese([one])} track={track} />
             ))}
             {shown.length === 0 && <p className="muted">Nothing here right now.</p>}
           </div>
@@ -298,7 +303,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
 }
 
 /** One photo in the range: its stage, its details to check, and its name once it has one. */
-function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: PresentedItem; sameAs?: string[]; rangeId: string; onUpdate: (i: PresentedItem) => void; onRemove: (id: string) => void; onName: (id: string) => void }) {
+function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName, track }: { item: PresentedItem; sameAs?: string[]; rangeId: string; onUpdate: (i: PresentedItem) => void; onRemove: (id: string) => void; onName: (id: string) => void; track: <T>(p: Promise<T>) => Promise<T> }) {
   const [draft, setDraft] = useState<Fields>(item.details?.fields ?? {});
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -323,11 +328,30 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: Pr
     return { ok: true, item: data as PresentedItem };
   }
 
+  /**
+   * Everything typed here, saved in one go before naming. Each box also saves when you leave it, but "Name again"
+   * started naming at the same moment, so the last edit could be lost (or refused, as the piece was already being named).
+   */
+  async function saveAll(): Promise<boolean> {
+    focused.current = false;
+    const changed: Fields = {};
+    for (const [k, v] of Object.entries(draft) as [Field, string | undefined][]) {
+      const t = (v ?? "").trim();
+      if (t !== (item.details?.fields[k] ?? "")) changed[k] = t;
+    }
+    if (!Object.keys(changed).length) return true;
+    const { ok, item: next } = await call("PATCH", { fields: changed });
+    if (next) onUpdate(next);
+    return ok;
+  }
+  // Ready to name from what's on screen, not only what's been saved.
+  const readyNow = isReady(item.details ? { ...item.details, fields: { ...item.details.fields, ...draft } } : null);
+
   async function save(field: Field) {
     focused.current = false;
     const v = draft[field]?.trim() ?? "";
     if (v === (item.details?.fields[field] ?? "")) return;
-    const { item: next } = await call("PATCH", { fields: { [field]: v } });
+    const { item: next } = await track(call("PATCH", { fields: { [field]: v } }));
     if (next) onUpdate(next);
   }
 
@@ -407,7 +431,7 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: Pr
               {item.generationId && <Link className="btn ghost" href={`/history/${item.generationId}`}>Evidence</Link>}
               <button className="link" onClick={() => setEditing((x) => !x)}>{editing ? "Close" : "Change details"}</button>
             </div>
-            {editing && <>{details}<div className="piece-btns"><button onClick={() => { setEditing(false); onName(item.id); }} disabled={!isReady(item.details)}>Name again</button></div></>}
+            {editing && <>{details}<div className="piece-btns"><button onClick={async () => { if (!(await saveAll())) return; setEditing(false); onName(item.id); }} disabled={!readyNow}>Name again</button></div></>}
           </>
         )}
 
@@ -421,7 +445,7 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName }: { item: Pr
             {details}
             <div className="piece-btns">
               {item.status === "read_failed" && <button className="ghost" onClick={async () => { const { item: n } = await call("PATCH", { retryRead: true }); if (n) onUpdate(n); }}>Read again</button>}
-              {["review", "needs_input", "failed"].includes(item.status) && <button onClick={() => onName(item.id)} disabled={!isReady(item.details)}>{item.status === "review" ? "Name this one" : "Name again"}</button>}
+              {["review", "needs_input", "failed"].includes(item.status) && <button onClick={async () => { if (await saveAll()) onName(item.id); }} disabled={!readyNow}>{item.status === "review" ? "Name this one" : "Name again"}</button>}
               <button className="link" onClick={async () => { if ((await call("DELETE")).ok) onRemove(item.id); }}>Remove</button>
             </div>
           </>

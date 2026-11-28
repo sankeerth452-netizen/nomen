@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Prisma, ReviewStatus } from "@prisma/client";
-import { ownerScope } from "@/lib/auth/workspace";
+import { ownerScope, workspaceBrandId } from "@/lib/auth/workspace";
 import { requirePageUser } from "@/lib/auth/guards";
 import { db } from "@/lib/db";
 import Header from "@/components/Header";
@@ -39,10 +39,12 @@ export default async function ReviewQueue({ searchParams }: { searchParams: Prom
       include: { generation: { select: { id: true, createdAt: true, confidence: true, result: true, originalInput: true, user: { select: { displayName: true } }, photo: { select: { generationId: true, focus: true } } } } },
     }),
     db.productReview.groupBy({ by: ["status"], where, _count: true }),
-    brandSettings(user.brandId),
+    brandSettings(workspaceBrandId(user)),
   ]);
   const count = (statuses: ReviewStatus[]) => counts.filter((c) => statuses.includes(c.status)).reduce((s, c) => s + c._count, 0);
-  const canManage = user.role !== "owner" && can(user, "manageBrand", settings);
+  // The owner manages the brand picked in the top menu (or, on "Every brand", downloads every brand's corrections).
+  const ws = workspaceBrandId(user);
+  const canManage = user.role === "owner" || can(user, "manageBrand", settings);
   return (
     <>
       <Header user={user} active="review" />
@@ -54,7 +56,7 @@ export default async function ReviewQueue({ searchParams }: { searchParams: Prom
             <p>Every named piece starts here. Check what Nomen wrote, change anything that isn&apos;t right, and approve it. Nothing is approved just because the AI finished.</p>
           </div>
         </div>
-        {canManage && <ApprovalSetting brandId={user.brandId!} initial={settings?.approvalRequired ?? false} />}
+        {canManage && ws && <ApprovalSetting key={ws} brandId={ws} initial={settings?.approvalRequired ?? false} />}
         <nav className="review-tabs" aria-label="Review status">
           {TABS.map((t) => (
             <Link key={t.key} href={`/review?tab=${t.key}`} className={t.key === tab.key ? "on" : undefined} aria-current={t.key === tab.key ? "page" : undefined}>
@@ -90,7 +92,7 @@ export default async function ReviewQueue({ searchParams }: { searchParams: Prom
             })}
           </div>
         )}
-        {canManage && <p className="muted storage-note"><a href={`/api/reviews/corrections`} download>Download every correction people made</a>: what the AI wrote and what it was changed to, for testing and improving Nomen.</p>}
+        {canManage && <p className="muted storage-note"><a href={`/api/reviews/corrections${user.role === "owner" && ws ? `?brandId=${ws}` : ""}`} download>Download every correction people made</a>: what the AI wrote and what it was changed to, for testing and improving Nomen.</p>}
       </main>
       <Footer />
     </>

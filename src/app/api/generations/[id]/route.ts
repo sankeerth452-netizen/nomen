@@ -27,6 +27,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         data.liveSince = d;
       }
       if ("previousTitle" in body) data.previousTitle = typeof body.previousTitle === "string" && body.previousTitle.trim() ? body.previousTitle.trim().slice(0, 200) : null;
+      // A page address with no date yet: today, so the before-and-after has a day to compare from (it's shown, and can be changed).
+      if (data.liveUrl && !data.liveSince && !g.liveSince) { const t = new Date(); data.liveSince = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate())); }
       await db.$transaction([
         db.generation.update({ where: { id }, data }),
         db.auditEvent.create({ data: { brandId: g.brandId, userId: user.id, eventType: "generation.live_page", metadata: { generationId: id, ...data, liveSince: data.liveSince?.toISOString() ?? null } } }),
