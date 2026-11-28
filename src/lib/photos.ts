@@ -15,27 +15,30 @@ import swim from "@/assets/photos/swim.jpg";
 import top from "@/assets/photos/top.jpg";
 import { categoryForType } from "./vocab/fashion";
 
-// Photography: Burst by Shopify (free for commercial use; credit encouraged, so every photo is credited on /credits).
-// Imported statically so Next serves them from /_next/static (no login needed) with sizes and blur placeholders.
+// Photography: Burst by Shopify and Pexels (both free for commercial use; credit isn't required but every photo is
+// credited on /credits). Imported statically so Next serves them from /_next/static (no login needed) with sizes and
+// blur placeholders. The piece photos (dress to jewellery) share one warm, plain-backdrop look and fill the frame.
 
 export type PhotoKey = "dress" | "top" | "skirt" | "pants" | "jeans" | "jacket" | "knit" | "shoes" | "bag" | "jewellery" | "swim" | "hero" | "login" | "empty";
 export type Photo = { src: StaticImageData; alt: string; position?: string; title: string; photographer: string; licence: string; url: string };
 
 const burst = (slug: string) => `https://www.shopify.com/stock-photos/photos/${slug}`;
 const SRSV = "Burst Some Rights Reserved";
+const pexels = (slug: string) => `https://www.pexels.com/photo/${slug}/`;
+const PEXELS = "Pexels License";
 
 export const PHOTOS: Record<PhotoKey, Photo> = {
-  dress: { src: dress, alt: "Red one-shoulder ruffle dress", title: "Cocktail Dress Off Shoulder", photographer: "Shopify Partners", licence: SRSV, url: burst("cocktail-dress-off-shoulder") },
-  top: { src: top, alt: "Black lace blouse", title: "Black Lace Blouse", photographer: "Shopify Partners", licence: SRSV, url: burst("black-lace-blouse") },
-  skirt: { src: skirt, alt: "Red pleated midi skirt with a white tee", position: "50% 70%", title: "Woman In White Shirt And Red Skirt Against Cloth Backdrop", photographer: "Samantha Hurley", licence: SRSV, url: burst("woman-in-white-shirt-and-red-skirt-against-cloth-backdrop") },
-  pants: { src: pants, alt: "Coral wide-leg pants against a blue wall", position: "50% 60%", title: "Stylish Woman Against Blue", photographer: "Sarah Pflug", licence: SRSV, url: burst("stylish-woman-against-blue") },
-  jeans: { src: jeans, alt: "Light-wash high-rise jeans with a grey knit", title: "Torso Of Person On An Apartment Balcony Facing Camera", photographer: "Avelino Calvar Martinez", licence: SRSV, url: burst("torso-of-person-on-an-apartment-balcony-facing-camera") },
-  jacket: { src: jacket, alt: "Black leather jacket over a white tee", position: "60% 50%", title: "Close Up Leather Jacket Over Shoulders", photographer: "Jeremy Marasigan", licence: SRSV, url: burst("close-up-leather-jacket-over-shoulders") },
-  knit: { src: knit, alt: "Cream ribbed knit jumper", title: "Close Up Showing Detail Of Cream Sweater", photographer: "Jeremy Marasigan", licence: SRSV, url: burst("close-up-showing-detail-of-cream-sweater") },
-  shoes: { src: shoes, alt: "Black peep-toe heels beside white flowers", position: "68% 50%", title: "Heels And Flowers", photographer: "Sarah Pflug", licence: SRSV, url: burst("heels-and-flowers") },
-  bag: { src: bag, alt: "Light pink saddle bag with a tassel", title: "Light Pink Purse", photographer: "Shopify Partners", licence: SRSV, url: burst("light-pink-purse") },
-  jewellery: { src: jewellery, alt: "Statement raffia earring", title: "Ear Close Up With A Light Brown Statement Earring", photographer: "Farah", licence: SRSV, url: burst("ear-close-up-with-a-light-brown-statement-earring") },
-  swim: { src: swim, alt: "Black bandeau bikini on coral", title: "Black Bikini Product", photographer: "Sarah Pflug", licence: "Creative Commons (per Burst)", url: burst("black-bikini-product") },
+  dress: { src: dress, alt: "Orange linen wrap dress", title: "Person Wearing Orange Dress", photographer: "Thirdman", licence: PEXELS, url: pexels("person-wearing-orange-dress-8053672") },
+  top: { src: top, alt: "White shirt against a beige backdrop", position: "50% 35%", title: "A Pretty Woman in White Long Sleeves", photographer: "Arina Krasnikova", licence: PEXELS, url: pexels("a-pretty-woman-in-white-long-sleeves-7752609") },
+  skirt: { src: skirt, alt: "Rust-to-white ombre pleated midi skirt", position: "50% 35%", title: "A Person Wearing a Pleated Skirt", photographer: "Maksim Goncharenok", licence: PEXELS, url: pexels("a-person-wearing-a-pleated-skirt-4663319") },
+  pants: { src: pants, alt: "Rust tailored trousers with cream loafers", position: "50% 60%", title: "Orange Jacket and Trousers", photographer: "Ron Lach", licence: PEXELS, url: pexels("orange-jacket-and-trousers-10341113") },
+  jeans: { src: jeans, alt: "Light-wash ripped jeans with a leather camera bag", title: "Woman in Jeans With a Camera Case", photographer: "Kaboompics", licence: PEXELS, url: pexels("woman-in-jeans-with-a-camera-case-7588015") },
+  jacket: { src: jacket, alt: "Pink and sage oversized blazers", position: "50% 40%", title: "Confident Multiethnic Female Models in Stylish Suits", photographer: "Monstera Production", licence: PEXELS, url: pexels("confident-multiethnic-female-models-in-stylish-suits-7691041") },
+  knit: { src: knit, alt: "A stack of cream and caramel knit jumpers", title: "Close-up of Colorful Sweaters", photographer: "Nati", licence: PEXELS, url: pexels("close-up-of-colorful-sweaters-14641596") },
+  shoes: { src: shoes, alt: "Burgundy patent heels against a beige backdrop", title: "Woman Legs in High Heels", photographer: "José Martin Segura Benites", licence: PEXELS, url: pexels("woman-legs-in-high-heels-26850888") },
+  bag: { src: bag, alt: "Beige woven top-handle bag", position: "50% 62%", title: "Photo of a Handbag", photographer: "Macjoy Peñaredondo", licence: PEXELS, url: pexels("photo-of-a-handbag-8006405") },
+  jewellery: { src: jewellery, alt: "Large gold hoop earrings", title: "Golden Hoops in Ear", photographer: "The Glorious Studio", licence: PEXELS, url: pexels("golden-hoops-in-ear-18075559") },
+  swim: { src: swim, alt: "Mint bikini laid flat with summer things", title: "A Flatlay of Swimwear and Summer Essentials", photographer: "alleksana", licence: PEXELS, url: pexels("a-flatlay-of-swimwear-and-summer-essentials-4271767") },
   hero: { src: hero, alt: "A rail of tops on wooden hangers", title: "Clothing On Retail Rack", photographer: "Sarah Pflug", licence: SRSV, url: burst("clothing-on-retail-rack") },
   login: { src: login, alt: "A hand reaching for black tops on a rail", title: "Hand Reaches For Hanging Sweatshirt", photographer: "Matthew Henry", licence: SRSV, url: burst("hand-reaches-for-hanging-sweatshirt") },
   empty: { src: empty, alt: "A clothing rail in a bright white room", title: "Rack Of Womens Clothing", photographer: "Sarah Pflug", licence: SRSV, url: burst("rack-of-womens-clothing") },

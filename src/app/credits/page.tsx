@@ -17,7 +17,7 @@ export default async function Credits() {
           <div>
             <span className="eyebrow">About the photos</span>
             <h1>Photography <em>credits</em></h1>
-            <p>Every photograph is from Burst by Shopify, free for commercial use. Credit isn&apos;t required, but it&apos;s deserved.</p>
+            <p>Every photograph is from Burst by Shopify or Pexels, free for commercial use. Credit isn&apos;t required, but it&apos;s deserved.</p>
           </div>
         </div>
         <div className="credits">
