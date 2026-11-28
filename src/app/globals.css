@@ -678,3 +678,14 @@ label.check.test-mark { display: flex; flex-direction: row; align-items: center;
 .ba-list li { display: flex; flex-direction: column; gap: 4px; }
 .ba-list p { margin: 0; }
 .google-wrap { margin-top: 28px; scroll-margin-top: 90px; }
+
+/* ── adding a brand (the owner, on the Brand page) ── */
+.add-brand-open { margin: -12px 0 22px; }
+.add-brand { margin-bottom: 28px; display: grid; gap: 10px; max-width: 640px; }
+.add-brand > p { margin: 0; }
+.add-brand-lists { border: 0; padding: 0; margin: 6px 0 0; display: grid; gap: 8px; }
+.add-brand-lists label.check { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; text-transform: none; letter-spacing: normal; font: 400 14px/1.5 var(--text); color: var(--ink); margin: 0; }
+.add-brand-lists label.check > input { margin-top: 4px; }
+.add-brand-lists legend { font: 500 11px/1.2 var(--text); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 8px; padding: 0; }
+.added-brand { margin-bottom: 28px; border-color: var(--sage); }
+.added-brand p { margin: 8px 0 0; }

@@ -24,6 +24,9 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [brandId, setBrandId] = useState(brands[0]?.id ?? "");
+  // The owner sees every brand's lists: each row says whose it is.
+  const manyBrands = brands.length > 1;
+  const brandName = new Map(brands.map((b) => [b.id, b.name]));
   const [name, setName] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -109,12 +112,12 @@ export default function DatasetsClient({ brands, datasets }: { brands: Brand[]; 
       <div className="admin-section">
       <h2>Your keyword lists</h2>
       <div className="table-wrap"><table>
-        <thead><tr><th>Version</th><th>Status</th><th>Keywords</th><th>Uploaded</th><th className="ds-act-col" /></tr></thead>
+        <thead><tr><th>Version</th>{manyBrands && <th>Brand</th>}<th>Status</th><th>Keywords</th><th>Uploaded</th><th className="ds-act-col" /></tr></thead>
         <tbody>{datasets.map((d) => {
           const switchTo = !d.active && ["ready", "archived"].includes(d.status) && <button className="link" onClick={() => activate(d.id)}>{d.status === "archived" ? "Go back to this one" : "Use this list"}</button>;
           return (
           <tr key={d.id}>
-            <td>{d.name}{switchTo && <span className="ds-act-inline">{switchTo}</span>}</td><td><span className={`status${d.active ? " on" : d.status === "failed" ? " off" : ""}`}>{d.active ? "In use" : STATUS[d.status] ?? d.status}</span></td>
+            <td>{d.name}{switchTo && <span className="ds-act-inline">{switchTo}</span>}</td>{manyBrands && <td>{brandName.get(d.brandId) ?? ""}</td>}<td><span className={`status${d.active ? " on" : d.status === "failed" ? " off" : ""}`}>{d.active ? "In use" : STATUS[d.status] ?? d.status}</span></td>
             <td>{d.accepted.toLocaleString()}{d.rejected + d.duplicate > 0 && <> · <a href={`/api/admin/datasets/${d.id}/rejections`}>{(d.rejected + d.duplicate).toLocaleString()} left out (download)</a></>}</td>
             <td>{d.created}</td>
             <td className="ds-act-col">{switchTo}</td>

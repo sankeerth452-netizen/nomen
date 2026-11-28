@@ -16,10 +16,11 @@ export default async function DatasetsPage() {
   const datasets = await db.keywordDataset.findMany({
     where: { brandId: { in: brands.map((b) => b.id) } },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 100,
   });
   const activeIds = new Set(brands.map((b) => b.activeKeywordDatasetId));
-  const storage = await storageUse().catch(() => null);
+  // The whole database's size: every brand's together, so only the owner sees it.
+  const storage = user.role === "owner" ? await storageUse().catch(() => null) : null;
   const [categoryCount, lastCategory] = await Promise.all([db.googleCategory.count(), db.googleCategory.findFirst({ orderBy: { updatedAt: "desc" }, select: { updatedAt: true } })]);
   return (
     <>

@@ -34,7 +34,7 @@ export default async function Header({ user, active }: { user: SessionUser; acti
           </nav>
           <div className="account">
             {user.brandName && <span className="brand-chip">{user.brandName}</span>}
-            {user.role === "owner" && brands.length > 0 && <WorkspaceSwitcher brands={brands} current={user.workspaceId ?? null} />}
+            {user.role === "owner" && brands.length > 0 && <WorkspaceSwitcher key={user.workspaceId ?? "every"} brands={brands} current={user.workspaceId ?? null} />}
             <span className="who">{user.displayName}</span>
             <SignOut />
           </div>

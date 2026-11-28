@@ -3,6 +3,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { db } from "@/lib/db";
 import UsersClient from "./UsersClient";
+import { workspaceFirst } from "@/lib/auth/workspace";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Logins" };
@@ -11,10 +12,11 @@ export default async function UsersPage() {
   const user = await requirePageUser("admin");
   // Brand admins manage their own brand's logins; the owner, everyone's.
   const own = user.role === "owner" ? {} : { brandId: user.brandId!, role: { not: "owner" as const } };
-  const [users, brands] = await Promise.all([
+  const [users, allBrands] = await Promise.all([
     db.user.findMany({ where: own, orderBy: { createdAt: "desc" }, include: { brand: true } }),
     db.brand.findMany({ where: user.role === "owner" ? {} : { id: user.brandId! }, orderBy: { name: "asc" } }),
   ]);
+  const brands = workspaceFirst(user, allBrands); // a new login is for the brand you're working in, unless you pick another
   return (
     <>
     <Header user={user} active="users" />

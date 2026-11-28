@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
-import { WORKSPACE_COOKIE } from "@/lib/auth/session";
+import { WORKSPACE_COOKIE, WORKSPACE_COOKIE_OPTIONS } from "@/lib/auth/session";
 
 // The owner switches brand workspace: { brandId } for one brand, { brandId: null } for every brand.
 export async function POST(req: Request) {
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     if (typeof body?.brandId !== "string") throw new HttpError(400, "Choose a brand.");
     const brand = await db.brand.findFirst({ where: { id: body.brandId, active: true }, select: { id: true, name: true } });
     if (!brand) throw new HttpError(404, "We couldn't find that brand.");
-    jar.set(WORKSPACE_COOKIE, brand.id, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 90 });
+    jar.set(WORKSPACE_COOKIE, brand.id, WORKSPACE_COOKIE_OPTIONS);
     await db.auditEvent.create({ data: { brandId: brand.id, userId: user.id, eventType: "workspace.switched", metadata: { brandId: brand.id } } });
     return Response.json({ brandId: brand.id, name: brand.name });
   } catch (e) {

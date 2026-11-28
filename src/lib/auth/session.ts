@@ -7,6 +7,7 @@ import { authSecret } from "../env";
 export const SESSION_COOKIE = "pno_session";
 /** The owner's chosen brand ("workspace"): what Create, Ranges, History, Review and the Dashboard show by default. */
 export const WORKSPACE_COOKIE = "pno_workspace";
+export const WORKSPACE_COOKIE_OPTIONS = { httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 90 };
 const SESSION_HOURS = 12;
 
 export type SessionUser = {
