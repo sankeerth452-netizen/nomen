@@ -63,9 +63,12 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
     const differs = (typed: string | undefined, v: string | null) => !!typed?.trim() && !!v?.trim() && typed.trim().toLowerCase() !== v.trim().toLowerCase();
     // The photo's one-line description must not contradict the buyer: drop it if they chose another product type,
     // and take the photo's colour out of it if they typed a different colour.
+    // Only what the buyer typed counts here: a type or colour an earlier reading filled in is the photo's, not theirs.
+    const ownType = fromPhoto.has("productType") ? "" : productType;
+    const ownColour = fromPhoto.has("colour") ? "" : values.colour;
     let description = d.description?.trim() || null;
-    if (differs(productType, d.product_type)) description = null;
-    else if (description && d.colour && differs(values.colour, d.colour)) description = description.replace(new RegExp(`\\b${d.colour.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"), "").replace(/\s{2,}/g, " ").trim() || null;
+    if (differs(ownType, d.product_type)) description = null;
+    else if (description && d.colour && differs(ownColour, d.colour)) description = description.replace(new RegExp(`\\b${d.colour.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"), "").replace(/\s{2,}/g, " ").trim() || null;
     // The kind's own details (heel type, neckline...): clearly visible ones fill "Extra product facts", partly visible ones are only flagged.
     const attrs = cleanAttributes(d.product_type, d.attributes);
     const seen: Record<string, string | null> = { productType: d.product_type, freeText: description, colour: d.colour, material: d.material, pattern: d.pattern, fit: d.fit, length: d.length, feature: d.feature, occasion: d.occasion, audience: d.audience, extra: attributeNotes(attrs) || null };
@@ -96,6 +99,11 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
   /** Removing the photo also takes back what it filled in, unless the buyer has since edited it. */
   function removePhoto() {
     setThumb(null);
+    clearPhotoFill();
+  }
+
+  /** Take back what the last photo filled in (what the buyer typed or edited stays), before a new photo's reading. */
+  function clearPhotoFill() {
     setPhotoNotes([]);
     setPhotoInfo([]);
     if (fromPhoto.has("productType")) setProductType("");
@@ -131,7 +139,7 @@ export default function GeneratorClient({ productTypes, brands, brandName }: { p
         {brands.length === 1 && <input type="hidden" name="brandId" value={brands[0].id} />}
 
         <div className="step-head"><span className="step-no">01</span><h2>Start with a photo</h2><p className="muted">Optional. It fills in what it can see, and you check it.</p></div>
-        <PhotoPicker thumb={thumb} productType={productType} onThumb={setThumb} onRead={applyPhoto} onRemove={removePhoto} onMore={setMorePhotos} />
+        <PhotoPicker thumb={thumb} productType={fromPhoto.has("productType") ? "" : productType} onThumb={setThumb} onRead={applyPhoto} onRemove={removePhoto} onMore={setMorePhotos} onNewPhoto={clearPhotoFill} />
         {photoNotes.length > 0 && (
           <ul className="photo-notes" aria-live="polite">
             {photoNotes.map((n) => <li key={n.text}>{n.text}{n.fix && <button type="button" className="link" onClick={n.fix.apply}>{n.fix.label}</button>}</li>)}

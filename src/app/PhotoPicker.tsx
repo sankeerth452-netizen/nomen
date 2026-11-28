@@ -13,12 +13,15 @@ const MAX_FILE_BYTES = 25_000_000;
 export type PhotoResult = { details: PhotoDetails; photos: PhotoInfo[]; focus: Box | null; example: boolean };
 type Extra = { thumb: string; read: string };
 
-export default function PhotoPicker({ thumb, productType, onThumb, onRead, onRemove, onMore }: {
+export default function PhotoPicker({ thumb, productType, onThumb, onRead, onRemove, onMore, onNewPhoto }: {
   thumb: string | null;
+  /** The buyer's own product type (not one an earlier photo filled in), sent as a hint. */
   productType: string;
   onThumb: (thumb: string) => void;
   onRead: (r: PhotoResult) => void;
   onRemove: () => void;
+  /** A new main photo was chosen: what the last one filled in no longer applies. */
+  onNewPhoto?: () => void;
   /** The other photos' kept copies, in order, whenever they change. */
   onMore?: (thumbs: string[]) => void;
 }) {
@@ -31,6 +34,10 @@ export default function PhotoPicker({ thumb, productType, onThumb, onRead, onRem
   const moreInput = useRef<HTMLInputElement>(null);
   const run = useRef(0);
   const mainRead = useRef<string | null>(null);
+  // The page's latest handlers. A reading takes a few seconds; calling the ones from when it started would put back
+  // the form as it was then, losing anything typed meanwhile.
+  const latest = useRef({ onRead, onThumb, onNewPhoto });
+  latest.current = { onRead, onThumb, onNewPhoto };
 
   /** Read the main photo with every other photo of the piece, so what they show is combined. */
   async function readAll(main: string, more: Extra[], mine: number) {
@@ -66,7 +73,7 @@ export default function PhotoPicker({ thumb, productType, onThumb, onRead, onRem
     setExtras(next); onMore?.(next.map((x) => x.thumb));
     if (moreInput.current) moreInput.current.value = "";
     const r = await readAll(main, next, ++run.current);
-    if (r) onRead(r);
+    if (r) latest.current.onRead(r);
   }
 
   async function removeMore(i: number) {
@@ -75,7 +82,16 @@ export default function PhotoPicker({ thumb, productType, onThumb, onRead, onRem
     setExtras(next); onMore?.(next.map((x) => x.thumb));
     if (!main) return;
     const r = await readAll(main, next, ++run.current);
-    if (r) onRead(r);
+    if (r) latest.current.onRead(r);
+  }
+
+  /** Read the same photos again, after a reading that didn't work. */
+  async function retry() {
+    const main = mainRead.current;
+    if (!main || reading) return;
+    setError("");
+    const r = await readAll(main, extras, ++run.current);
+    if (r) latest.current.onRead(r);
   }
 
   async function take(file: File | undefined | null) {
@@ -91,16 +107,20 @@ export default function PhotoPicker({ thumb, productType, onThumb, onRead, onRem
       setError(e instanceof Error && e.message === "too_large" ? COPY.photo.tooLarge : COPY.photo.cantOpen);
       return;
     }
-    onThumb(small);
+    // A new main photo may be another piece: its own reading replaces the last one's, and the last piece's other
+    // photos go (they'd be read with this one otherwise).
+    setExtras([]); setInfo([]); onMore?.([]);
+    latest.current.onNewPhoto?.();
+    latest.current.onThumb(small);
     mainRead.current = read;
-    const result = await readAll(read, extras, mine);
+    const result = await readAll(read, [], mine);
     if (!result) return;
     // Frame the kept photo on the piece, the way a product page would show it.
     if (result.focus) {
       const framed = await render(file, 900, 190_000, (w, h) => frameAround(result.focus!, w, h)).catch(() => null);
-      if (framed && mine === run.current) onThumb(framed);
+      if (framed && mine === run.current) latest.current.onThumb(framed);
     }
-    onRead(result);
+    latest.current.onRead(result);
   }
 
   // Paste a photo anywhere on the page (a copied product image, a screenshot).
@@ -148,7 +168,7 @@ export default function PhotoPicker({ thumb, productType, onThumb, onRead, onRem
           {thumb && <button type="button" className="ghost" onClick={remove}>Remove</button>}
         </div>
         <input ref={input} id="photoFile" type="file" accept="image/*" className="sr-only" onChange={(e) => void take(e.target.files?.[0])} />
-        {error && <p className="err">{error}</p>}
+        {error && <p className="err">{error}{mainRead.current && !reading && <> <button type="button" className="link" onClick={() => void retry()}>Try again</button></>}</p>}
         {thumb && mainRead.current && (
           <div className="more-photos">
             <p className="more-photos-head">More photos of this piece <span className="muted">(optional: back, side, details)</span></p>
