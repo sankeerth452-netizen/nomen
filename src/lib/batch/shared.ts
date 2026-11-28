@@ -23,8 +23,10 @@ export type ItemDetails = {
   attributes?: VisualAttribute[];
   /** What each photo shows, its alt text and problems. */
   photos?: PhotoInfo[];
-  /** Where the photos disagree with the brand's product file. */
+  /** Where the photos disagree with the brand's product file (or the buyer's line sheet). */
   contradictions?: string[];
+  /** The row of the buyer's line sheet this piece came from. */
+  sheetRow?: number;
 };
 
 /** Photo reading -> form fields. Same mapping as the single-piece form. */
@@ -101,8 +103,17 @@ export function fillEmpty(d: ItemDetails, shared: Fields): ItemDetails {
   return { ...d, fields };
 }
 
-/** Can this piece be named as it stands? (The pipeline needs a product type and a description.) */
+/** Does this piece have something to check? (A product type and a description: the least the pipeline can name from.) */
 export const isReady = (d: ItemDetails | null) => !!d && (d.fields.productType?.trim().length ?? 0) >= 2 && (d.fields.freeText?.trim().length ?? 0) >= 2;
+
+/**
+ * What a piece needs before a range names it (asked for by Nitin, 28 Nov 2026): its product type, a description and its
+ * material. A photo rarely shows the fabric and Nomen never guesses it, so the buyer gives it. Occasion is optional.
+ */
+export const NEEDED_TO_NAME: [Field, string][] = [["productType", "product type"], ["freeText", "description"], ["material", "material"]];
+/** What's still missing before this piece can be named, in words: ["material"]. */
+export const missingToName = (d: ItemDetails | null): string[] => NEEDED_TO_NAME.filter(([k]) => (d?.fields[k]?.trim().length ?? 0) < 2).map(([, label]) => label);
+export const canName = (d: ItemDetails | null) => !!d && missingToName(d).length === 0;
 
 export const slugFor = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 

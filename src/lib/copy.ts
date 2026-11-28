@@ -48,7 +48,7 @@ export const COPY = {
   range: {
     notFound: "We couldn't find that range.",
     busy: "This piece is being worked on. Try again in a moment.",
-    nothingReady: "No pieces are ready to name. Each one needs a product type and a description.",
+    nothingReady: "No pieces are ready to name. Each one needs its basics first: a product type, a description and the material.",
     title: (date: Date) => `Range · ${date.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`,
   },
 } as const;

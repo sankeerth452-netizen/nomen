@@ -20,7 +20,8 @@ async function range(n: number, extra: Record<string, unknown> = {}) {
   }
   return { brand, user, b };
 }
-const ready: ItemDetails = { fields: { productType: "dress", freeText: "black midi dress with ruching", colour: "black", length: "midi", feature: "ruched" }, fromPhoto: ["colour"], unsure: [] };
+// The basics a range needs before naming: a product type, a description and the material.
+const ready: ItemDetails = { fields: { productType: "dress", freeText: "black midi dress with ruching", colour: "black", length: "midi", feature: "ruched", material: "cotton" }, fromPhoto: ["colour"], unsure: [] };
 const statuses = async (batchId: string) => (await db.batchItem.findMany({ where: { batchId }, orderBy: { position: "asc" } })).map((i) => i.status);
 
 beforeEach(resetDb);
@@ -68,15 +69,16 @@ describe("naming a range", () => {
     expect((g.usage as { notes: string[] }).notes.join()).toMatch(/range "Summer drop"/);
   });
 
-  it("passes on Nomen's question when a piece needs a detail, and won't name a piece with nothing to go on", async () => {
-    const vague: ItemDetails = { fields: { productType: "dress", freeText: "nice dress" }, fromPhoto: [], unsure: [] };
+  it("passes on Nomen's question when a piece needs a detail, and won't name a piece without its basics", async () => {
+    // With its material given, a piece always has a detail to name from, so the question that's left is an unknown kind.
+    const vague: ItemDetails = { fields: { productType: "gizmo", freeText: "gizmo thing", material: "cotton" }, fromPhoto: [], unsure: [] };
     const { b } = await range(1, { status: "to_name", details: vague, readImage: null });
     await db.batchItem.create({ data: { batchId: b.id, position: 2, filename: "blank.jpg", photo: new Uint8Array(JPEG), photoType: "image/jpeg", status: "to_name", details: { fields: { productType: "dress" }, fromPhoto: [], unsure: [] } } });
     await drain(providers());
     const items = await rangeItems(b.id);
     expect(items[0]).toMatchObject({ status: "needs_input" });
-    expect(items[0].question).toMatch(/Tell us a little more/);
-    expect(items[1].status).toBe("review"); // back to the buyer: no description yet
+    expect(items[0].question).toMatch(/We don't have search figures for “gizmo”/);
+    expect(items[1].status).toBe("review"); // back to the buyer: no description or material yet
   });
 });
 

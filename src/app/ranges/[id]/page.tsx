@@ -19,12 +19,15 @@ export default async function RangePage({ params }: { params: Promise<{ id: stri
   try { b = await loadRangeFor(user, (await params).id); } catch (e) { if (e instanceof HttpError) notFound(); throw e; }
   kick();
   const brandName = user.brandName ?? (await db.brand.findUnique({ where: { id: b.brandId }, select: { name: true } }))?.name ?? null;
-  const canMarkTest = user.role === "owner" || can(user, "manageBrand", await brandSettings(b.brandId));
+  const settings = await brandSettings(b.brandId);
+  const canMarkTest = user.role === "owner" || can(user, "manageBrand", settings);
+  // Who the brand sells to, from its Brand page: shown on each named piece as who it's for (never guessed per piece).
+  const audience = settings?.profile.audience?.trim() || null;
   return (
     <>
       <Header user={user} active="ranges" />
       <main>
-        <RangeClient id={b.id} initialTitle={b.title} loadedAt={new Date(Date.now() - 1000).toISOString()} initialItems={JSON.parse(JSON.stringify(await rangeItems(b.id)))} brandName={brandName} source={b.source === "file" ? "file" : "photos"} fileName={b.fileName} fileCheck={(b.fileCheck as FileCheck | null) ?? null} isTest={b.isTest} canMarkTest={canMarkTest} />
+        <RangeClient id={b.id} initialTitle={b.title} loadedAt={new Date(Date.now() - 1000).toISOString()} initialItems={JSON.parse(JSON.stringify(await rangeItems(b.id)))} brandName={brandName} source={b.source === "file" ? "file" : "photos"} fileName={b.fileName} fileCheck={(b.fileCheck as FileCheck | null) ?? null} isTest={b.isTest} canMarkTest={canMarkTest} audience={audience} />
       </main>
       <Footer />
     </>

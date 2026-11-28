@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
 import { loadRangeFor } from "@/lib/batch/ranges";
 import { kick } from "@/lib/batch/worker";
-import { isReady } from "@/lib/batch/shared";
+import { canName } from "@/lib/batch/shared";
 import { detectFormat, importFeed, norm, suggestFeedMapping } from "@/lib/feed/import";
 import { FEED_TARGETS, type FeedTarget } from "@/lib/feed/shared";
 import { openFile } from "@/lib/keywords/readers";
@@ -75,7 +75,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       })),
     ]);
     kick();
-    return Response.json({ check, ready: pieces.filter((p) => !p.imageUrl && isReady(p.details)).length }, { status: 201 });
+    return Response.json({ check, ready: pieces.filter((p) => !p.imageUrl && canName(p.details)).length }, { status: 201 });
   } catch (e) {
     return errorResponse(e);
   }

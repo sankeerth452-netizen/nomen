@@ -10,7 +10,7 @@ import { MAX_PHOTOS, photoInfo } from "../images/info";
 import { recordClaude } from "../usage/ledger";
 import { createGeneration, runPipeline } from "../pipeline/run";
 import { asBox, asDetails, detailsFromPhoto, isReady } from "./ranges";
-import { mergePhotoDetails } from "./shared";
+import { canName, mergePhotoDetails } from "./shared";
 import { fetchProductImage, ImageFetchError, type ImageFetcher } from "../feed/image";
 import type { PieceFeed } from "../feed/shared";
 
@@ -112,10 +112,11 @@ export async function readItem(item: BatchItem, providers: Providers, fetchImage
     // the buyer typed. What the last reading filled in is replaced by this one.
     const own = fromFile ? { ...fromFile, fields: Object.fromEntries(Object.entries(fromFile.fields).filter(([k]) => !fromFile.fromPhoto.includes(k as never))) } : null;
     const merged = own && Object.keys(own.fields).length ? mergePhotoDetails(own, seen) : seen;
-    if (!item.imageUrl) delete merged.contradictions; // only a brand's file can disagree with its photos
+    // Only a brand's file or a buyer's line sheet can disagree with its photos (a buyer typing over a reading is just a change).
+    if (!item.imageUrl && !fromFile?.sheetRow) delete merged.contradictions;
     await db.batchItem.update({
       where: { id: item.id },
-      data: { status: "review", details: json({ ...merged, photos }), focus: json(focusFractions(details.focus, imageSize(image))), readImage: null, readType: null, claimedAt: null, readUsage: json(usage), ...kept },
+      data: { status: "review", details: json({ ...merged, ...(fromFile?.sheetRow ? { sheetRow: fromFile.sheetRow } : {}), photos }), focus: json(focusFractions(details.focus, imageSize(image))), readImage: null, readType: null, claimedAt: null, readUsage: json(usage), ...kept },
     });
   } catch (e) {
     console.error("range photo read failed", item.id, e instanceof Error ? e.message : e);
@@ -126,7 +127,7 @@ export async function readItem(item: BatchItem, providers: Providers, fetchImage
 /** Name one checked piece through the normal pipeline (so it also appears in History with its evidence). */
 export async function nameItem(item: BatchItem, providers?: Providers): Promise<void> {
   const details = asDetails(item.details);
-  if (!details || !isReady(details)) {
+  if (!details || !canName(details)) {
     await db.batchItem.update({ where: { id: item.id }, data: { status: "review", claimedAt: null } });
     return;
   }

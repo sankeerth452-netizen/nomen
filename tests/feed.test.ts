@@ -160,7 +160,8 @@ describe("a range from a product file", () => {
     expect(item.details?.fromPhoto).not.toContain("colour");
     expect(item.file).toMatchObject({ skus: ["IVY-BLK-8"], sizes: ["8"], price: "89.95 AUD" });
 
-    await db.batchItem.update({ where: { id: item.id }, data: { status: "to_name" } });
+    // The buyer adds the material (photos can't show it), then names the piece.
+    await db.batchItem.update({ where: { id: item.id }, data: { status: "to_name", details: { ...item.details!, fields: { ...item.details!.fields, material: "cotton" } } as never } });
     await drain(providers, fetcher);
     [item] = await rangeItems(b.id);
     expect(item.status).toBe("named");

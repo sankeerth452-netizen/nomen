@@ -119,7 +119,8 @@ describe("reading several photos of one piece", () => {
     expect((await db.productImage.findFirstOrThrow({ where: { batchItemId: item.id, position: 3 } })).readImage).toBeNull();
     expect((await db.productImage.findFirstOrThrow({ where: { batchItemId: item.id, position: 1 } })).photo).toBeTruthy();
 
-    await db.batchItem.update({ where: { id: item.id }, data: { status: "to_name" } });
+    // The buyer adds the material (photos can't show it), then names the piece.
+    await db.batchItem.update({ where: { id: item.id }, data: { status: "to_name", details: { ...it.details!, fields: { ...it.details!.fields, material: "cotton" } } as never } });
     await drain(p, fetcher);
     [it] = await rangeItems(b.id);
     expect(it.status).toBe("named");

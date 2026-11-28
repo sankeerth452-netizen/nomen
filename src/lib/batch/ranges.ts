@@ -13,6 +13,8 @@ import type { Photo } from "../photo";
 import { duplicateNames, slugFor, type ItemDetails, type ItemStatus } from "./shared";
 import type { StoredSheet } from "../pipeline/sheet";
 import type { PieceFeed } from "../feed/shared";
+import { photoCopies } from "../feed/image";
+import type { LineSheet } from "./sheet";
 
 export * from "./shared";
 
@@ -41,6 +43,39 @@ export async function addPhotoPiece(batchId: string, p: { filename: string; posi
     },
     include: { generation: { select: { id: true, status: true, result: true, confidence: true } }, images: { select: { position: true }, orderBy: { position: "asc" } } },
   });
+}
+
+/**
+ * Add a buyer's line sheet to a range: one piece per row, with the row's own details (they always win over the photo).
+ * A pasted picture is kept and read; a photo link is fetched when the piece is read; a row with no photo is ready to check.
+ */
+export async function addSheetPieces(batchId: string, sheet: LineSheet): Promise<{ added: number; pasted: number; linked: number; noPhoto: number; badPictures: string[] }> {
+  const last = await db.batchItem.aggregate({ where: { batchId }, _max: { position: true } });
+  let position = last._max.position ?? 0;
+  const out = { added: 0, pasted: 0, linked: 0, noPhoto: 0, badPictures: [] as string[] };
+  for (const piece of sheet.pieces) {
+    const copies: { keep: Photo; read: Photo }[] = [];
+    for (const pic of piece.images) {
+      try { copies.push(await photoCopies(pic)); } catch { out.badPictures.push(piece.label); }
+    }
+    const details: ItemDetails = { fields: piece.fields, fromPhoto: [], unsure: [], sheetRow: piece.row };
+    const [main, ...more] = copies;
+    const base = { batchId, position: ++position, filename: piece.label, details: details as unknown as Prisma.InputJsonValue };
+    if (main) {
+      await db.batchItem.create({ data: { ...base, status: "queued", photo: new Uint8Array(main.keep.data), photoType: main.keep.mediaType, readImage: new Uint8Array(main.read.data), readType: main.read.mediaType,
+        images: more.length ? { create: more.map((m, n) => ({ position: n + 1, photo: new Uint8Array(m.keep.data), photoType: m.keep.mediaType, readImage: new Uint8Array(m.read.data), readType: m.read.mediaType })) } : undefined } });
+      out.pasted++;
+    } else if (piece.links.length) {
+      const [first, ...rest] = piece.links;
+      await db.batchItem.create({ data: { ...base, status: "queued", imageUrl: first, images: rest.length ? { create: rest.map((url, n) => ({ position: n + 1, url })) } : undefined } });
+      out.linked++;
+    } else {
+      await db.batchItem.create({ data: { ...base, status: "review" } });
+      out.noPhoto++;
+    }
+    out.added++;
+  }
+  return out;
 }
 
 type ItemWithGen = BatchItem & { generation: (Pick<Generation, "id" | "status" | "result" | "confidence"> & { review?: { status: string; edits: unknown } | null }) | null; images?: { position: number }[] };

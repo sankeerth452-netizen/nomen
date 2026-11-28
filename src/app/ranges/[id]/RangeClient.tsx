@@ -7,12 +7,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { COPY } from "@/lib/copy";
 import { objectPosition } from "@/lib/frame";
 import { render } from "@/lib/shrink";
-import { BEFORE_NAMING, WORKING, duplicateNames, isReady, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
+import { BEFORE_NAMING, WORKING, canName, duplicateNames, missingToName, type Field, type Fields, type ItemStatus } from "@/lib/batch/shared";
 import { MAX_PHOTOS, VIEW_LABEL } from "@/lib/images/info";
 import { anyGrouped, groupByFileName, type PhotoGroup } from "@/lib/images/grouping";
 import type { PresentedItem } from "@/lib/batch/ranges";
 import type { FileCheck } from "@/lib/feed/shared";
 import ProductFile from "./ProductFile";
+import Hint from "@/components/Hint";
+import SheetUpload from "./SheetUpload";
+import type { ProductSheet } from "@/lib/pipeline/sheet";
 
 /** Biggest file we'll try to open. The browser shrinks it before anything is sent. */
 const MAX_FILE_BYTES = 25_000_000;
@@ -22,9 +25,10 @@ const STAGE: Record<ItemStatus, string> = {
   queued: "Waiting to be read", reading: "Reading the photo", review: "Ready to check", not_product: "No piece found",
   read_failed: "Couldn't read", to_name: "Waiting to be named", naming: "Naming", named: "Named", needs_input: "Needs a detail", failed: "Didn't work",
 };
+// Material and occasion sit with the basics on every card; these are the rest.
 const MORE: [Field, string, string][] = [
-  ["colour", "Colour", "black"], ["material", "Material", "linen blend"], ["pattern", "Pattern or finish", "floral"], ["fit", "Fit or silhouette", "wrap"],
-  ["length", "Length", "midi"], ["feature", "Key detail", "ruched"], ["occasion", "Occasion or style", "tennis"], ["audience", "Audience", "girls"],
+  ["colour", "Colour", "black"], ["pattern", "Pattern or finish", "floral"], ["fit", "Fit or silhouette", "wrap"],
+  ["length", "Length", "midi"], ["feature", "Key detail", "ruched"], ["audience", "Audience", "girls"],
 ];
 const SHARED: [Field, string, string][] = [["audience", "Audience", "girls"], ["occasion", "Occasion or style", "resort"], ["material", "Material", "linen"], ["extra", "Extra product facts", "Made in Australia"]];
 
@@ -35,9 +39,9 @@ const pieceName = (p: { main: File; more: File[] }) => (p.more.length ? `${p.mai
 const eachAlone = (files: File[]): PhotoGroup[] => files.map((_, i) => ({ base: "", main: i, more: [], leftOut: [] }));
 type Filter = "all" | "check" | "named" | "attention";
 
-const needsAttention = (i: PresentedItem) => ["needs_input", "failed", "not_product", "read_failed"].includes(i.status) || (i.status === "review" && !isReady(i.details));
+const needsAttention = (i: PresentedItem) => ["needs_input", "failed", "not_product", "read_failed"].includes(i.status) || (i.status === "review" && !canName(i.details));
 
-export default function RangeClient({ id, initialTitle, initialItems, loadedAt = null, brandName, source = "photos", fileName = null, fileCheck = null, isTest = false, canMarkTest = false }: { id: string; initialTitle: string; initialItems: PresentedItem[]; loadedAt?: string | null; brandName: string | null; source?: "photos" | "file"; fileName?: string | null; fileCheck?: FileCheck | null; isTest?: boolean; canMarkTest?: boolean }) {
+export default function RangeClient({ id, initialTitle, initialItems, loadedAt = null, brandName, source = "photos", fileName = null, fileCheck = null, isTest = false, canMarkTest = false, audience = null }: { id: string; initialTitle: string; initialItems: PresentedItem[]; loadedAt?: string | null; brandName: string | null; source?: "photos" | "file"; fileName?: string | null; fileCheck?: FileCheck | null; isTest?: boolean; canMarkTest?: boolean; audience?: string | null }) {
   const [test, setTest] = useState(isTest);
   async function markTest(v: boolean) {
     setTest(v);
@@ -55,6 +59,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
   const [error, setError] = useState("");
   const [over, setOver] = useState(false);
   const [showShared, setShowShared] = useState(false);
+  const [showSheet, setShowSheet] = useState(false);
   const [shared, setShared] = useState<Fields>({});
   const [naming, setNaming] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -66,7 +71,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
 
   const sending = uploads.some((u) => u.state !== "error");
   const busy = sending || items.some((i) => WORKING.includes(i.status));
-  const ready = items.filter((i) => i.status === "review" && isReady(i.details));
+  const ready = items.filter((i) => i.status === "review" && canName(i.details));
   const named = items.filter((i) => i.status === "named");
   const failedCount = items.filter((i) => i.status === "failed" || i.status === "read_failed").length;
   const counts = useMemo(() => ({
@@ -183,7 +188,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
     const data = await res.json().catch(() => ({}));
     setNaming(false);
     if (!res.ok) { setError(data.error ?? "That didn't work. Please try again."); return; }
-    if (!itemIds) setNotice(`Naming ${data.queued} ${data.queued === 1 ? "piece" : "pieces"}, three at a time, about twenty seconds each.${data.skipped ? ` ${data.skipped} still need a product type or description.` : ""}`);
+    if (!itemIds) setNotice(`Naming ${data.queued} ${data.queued === 1 ? "piece" : "pieces"}, three at a time, about twenty seconds each.${data.skipped ? ` ${data.skipped} still ${data.skipped === 1 ? "needs its" : "need their"} basics: a product type, a description and the material.` : ""}`);
     await refresh();
   }
 
@@ -235,12 +240,13 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
             {" "}· {counts.named} named{counts.check ? ` · ${counts.check} to check` : ""}{brandName ? ` · ${brandName}` : ""}
             {busy && progress?.etaSeconds ? ` · about ${timeLeft(progress.etaSeconds)} left` : ""}
           </p>
-          {canMarkTest && <label className="check test-mark"><input type="checkbox" checked={test} onChange={(e) => void markTest(e.target.checked)} /> A test range (left out of the dashboard)</label>}
+          {canMarkTest && <span className="test-mark-row"><label className="check test-mark"><input type="checkbox" checked={test} onChange={(e) => void markTest(e.target.checked)} /> A test range (left out of the dashboard)</label><Hint text="Tick this for practice runs, so their names and spend are left out of the Dashboard's figures." /></span>}
         </div>
         <div className="range-actions">
           {source === "photos" && <button className="ghost" onClick={() => picker.current?.click()} >Add photos</button>}
-          {items.length > 0 && <button className="ghost" onClick={() => setShowShared((s) => !s)} aria-expanded={showShared}>Apply to every piece</button>}
-          {ready.length > 0 && <button onClick={() => nameThese()} disabled={naming}>{naming ? "Starting…" : `Name ${ready.length} ${ready.length === 1 ? "piece" : "pieces"}`}</button>}
+          {source === "photos" && items.length > 0 && <button className="ghost" onClick={() => setShowSheet((s) => !s)} aria-expanded={showSheet}>Add a spreadsheet</button>}
+          {items.length > 0 && <span className="with-hint"><button className="ghost" onClick={() => setShowShared((s) => !s)} aria-expanded={showShared}>Apply to every piece</button><Hint text="Type something true for the whole range once, like the material or the occasion. It fills in only where a piece is blank and never changes what's there." /></span>}
+          {ready.length > 0 && <span className="with-hint"><button onClick={() => nameThese()} disabled={naming}>{naming ? "Starting…" : `Name ${ready.length} ${ready.length === 1 ? "piece" : "pieces"}`}</button><Hint text="Names every piece that has its basics (product type, description and material), three at a time, about 20 seconds each. Pieces still missing something wait." /></span>}
           {named.length > 0 && <button className="ghost" onClick={copyAll}>{copied ? "Copied" : "Copy all names"}</button>}
           {named.length > 0 && <a className="btn ghost" href={`/api/ranges/${id}/download`}>{source === "file" ? "Download the review sheet" : "Download names"}</a>}
           {source === "file" && named.length > 0 && <a className="btn" href={`/api/ranges/${id}/feed`}>Download for Google</a>}
@@ -248,6 +254,9 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
         </div>
       </div>
       <input ref={picker} type="file" accept="image/*" multiple className="sr-only" aria-label="Choose photos" onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ""; }} />
+
+      <RangeSteps items={items} ready={ready.length} named={named.length} rangeId={id} naming={naming} onApply={() => setShowShared(true)} onName={() => void nameThese()} />
+      {showSheet && <SheetUpload rangeId={id} onAdded={(m) => { setShowSheet(false); setNotice(m); void refresh(); }} onClose={() => setShowSheet(false)} />}
 
       {showShared && (
         <div className="shared card">
@@ -275,6 +284,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
           <span className="btn ghost">Choose photos</span>
         </button>
       ) : null}
+      {items.length === 0 && !sending && !grouping && source === "photos" && <SheetUpload rangeId={id} onAdded={(m) => { setNotice(m); void refresh(); }} />}
       {items.length === 0 && !sending && !grouping && <ProductFile rangeId={id} />}
       {items.length === 0 && !sending ? null : (
         <>
@@ -292,7 +302,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
           </div>
           <div className="pieces">
             {shown.map((i) => (
-              <Piece key={i.id} item={i} sameAs={dupes.get(i.id)} rangeId={id} onUpdate={update} onRemove={(gone) => setItems((list) => list.filter((x) => x.id !== gone))} onName={(one) => nameThese([one])} track={track} />
+              <Piece key={i.id} item={i} sameAs={dupes.get(i.id)} rangeId={id} onUpdate={update} onRemove={(gone) => setItems((list) => list.filter((x) => x.id !== gone))} onName={(one) => nameThese([one])} track={track} audience={audience} />
             ))}
             {shown.length === 0 && <p className="muted">Nothing here right now.</p>}
           </div>
@@ -303,7 +313,7 @@ export default function RangeClient({ id, initialTitle, initialItems, loadedAt =
 }
 
 /** One photo in the range: its stage, its details to check, and its name once it has one. */
-function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName, track }: { item: PresentedItem; sameAs?: string[]; rangeId: string; onUpdate: (i: PresentedItem) => void; onRemove: (id: string) => void; onName: (id: string) => void; track: <T>(p: Promise<T>) => Promise<T> }) {
+function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName, track, audience }: { item: PresentedItem; sameAs?: string[]; rangeId: string; onUpdate: (i: PresentedItem) => void; onRemove: (id: string) => void; onName: (id: string) => void; track: <T>(p: Promise<T>) => Promise<T>; audience?: string | null }) {
   const [draft, setDraft] = useState<Fields>(item.details?.fields ?? {});
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -345,7 +355,9 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName, track }: { i
     return ok;
   }
   // Ready to name from what's on screen, not only what's been saved.
-  const readyNow = isReady(item.details ? { ...item.details, fields: { ...item.details.fields, ...draft } } : null);
+  const onScreen = item.details ? { ...item.details, fields: { ...item.details.fields, ...draft } } : { fields: draft, fromPhoto: [], unsure: [] };
+  const readyNow = canName(onScreen);
+  const missing = missingToName(onScreen);
 
   async function save(field: Field) {
     focused.current = false;
@@ -355,7 +367,7 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName, track }: { i
     if (next) onUpdate(next);
   }
 
-  const field = (name: Field, label: string, ph: string, area = false) => {
+  const field = (name: Field, label: string, ph: string, area = false, hint?: React.ReactNode) => {
     const props = {
       id: `${item.id}-${name}`, value: draft[name] ?? "", placeholder: ph ? `e.g. ${ph}` : "", maxLength: name === "freeText" ? 500 : 120, disabled: !canEdit,
       onFocus: () => { focused.current = true; }, onBlur: () => save(name),
@@ -363,7 +375,7 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName, track }: { i
     };
     return (
       <div className={fromPhoto.has(name) ? "filled" : undefined}>
-        <label htmlFor={props.id}>{label}</label>
+        <label htmlFor={props.id}>{label}{hint}</label>
         {area ? <textarea rows={2} {...props} /> : <input {...props} />}
       </div>
     );
@@ -371,8 +383,13 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName, track }: { i
 
   const details = (
     <div className="piece-fields">
-      {field("productType", "Product type", "dress")}
-      {field("freeText", "Description", "black linen midi dress", true)}
+      {field("productType", "Product type *", "dress")}
+      {field("freeText", "Description *", "black linen midi dress", true)}
+      <div className="piece-basics">
+        {field("material", "Material *", "linen blend", false, <Hint text="Photos rarely show the fabric, so type it in: from the care label, the supplier or your line sheet. Nomen never guesses it." />)}
+        {field("occasion", "Occasion (optional)", "office, holiday")}
+      </div>
+      {canEdit && missing.length > 0 && <p className="piece-hint need">Still needed before it can be named: {missing.join(", ")}.</p>}
       {item.details && item.details.fromPhoto.length > 0 && <p className="piece-hint">Green fields came from the photo. Check them.</p>}
       {item.details && item.details.unsure.length > 0 && <p className="piece-hint">{COPY.photo.unsure(item.details.unsure)}</p>}
       <button className="link" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{open ? "Fewer details" : "More details"}</button>
@@ -403,7 +420,8 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName, track }: { i
         {item.status === "named" && item.name && (
           <>
             <h3 className="piece-name">{item.name}</h3>
-            {item.confidence && <span className={`conf conf-${item.confidence}`}>{item.confidence} confidence</span>}
+            {item.confidence && <span className="conf-row"><span className={`conf conf-${item.confidence}`}>{item.confidence} confidence</span><Hint text="How sure Nomen is of this name, from the details and search figures behind it. Medium or low means a person should check it: it's marked Needs review." /></span>}
+            {item.sheet?.status === "ready" && <IdealFor sheet={item.sheet} audience={audience?.trim() || null} pieceAudience={item.details?.fields.audience ?? null} />}
             {item.alternatives.length > 0 && (
               <details className="piece-alts"><summary>Other options</summary><ul>{item.alternatives.map((a) => <li key={a}>{a}</li>)}</ul></details>
             )}
@@ -416,7 +434,7 @@ function Piece({ item, sameAs, rangeId, onUpdate, onRemove, onName, track }: { i
             )}
             {item.page?.status === "failed" && <p className="piece-hint">The product page couldn&apos;t be written without guessing. Open Evidence to try again.</p>}
             {item.sheet?.status === "ready" && (
-              <details className="piece-alts piece-page"><summary>Product data{item.sheet.checks.length ? ` · ${item.sheet.checks.length} to check` : ""}</summary>
+              <details className="piece-alts piece-page"><summary>Product data{item.sheet.checks.length ? ` · ${item.sheet.checks.length} to check` : ""}<Hint text="What Google Shopping needs (category, colour, occasions and more), worked out from your details, never guessed. To check means a person should look before it goes live." /></summary>
                 <p><b>Google category</b> {item.sheet.google.category?.path.split(" > ").pop() ?? "Not set"}</p>
                 <p><b>Colour</b> {item.sheet.google.colour ? <ColourSwatches value={item.sheet.google.colour} small /> : "Not given"}</p>
                 <p><b>Ideal for</b> {item.sheet.idealFor.live.map((v) => v.label).join(", ") || "Nothing certain"}{item.sheet.idealFor.review.length ? ` (to check: ${item.sheet.idealFor.review.map((v) => v.label).join(", ")})` : ""}</p>
@@ -481,7 +499,7 @@ function GroupingAsk({ files, groups, onGroup, onSeparate, onCancel }: { files: 
   const leftOut = groups.flatMap((g) => g.leftOut.map((i) => files[i].name));
   return (
     <div className="grouping card" aria-live="polite">
-      <p><b>These {files.length} photos look like {groups.length} {groups.length === 1 ? "piece" : "pieces"}</b>, going by their file names. Photos of one piece are read together and named once.</p>
+      <p><b>These {files.length} photos look like {groups.length} {groups.length === 1 ? "piece" : "pieces"}</b>, going by their file names. Photos of one piece are read together and named once.<Hint text="Photos named like dress-1.jpg, dress-2.jpg and dress-back.jpg are treated as one piece. Camera names like IMG_4512.jpg are never grouped." /></p>
       <ul className="grouping-list">
         {together.slice(0, SHOW_GROUPS).map((g) => (
           <li key={g.main}><b>{files[g.main].name}</b> <span className="muted">with {g.more.map((i) => files[i].name).join(", ")}</span></li>
@@ -514,7 +532,7 @@ function CatalogueCheck({ rangeId }: { rangeId: string }) {
   const errors = rows?.filter((r) => r.level === "Error") ?? [], warnings = rows?.filter((r) => r.level === "Warning") ?? [];
   return (
     <details className="card catalogue-check" onToggle={(e) => { if ((e.target as HTMLDetailsElement).open && !rows && !loading) void load(); }}>
-      <summary><strong>Check the whole range</strong> <span className="muted">Problems across every piece: the file, photos, names, product data and Google&apos;s rules</span></summary>
+      <summary><strong>Check the whole range<Hint text="Looks across every piece for what Google may reject or flag: repeated names or web addresses, missing details, photo problems. It changes nothing." /></strong> <span className="muted">Problems across every piece: the file, photos, names, product data and Google&apos;s rules</span></summary>
       {loading && <p className="muted">Checking every piece…</p>}
       {rows && (
         <>
@@ -616,6 +634,59 @@ function PhotoStrip({ item, rangeId, onUpdate }: { item: PresentedItem; rangeId:
       {contradictions.map((c) => <p key={c} className="piece-hint warn">{c}</p>)}
       {problems.length > 0 && <details className="piece-alts piece-issues"><summary>{problems.length} photo {problems.length === 1 ? "problem" : "problems"}</summary><ul>{problems.map((m) => <li key={m}>{m}</li>)}</ul></details>}
       {err && <p className="err">{err}</p>}
+    </div>
+  );
+}
+
+/**
+ * The range's four steps, with where you are and what to do next (asked for by Nitin, 28 Nov 2026: a guided journey
+ * for a first-time buyer). Each step is worked out from the pieces, so it can't fall out of step with them.
+ */
+function RangeSteps({ items, ready, named, rangeId, naming, onApply, onName }: { items: PresentedItem[]; ready: number; named: number; rangeId: string; naming: boolean; onApply: () => void; onName: () => void }) {
+  const reading = items.filter((i) => i.status === "queued" || i.status === "reading").length;
+  const short = items.filter((i) => (i.status === "review" || i.status === "read_failed" || i.status === "not_product") && !canName(i.details));
+  const namingNow = items.filter((i) => i.status === "to_name" || i.status === "naming").length;
+  const left = items.filter((i) => i.status === "review").length;
+  const done = [items.length > 0, items.length > 0 && !reading && !short.length, items.length > 0 && !left && !namingNow && named > 0, false];
+  const current = done.findIndex((d) => !d);
+  const needs = [...new Set(short.flatMap((i) => missingToName(i.details)))];
+  const steps = ["Add pieces", "Fill in the basics", "Name them", "Review and download"];
+  const next = [
+    <>Drop photos, or add a spreadsheet of your pieces. Nothing is named until you say so.</>,
+    reading
+      ? <>Reading {reading} {reading === 1 ? "photo" : "photos"}: each fills in what it shows. Then check each piece&apos;s details.</>
+      : <>{short.length} {short.length === 1 ? "piece needs" : "pieces need"} {needs.join(", ") || "a detail"} before naming. <button className="link" onClick={onApply}>Apply to every piece</button> fills one detail in for all of them.{ready > 0 ? <> Or <button className="link" onClick={onName} disabled={naming}>name the {ready} ready</button> now.</> : null}</>,
+    namingNow
+      ? <>Naming {namingNow} {namingNow === 1 ? "piece" : "pieces"}, about 20 seconds each.</>
+      : <>{ready} {ready === 1 ? "piece is" : "pieces are"} ready. <button className="link" onClick={onName} disabled={naming || !ready}>Name {ready === 1 ? "it" : "them"}</button></>,
+    <>Check each name on the <Link href="/review">Review page</Link> before it goes live, then <a href={`/api/ranges/${rangeId}/download`}>download the names</a>.</>,
+  ];
+  return (
+    <div className="range-steps" aria-label="Steps">
+      <ol>
+        {steps.map((t, k) => (
+          <li key={t} className={done[k] ? "done" : k === current ? "now" : undefined} aria-current={k === current ? "step" : undefined}>
+            <span className="step-n">{k + 1}</span> <span className="step-t">{t}</span>{done[k] && <span className="sr-only"> (done)</span>}
+          </li>
+        ))}
+      </ol>
+      {current >= 0 && <p className="range-next"><b>Next:</b> {next[current]}</p>}
+    </div>
+  );
+}
+
+const SEASON: Record<string, string> = { summer: "Summer", winter: "Winter", "trans-seasonal": "All year round" };
+/** "Ideal for: Work and office · Everyday casual · Summer", and who it's for: from the brand's own profile, never guessed. */
+function IdealFor({ sheet, audience, pieceAudience }: { sheet: ProductSheet; audience: string | null; pieceAudience: string | null }) {
+  const uses = [...sheet.idealFor.live.map((v) => v.label), ...(sheet.season && sheet.season.confidence === "high" ? [SEASON[sheet.season.value] ?? sheet.season.value] : [])];
+  const maybe = sheet.idealFor.review.map((v) => v.label);
+  const who = audience ?? pieceAudience;
+  if (!uses.length && !maybe.length && !who) return null;
+  return (
+    <div className="piece-ideal">
+      {uses.length > 0 && <p><b>Ideal for</b> {uses.join(" · ")}</p>}
+      {maybe.length > 0 && <p className="muted">Maybe also, to check: {maybe.join(" · ")}</p>}
+      {who && <p><b>Who it&apos;s for</b> {who}{audience ? <span className="muted"> (your brand&apos;s customer)</span> : null}</p>}
     </div>
   );
 }

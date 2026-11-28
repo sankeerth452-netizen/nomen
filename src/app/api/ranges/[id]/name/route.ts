@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { requireCapability } from "@/lib/review/guard";
 import { errorResponse, HttpError, requireUser } from "@/lib/auth/guards";
-import { asDetails, isReady, loadRangeFor } from "@/lib/batch/ranges";
+import { asDetails, loadRangeFor } from "@/lib/batch/ranges";
+import { canName } from "@/lib/batch/shared";
 import { kick } from "@/lib/batch/worker";
 import { COPY } from "@/lib/copy";
 
@@ -18,7 +19,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       where: { batchId: b.id, status: { in: only ? ["review", "needs_input", "failed", "named"] : ["review"] }, ...(only ? { id: { in: only } } : {}) },
       select: { id: true, details: true },
     });
-    const ready = candidates.filter((c) => isReady(asDetails(c.details))).map((c) => c.id);
+    const ready = candidates.filter((c) => canName(asDetails(c.details))).map((c) => c.id);
     if (!ready.length) throw new HttpError(400, COPY.range.nothingReady);
     await db.batchItem.updateMany({ where: { id: { in: ready } }, data: { status: "to_name", claimedAt: null, updatedAt: new Date() } }); // updateMany leaves updatedAt alone; the range screen reads it
     kick();

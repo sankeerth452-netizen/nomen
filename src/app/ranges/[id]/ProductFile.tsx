@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { FEED_TARGETS, type FeedTarget } from "@/lib/feed/shared";
+import Hint from "@/components/Hint";
 
 type Preview = { headers: string[]; suggestedMapping: Record<string, FeedTarget>; remembered?: string[]; preview: Record<string, unknown>[]; format: string };
 
@@ -34,7 +35,7 @@ export default function ProductFile({ rangeId }: { rangeId: string }) {
 
   return (
     <div className="card product-file">
-      <strong>Or start from your product file</strong>
+      <strong>Or start from your store&apos;s product file<Hint text="For products you already sell: your Google Merchant Center feed or a Shopify export. Nomen renames them and gives you a file to upload back to Google. Your prices, stock and barcodes are never changed." /></strong>
       <p className="muted">Your Google Merchant Center feed, a Shopify product export or any spreadsheet with one row per SKU (CSV or Excel, up to 30MB). Each product&apos;s photo is read from its image link, and its sizes are named together. Nothing in your file is changed: prices, stock and barcodes stay yours. Every product in the file is added, however many.</p>
       <label htmlFor="productFile">File</label>
       <input id="productFile" type="file" accept=".csv,.xlsx" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setPreview(null); setError(""); }} />
